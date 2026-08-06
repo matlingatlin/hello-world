@@ -6,7 +6,7 @@ Status legend: ☐ not started · ◐ in progress · ☑ done
 Goal: a repo we can work in, organised from day one.
 Deliverable: repository + document skeleton + CLAUDE.md, first commit.
 
-## Phase 1 — Vision, scope & features   ☐ ← next
+## Phase 1 — Vision, scope & features  ◐  ← in progress
 Goal: decide who it's for and how it's positioned vs Lovable; brainstorm → prioritise
 the feature set; choose MVP scope and the flagship differentiator.
 Deliverable: completed PRD + prioritised feature list.
