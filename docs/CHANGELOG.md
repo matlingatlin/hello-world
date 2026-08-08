@@ -5,6 +5,10 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-07 — Phase 2 app-shell prototype complete: every screen clickable with mocked
+  data (projects, create/type-select, wizard + wholeness panel, spec gate, involvement,
+  design mode with numbered annotation, build view, reveal + honest status, live feedback,
+  versions, ship/export, settings, error & empty states, notifications) -> apps/app/prototype.html.
 - 2026-08-07 — Phase 1 (brand) complete: logo (assets/logo/scio-logo.svg, concept B tile
   monogram) and first marketing site (apps/website/index.html). Design tokens already in
   docs/DESIGN.md.
@@ -17,4 +21,4 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Phase 2: app shell + full visual (clickable, mocked) — every screen incl. error/settings/messages.
+- Implement the approved prototype as the real React app (apps/app), or start Phase 3 (backend foundations & auth).

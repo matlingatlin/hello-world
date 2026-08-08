@@ -20,4 +20,5 @@
 | B013 | Stack decisions as ADRs (cloud, sandbox, be, db, auth)   | PP0.2 | P0       | done        |
 | B014 | Logo (concept B, tile monogram) -> assets/logo           | PP1   | P0       | done        |
 | B015 | Marketing site v1 -> apps/website                        | PP1   | P0       | done        |
-| B016 | Phase 2: app shell + full visual (mocked)                | PP2   | P0       | todo        |
+| B016 | Phase 2: app shell + full visual (mocked)                | PP2   | P0       | done        |
+| B017 | Implement prototype as real React app (apps/app)         | PP2   | P0       | todo        |
