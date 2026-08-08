@@ -5,6 +5,13 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-08 — Phase 3.2 backend skeleton (apps/api): NestJS + Prisma with the full
+  DATA-MODEL schema (12 models + pgvector reference_embedding, initial migration,
+  docker-compose Postgres), typed API contract in packages/shared (@scio/shared),
+  Swagger at /docs, GET /health with DB connectivity, module stubs for
+  workspace/user/auth/project/spec/design/build/deployment/reference/usage/notification,
+  and an SSE stream stub. Build, boot, health and tests verified green. Auth logic and
+  CRUD deliberately left for 3.3/3.4.
 - 2026-08-07 — Phase 3.1 data model defined (ADR-0009 + docs/DATA-MODEL.md): workspace-scoped
   tenant isolation, git-backed version content, JSONB for spec/whole/status, pgvector for RAG,
   deployment + notification tables added, billing deferred to Phase 12.
@@ -24,4 +31,4 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Phase 3.2: backend skeleton + typed API contract (NestJS), then auth (Clerk) and project CRUD.
+- Phase 3.3: auth integration (Clerk), then 3.4: project CRUD + persistence.

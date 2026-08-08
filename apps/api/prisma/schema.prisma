@@ -1,0 +1,302 @@
+// Scio data model — translated from docs/DATA-MODEL.md (ADR-0009).
+// Everything is scoped by workspace_id (tenant boundary); enforcement happens in
+// every query at the service layer and in authorization (phase 3.3+).
+// Version *content* lives in git (build_version.git_sha) — the DB stays light.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+enum Plan {
+  starter
+  builder
+  team
+}
+
+enum UserRole {
+  owner
+  member
+}
+
+enum ProjectType {
+  app
+  website
+  automation
+}
+
+enum ProjectStatus {
+  draft
+  building
+  ready
+  error
+}
+
+enum MessageRole {
+  user
+  scio
+}
+
+enum DeploymentTarget {
+  scio_url
+  own_infra
+}
+
+enum DeploymentStatus {
+  pending
+  live
+  failed
+}
+
+enum ReferenceKind {
+  color
+  font
+  layout
+  document
+  brand
+  other
+}
+
+enum UsageKind {
+  generation
+  critique
+  sandbox
+  storage
+  other
+}
+
+enum NotificationKind {
+  build_done
+  needs_look
+  limit
+  cost
+  update
+}
+
+/// The tenant boundary. MVP: one workspace per user, auto-created on signup.
+model Workspace {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  plan      Plan     @default(starter)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users         User[]
+  projects      Project[]
+  usageEvents   UsageEvent[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+
+  @@map("workspace")
+}
+
+/// Links a Clerk identity (ADR-0008) to a workspace.
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  clerkUserId String   @unique @map("clerk_user_id")
+  email       String
+  workspaceId String   @map("workspace_id") @db.Uuid
+  role        UserRole @default(owner)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id])
+  notifications Notification[]
+
+  @@map("user")
+}
+
+model Project {
+  id          String        @id @default(uuid()) @db.Uuid
+  workspaceId String        @map("workspace_id") @db.Uuid
+  name        String
+  type        ProjectType   @default(app)
+  status      ProjectStatus @default(draft)
+  deletedAt   DateTime?     @map("deleted_at") // soft delete
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  workspace       Workspace            @relation(fields: [workspaceId], references: [id])
+  messages        Message[]
+  specVersions    SpecVersion[]
+  designVersions  DesignVersion[]
+  buildVersions   BuildVersion[]
+  deployments     Deployment[]
+  referenceAssets ReferenceAsset[]
+  embeddings      ReferenceEmbedding[]
+  usageEvents     UsageEvent[]
+
+  @@map("project")
+}
+
+/// Wizard conversation / context.
+model Message {
+  id        String      @id @default(uuid()) @db.Uuid
+  projectId String      @map("project_id") @db.Uuid
+  role      MessageRole
+  content   String
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@map("message")
+}
+
+/// Frozen spec/whole contract.
+model SpecVersion {
+  id          String   @id @default(uuid()) @db.Uuid
+  projectId   String   @map("project_id") @db.Uuid
+  number      Int
+  content     Json
+  assumptions Json
+  isCurrent   Boolean  @default(false) @map("is_current")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  project       Project        @relation(fields: [projectId], references: [id])
+  buildVersions BuildVersion[]
+
+  @@unique([projectId, number])
+  @@map("spec_version")
+}
+
+/// Approved design contract (Level 2).
+model DesignVersion {
+  id        String   @id @default(uuid()) @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  number    Int
+  ref       String // storage pointer / snapshot
+  isCurrent Boolean  @default(false) @map("is_current")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project       Project        @relation(fields: [projectId], references: [id])
+  buildVersions BuildVersion[]
+
+  @@unique([projectId, number])
+  @@map("design_version")
+}
+
+/// The version timeline. Code lives in git (gitSha). Restore = insert a new row;
+/// never delete history (non-destructive rollback).
+model BuildVersion {
+  id              String   @id @default(uuid()) @db.Uuid
+  projectId       String   @map("project_id") @db.Uuid
+  number          Int
+  description     String
+  gitSha          String   @map("git_sha")
+  honestStatus    Json     @map("honest_status") // { passed, needs_look[] }
+  specVersionId   String   @map("spec_version_id") @db.Uuid
+  designVersionId String?  @map("design_version_id") @db.Uuid
+  isCurrent       Boolean  @default(false) @map("is_current")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  project       Project        @relation(fields: [projectId], references: [id])
+  specVersion   SpecVersion    @relation(fields: [specVersionId], references: [id])
+  designVersion DesignVersion? @relation(fields: [designVersionId], references: [id])
+  deployments   Deployment[]
+
+  @@unique([projectId, number])
+  @@map("build_version")
+}
+
+/// Publish targets.
+model Deployment {
+  id             String           @id @default(uuid()) @db.Uuid
+  projectId      String           @map("project_id") @db.Uuid
+  buildVersionId String           @map("build_version_id") @db.Uuid
+  target         DeploymentTarget
+  url            String?
+  status         DeploymentStatus @default(pending)
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  project      Project      @relation(fields: [projectId], references: [id])
+  buildVersion BuildVersion @relation(fields: [buildVersionId], references: [id])
+
+  @@map("deployment")
+}
+
+/// Tagged RAG uploads. Files live in object storage; the DB holds pointers.
+model ReferenceAsset {
+  id         String        @id @default(uuid()) @db.Uuid
+  projectId  String        @map("project_id") @db.Uuid
+  kind       ReferenceKind
+  filename   String
+  storageUrl String        @map("storage_url")
+  extracted  Json
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  project    Project              @relation(fields: [projectId], references: [id])
+  embeddings ReferenceEmbedding[]
+
+  @@map("reference_asset")
+}
+
+/// pgvector retrieval table. The Python engine owns reads/writes of embeddings;
+/// the backend only needs the table to exist. Vector index added in raw SQL migration.
+model ReferenceEmbedding {
+  id        String                 @id @default(uuid()) @db.Uuid
+  projectId String                 @map("project_id") @db.Uuid
+  assetId   String                 @map("asset_id") @db.Uuid
+  chunk     String
+  embedding Unsupported("vector")?
+  createdAt DateTime               @default(now()) @map("created_at")
+
+  project Project        @relation(fields: [projectId], references: [id])
+  asset   ReferenceAsset @relation(fields: [assetId], references: [id])
+
+  @@map("reference_embedding")
+}
+
+/// Metering for cost/billing (billing tables themselves deferred to Phase 12).
+model UsageEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
+  projectId   String?   @map("project_id") @db.Uuid
+  kind        UsageKind
+  model       String?
+  amount      Decimal
+  cost        Decimal
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  project   Project?  @relation(fields: [projectId], references: [id])
+
+  @@map("usage_event")
+}
+
+model Notification {
+  id          String           @id @default(uuid()) @db.Uuid
+  workspaceId String           @map("workspace_id") @db.Uuid
+  userId      String           @map("user_id") @db.Uuid
+  kind        NotificationKind
+  title       String
+  body        String
+  read        Boolean          @default(false)
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@map("notification")
+}
+
+/// Security audit trail.
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  actor       String
+  action      String
+  target      String
+  metadata    Json
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@map("audit_log")
+}
