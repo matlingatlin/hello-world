@@ -11,12 +11,12 @@ import { PrismaService } from "../../prisma/prisma.service";
 export class DeploymentService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(projectId: string): Promise<DeploymentListResponse> {
+  async list(workspaceId: string, projectId: string): Promise<DeploymentListResponse> {
     // TODO(8): workspace-scoped listing.
     throw new NotImplementedException("deployment.list — phase 8");
   }
 
-  async create(projectId: string, body: CreateDeploymentRequest): Promise<DeploymentResponse> {
+  async create(workspaceId: string, projectId: string, body: CreateDeploymentRequest): Promise<DeploymentResponse> {
     // TODO(8): publish a build version; honest status travels with the deployment.
     throw new NotImplementedException("deployment.create — phase 8");
   }

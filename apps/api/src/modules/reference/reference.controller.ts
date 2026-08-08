@@ -1,3 +1,4 @@
+import { CurrentWorkspace } from "../../auth/auth-context";
 import { Body, Controller, Get, Param, Post } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type {
@@ -14,16 +15,17 @@ export class ReferenceController {
 
   @Get()
   @ApiOperation({ summary: "List tagged reference assets (stub)" })
-  list(@Param("projectId") projectId: string): Promise<ReferenceAssetListResponse> {
-    return this.references.list(projectId);
+  list(@CurrentWorkspace() workspaceId: string, @Param("projectId") projectId: string): Promise<ReferenceAssetListResponse> {
+    return this.references.list(workspaceId, projectId);
   }
 
   @Post()
   @ApiOperation({ summary: "Register a tagged reference upload (stub)" })
   create(
+    @CurrentWorkspace() workspaceId: string,
     @Param("projectId") projectId: string,
     @Body() body: CreateReferenceAssetRequest,
   ): Promise<ReferenceAssetResponse> {
-    return this.references.create(projectId, body);
+    return this.references.create(workspaceId, projectId, body);
   }
 }

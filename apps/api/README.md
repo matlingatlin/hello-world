@@ -34,3 +34,21 @@ Without a database the app still boots; `GET /health` then reports `db: "not_con
 
 The API contract types live in `packages/shared` (`@scio/shared`) and are shared with the
 future frontend. Swagger serves the live contract at `/docs`.
+
+## Auth (phase 3.3)
+
+All routes require a Clerk session JWT (`Authorization: Bearer …`) except `@Public()`
+ones (`/health`, `/auth/webhooks/clerk`). The flow:
+
+1. `AuthGuard` (global) verifies the token via the swappable `IdentityVerifier`
+   interface (`src/auth/identity-verifier.ts`) — Clerk is one implementation
+   (ADR-0008); tests use a fake.
+2. First authenticated request get-or-creates the local user AND their workspace
+   (one per user in MVP) in a transaction (`ProvisioningService`).
+3. The guard attaches `{ userId, workspaceId }`; handlers read it via
+   `@CurrentUser()` / `@CurrentWorkspace()`.
+4. Services use `WorkspaceScope.forWorkspace(workspaceId)` — a Prisma extension
+   that filters/stamps `workspace_id` on scoped models. Tenant isolation starts here.
+
+Set `CLERK_SECRET_KEY` in `.env` for real verification; without it, protected routes
+reject with 401.

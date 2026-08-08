@@ -15,12 +15,13 @@ import { PrismaService } from "../../prisma/prisma.service";
 export class ReferenceService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(projectId: string): Promise<ReferenceAssetListResponse> {
+  async list(workspaceId: string, projectId: string): Promise<ReferenceAssetListResponse> {
     // TODO(4.6): workspace-scoped listing.
     throw new NotImplementedException("reference.list — phase 4.6");
   }
 
   async create(
+    workspaceId: string,
     projectId: string,
     body: CreateReferenceAssetRequest,
   ): Promise<ReferenceAssetResponse> {

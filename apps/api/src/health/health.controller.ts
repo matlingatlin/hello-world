@@ -1,6 +1,7 @@
 import { Controller, Get } from "@nestjs/common";
 import { ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { HealthResponse } from "@scio/shared";
+import { Public } from "../auth/public.decorator";
 import { PrismaService } from "../prisma/prisma.service";
 
 @ApiTags("health")
@@ -8,6 +9,7 @@ import { PrismaService } from "../prisma/prisma.service";
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
+  @Public()
   @Get()
   @ApiOperation({ summary: "Liveness + database connectivity" })
   @ApiOkResponse({ description: "Service is up; db reports connectivity state." })

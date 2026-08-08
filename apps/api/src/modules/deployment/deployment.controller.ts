@@ -1,3 +1,4 @@
+import { CurrentWorkspace } from "../../auth/auth-context";
 import { Body, Controller, Get, Param, Post } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type {
@@ -14,16 +15,17 @@ export class DeploymentController {
 
   @Get()
   @ApiOperation({ summary: "List deployments (stub)" })
-  list(@Param("projectId") projectId: string): Promise<DeploymentListResponse> {
-    return this.deployments.list(projectId);
+  list(@CurrentWorkspace() workspaceId: string, @Param("projectId") projectId: string): Promise<DeploymentListResponse> {
+    return this.deployments.list(workspaceId, projectId);
   }
 
   @Post()
   @ApiOperation({ summary: "Publish a build version (stub)" })
   create(
+    @CurrentWorkspace() workspaceId: string,
     @Param("projectId") projectId: string,
     @Body() body: CreateDeploymentRequest,
   ): Promise<DeploymentResponse> {
-    return this.deployments.create(projectId, body);
+    return this.deployments.create(workspaceId, projectId, body);
   }
 }

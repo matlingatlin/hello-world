@@ -5,6 +5,14 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-08 — Phase 3.3 backend auth (apps/api): Clerk session-JWT verification behind a
+  swappable IdentityVerifier interface (ADR-0008), global auth guard with @Public()
+  exemptions (/health, Clerk webhook stub), get-or-create provisioning (first authenticated
+  request creates the user AND their MVP one-per-user workspace in a transaction), and
+  request context (@CurrentUser/@CurrentWorkspace) wired through every module. Tenant
+  scoping is now enforced at the data layer via a WorkspaceScope Prisma extension that
+  filters/stamps workspace_id on scoped models. Proven with a fake verifier in tests
+  (13 passing) + live 401/public-route checks; no real Clerk keys in this environment.
 - 2026-08-08 — Phase 3.2 backend skeleton (apps/api): NestJS + Prisma with the full
   DATA-MODEL schema (12 models + pgvector reference_embedding, initial migration,
   docker-compose Postgres), typed API contract in packages/shared (@scio/shared),
@@ -31,4 +39,4 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Phase 3.3: auth integration (Clerk), then 3.4: project CRUD + persistence.
+- Phase 3.4: project CRUD + persistence.

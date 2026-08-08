@@ -11,12 +11,12 @@ import { PrismaService } from "../../prisma/prisma.service";
 export class DesignService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(projectId: string): Promise<DesignVersionListResponse> {
+  async list(workspaceId: string, projectId: string): Promise<DesignVersionListResponse> {
     // TODO(6.3): workspace-scoped listing.
     throw new NotImplementedException("design.list — phase 6.3");
   }
 
-  async freeze(projectId: string, body: FreezeDesignRequest): Promise<DesignVersionResponse> {
+  async freeze(workspaceId: string, projectId: string, body: FreezeDesignRequest): Promise<DesignVersionResponse> {
     // TODO(6.3): freeze the approved design as a versioned contract.
     throw new NotImplementedException("design.freeze — phase 6.3");
   }

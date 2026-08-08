@@ -1,16 +1,15 @@
 import { Controller, Get } from "@nestjs/common";
-import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { AuthStatusResponse } from "@scio/shared";
-import { AuthService } from "./auth.service";
+import { CurrentUser } from "../../auth/auth-context";
 
 @ApiTags("auth")
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
-
   @Get("status")
-  @ApiOperation({ summary: "Auth status (stub — Clerk lands in phase 3.3)" })
-  status(): AuthStatusResponse {
-    return this.auth.status();
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Auth status for the authenticated caller" })
+  status(@CurrentUser() userId: string): AuthStatusResponse {
+    return { authenticated: true, userId };
   }
 }

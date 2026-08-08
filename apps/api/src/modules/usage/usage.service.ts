@@ -7,7 +7,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 export class UsageService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(): Promise<UsageListResponse> {
+  async list(workspaceId: string): Promise<UsageListResponse> {
     // TODO(4.5): workspace-scoped usage events for the caller's workspace only.
     throw new NotImplementedException("usage.list — phase 4.5");
   }

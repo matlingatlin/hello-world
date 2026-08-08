@@ -24,5 +24,5 @@
 | B017 | Implement prototype as real React app (apps/app)         | PP2   | P0       | todo        |
 | B018 | Data model (ADR-0009 + DATA-MODEL.md)                    | PP3.1 | P0       | done        |
 | B019 | Backend skeleton + API contract (NestJS)                 | PP3.2 | P0       | done        |
-| B020 | Auth integration (Clerk)                                 | PP3.3 | P0       | todo        |
+| B020 | Auth integration (Clerk)                                 | PP3.3 | P0       | done        |
 | B021 | Project CRUD + persistence                               | PP3.4 | P0       | todo        |

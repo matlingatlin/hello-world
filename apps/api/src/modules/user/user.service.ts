@@ -6,8 +6,8 @@ import { PrismaService } from "../../prisma/prisma.service";
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async me(): Promise<MeResponse> {
-    // TODO(3.3): look up the user by Clerk id from the verified JWT; include workspace.
-    throw new NotImplementedException("user.me — lands with auth (3.3)");
+  async me(userId: string): Promise<MeResponse> {
+    // TODO(3.4): return the provisioned user + workspace for this userId.
+    throw new NotImplementedException("user.me — phase 3.4");
   }
 }

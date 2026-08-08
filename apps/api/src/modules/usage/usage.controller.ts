@@ -1,3 +1,4 @@
+import { CurrentWorkspace } from "../../auth/auth-context";
 import { Controller, Get } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { UsageListResponse } from "@scio/shared";
@@ -10,7 +11,7 @@ export class UsageController {
 
   @Get()
   @ApiOperation({ summary: "Workspace usage events (stub)" })
-  list(): Promise<UsageListResponse> {
-    return this.usage.list();
+  list(@CurrentWorkspace() workspaceId: string): Promise<UsageListResponse> {
+    return this.usage.list(workspaceId);
   }
 }

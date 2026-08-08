@@ -1,3 +1,4 @@
+import { CurrentWorkspace } from "../../auth/auth-context";
 import { Body, Controller, Get, Param, Post } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type {
@@ -14,16 +15,17 @@ export class DesignController {
 
   @Get()
   @ApiOperation({ summary: "List approved design versions (stub)" })
-  list(@Param("projectId") projectId: string): Promise<DesignVersionListResponse> {
-    return this.designs.list(projectId);
+  list(@CurrentWorkspace() workspaceId: string, @Param("projectId") projectId: string): Promise<DesignVersionListResponse> {
+    return this.designs.list(workspaceId, projectId);
   }
 
   @Post()
   @ApiOperation({ summary: "Freeze the approved design as a new version (stub)" })
   freeze(
+    @CurrentWorkspace() workspaceId: string,
     @Param("projectId") projectId: string,
     @Body() body: FreezeDesignRequest,
   ): Promise<DesignVersionResponse> {
-    return this.designs.freeze(projectId, body);
+    return this.designs.freeze(workspaceId, projectId, body);
   }
 }
