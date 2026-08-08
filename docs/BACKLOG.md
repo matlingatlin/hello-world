@@ -22,3 +22,5 @@
 | B015 | Marketing site v1 -> apps/website                        | PP1   | P0       | done        |
 | B016 | Phase 2: app shell + full visual (mocked)                | PP2   | P0       | done        |
 | B017 | Implement prototype as real React app (apps/app)         | PP2   | P0       | todo        |
+| B018 | Data model (ADR-0009 + DATA-MODEL.md)                    | PP3.1 | P0       | done        |
+| B019 | Backend skeleton + API contract (NestJS)                 | PP3.2 | P0       | todo        |

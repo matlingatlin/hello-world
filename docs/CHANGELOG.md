@@ -5,6 +5,9 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-07 — Phase 3.1 data model defined (ADR-0009 + docs/DATA-MODEL.md): workspace-scoped
+  tenant isolation, git-backed version content, JSONB for spec/whole/status, pgvector for RAG,
+  deployment + notification tables added, billing deferred to Phase 12.
 - 2026-08-07 — Phase 2 app-shell prototype complete: every screen clickable with mocked
   data (projects, create/type-select, wizard + wholeness panel, spec gate, involvement,
   design mode with numbered annotation, build view, reveal + honest status, live feedback,
@@ -21,4 +24,4 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Implement the approved prototype as the real React app (apps/app), or start Phase 3 (backend foundations & auth).
+- Phase 3.2: backend skeleton + typed API contract (NestJS), then auth (Clerk) and project CRUD.
