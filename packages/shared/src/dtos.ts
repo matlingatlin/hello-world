@@ -11,6 +11,7 @@ import type {
   HonestStatus,
   Notification,
   Project,
+  ProjectStatus,
   ProjectType,
   ReferenceAsset,
   ReferenceKind,
@@ -47,10 +48,11 @@ export interface AuthStatusResponse {
 // project
 export interface CreateProjectRequest {
   name: string;
-  type: ProjectType;
+  type?: ProjectType;
 }
 export interface UpdateProjectRequest {
   name?: string;
+  status?: ProjectStatus;
 }
 export interface ProjectResponse {
   project: Project;

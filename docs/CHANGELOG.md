@@ -5,6 +5,14 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-08 — Phase 3.4 project CRUD (apps/api): first real persisted endpoints —
+  POST/GET/PATCH/DELETE /projects with workspace-scoped access via the 3.3 scoping
+  (create stamps workspace_id, list excludes soft-deleted and sorts newest first,
+  cross-tenant access is 404), class-validator DTOs in @scio/shared with a global
+  ValidationPipe (400 on invalid bodies), soft-delete via deleted_at, and OpenAPI
+  schemas for all five endpoints. Proven by an e2e test suite (fake identity, two
+  workspaces): full lifecycle, validation, 401, cross-tenant isolation — 20 tests green.
+  This completes the Phase 3 backend foundations (auth + projects).
 - 2026-08-08 — Phase 3.3 backend auth (apps/api): Clerk session-JWT verification behind a
   swappable IdentityVerifier interface (ADR-0008), global auth guard with @Public()
   exemptions (/health, Clerk webhook stub), get-or-create provisioning (first authenticated
@@ -39,4 +47,5 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Phase 3.4: project CRUD + persistence.
+- Chosen in the planning chat: Phase 4 (engine), Phase 5 (intake slice), or implementing
+  the prototype as the real React app (B017).
