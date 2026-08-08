@@ -5,6 +5,9 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-07 — Phase 1 (brand) complete: logo (assets/logo/scio-logo.svg, concept B tile
+  monogram) and first marketing site (apps/website/index.html). Design tokens already in
+  docs/DESIGN.md.
 - 2026-08-07 — Phase 0.2 stack decisions: cloud Azure (ADR-0004), sandbox ACA dynamic
   sessions (ADR-0005), backend Node/TS + Python engine (ADR-0006), database Postgres on
   Azure (ADR-0007), auth Clerk (ADR-0008).
@@ -14,5 +17,4 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Phase 1 (brand): logo, marketing website, and design tokens.
-- Phase 2: app shell + full visual (clickable, mocked).
+- Phase 2: app shell + full visual (clickable, mocked) — every screen incl. error/settings/messages.

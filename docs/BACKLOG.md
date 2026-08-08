@@ -18,3 +18,6 @@
 | B011 | Full project plan -> docs/PROJECT-PLAN.md                | PP1   | P0       | done        |
 | B012 | Documentation & checkpoint protocol                      | -     | P0       | done        |
 | B013 | Stack decisions as ADRs (cloud, sandbox, be, db, auth)   | PP0.2 | P0       | done        |
+| B014 | Logo (concept B, tile monogram) -> assets/logo           | PP1   | P0       | done        |
+| B015 | Marketing site v1 -> apps/website                        | PP1   | P0       | done        |
+| B016 | Phase 2: app shell + full visual (mocked)                | PP2   | P0       | todo        |
