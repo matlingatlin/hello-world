@@ -5,6 +5,15 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-08 — Phase 3.5a real React app, step 1 (apps/app): Vite + React + TS + Tailwind
+  scaffold with the DESIGN.md tokens as CSS variables (light default + dark toggle, fonts
+  loaded), design-system components from the prototype (buttons, status chips, sidebar,
+  topbar, state cards, logo tile), React Router shell, Clerk sign-in guarding the app, and
+  a typed API client (@scio/shared) that attaches the Clerk JWT and surfaces 401/400/network
+  errors. Projects (GET, with loading/empty/error states) and Create (POST → back to list)
+  are wired end-to-end; remaining screens are placeholders for step 2 (B022). Degrades
+  gracefully without Clerk keys (config notice) or backend (error state + retry). Build +
+  8 frontend tests green; full-stack run documented in apps/app/README.md.
 - 2026-08-08 — Phase 3.4 project CRUD (apps/api): first real persisted endpoints —
   POST/GET/PATCH/DELETE /projects with workspace-scoped access via the 3.3 scoping
   (create stamps workspace_id, list excludes soft-deleted and sorts newest first,
@@ -47,5 +56,4 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Chosen in the planning chat: Phase 4 (engine), Phase 5 (intake slice), or implementing
-  the prototype as the real React app (B017).
+- Phase 3.5b (B022): port the remaining prototype screens to React.

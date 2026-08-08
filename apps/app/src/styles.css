@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens — docs/DESIGN.md (drafting table / blueprint, ADR-0003) */
+:root {
+  --ink: #14181c;
+  --muted: #586268;
+  --paper: #e7ebea;
+  --surface: #f5f7f6;
+  --surface-2: #ffffff;
+  --line: #c6cfd1;
+  --line-strong: #93a1a6;
+  --teal: #0b5563;
+  --teal-hover: #094650;
+  --teal-tint: #dce8e9;
+  --verified: #2f7a57;
+  --attention: #b07d2b;
+  --error: #a5432e;
+  --tick: rgba(147, 161, 166, 0.5);
+  --on-teal: #ffffff;
+}
+[data-theme="dark"] {
+  --ink: #eaeeef;
+  --muted: #8c989e;
+  --paper: #121619;
+  --surface: #1a2024;
+  --surface-2: #20272c;
+  --line: #2c353a;
+  --line-strong: #3c474d;
+  --teal: #3fa8b8;
+  --teal-hover: #57bac9;
+  --teal-tint: #16323a;
+  --verified: #5fb088;
+  --attention: #d4a44e;
+  --error: #d6725c;
+  --tick: rgba(90, 102, 107, 0.6);
+  --on-teal: #0b1416;
+}
+
+body {
+  @apply bg-paper text-ink font-sans antialiased;
+  line-height: 1.5;
+}
+
+/* Drafting-surface ruling used on project thumbs (from the prototype) */
+.drafting {
+  background-image: linear-gradient(var(--tick) 1px, transparent 1px);
+  background-size: 100% 20px;
+}
