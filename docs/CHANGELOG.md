@@ -5,6 +5,10 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-07 — Layer B defined (ADR-0012 + docs/LAYER-B.md) and generated-app stack locked
+  (ADR-0011: Next.js + TypeScript + Tailwind + Supabase). Layer B manufactures the prompt
+  substrate: the whole, a machine-readable architecture graph, and the generation playbook,
+  with rule-based validation before generation.
 - 2026-08-08 — Layer A built in the engine (apps/engine — the engine scaffold now exists:
   Python + FastAPI + Pydantic, ruff + pytest, .env.example, /health): the INTAKE-SCHEMA
   as typed models (FieldMeta with value/source/confidence/provenance, DownstreamTag enum,
@@ -68,5 +72,4 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Layer B: understanding / architecture (design, planning chat). Then B031: engine provider
-  abstraction + matrix + multi-pass.
+- Build Layer B in the engine (architecture graph + playbook + validation), and build the engine's provider abstraction + matrix + multi-pass (B031). Then Layer C.
