@@ -1,0 +1,57 @@
+# The generation playbook — Scio's house rules, carried by EVERY build prompt.
+#
+# This is the single biggest "prompt the AI best" lever (docs/LAYER-B.md): it
+# turns "build X" into "build X the Scio way", consistently across every app and
+# every relay pass. Data, not code — edit here, no engine change needed.
+
+stack:
+  name: Next.js + TypeScript + Tailwind + Supabase
+  adr: ADR-0011
+  frontend: Next.js (App Router) + TypeScript, strict mode
+  styling: Tailwind CSS, tokens from the design_tokens node — no ad-hoc hex values
+  backend: Next.js server actions and route handlers — one framework, front and back
+  database: Supabase Postgres, accessed through the generated typed client
+  auth: Supabase Auth (omitted entirely when the app has no sign-in)
+  storage: Supabase Storage
+
+folder_structure:
+  - "app/ — routes; one folder per route segment, page.tsx per screen"
+  - "app/api/ — route handlers where a server action doesn't fit"
+  - "components/ — reusable UI; one component per file, named export"
+  - "lib/ — domain logic, the Supabase client, and shared helpers"
+  - "lib/db/ — queries and mutations; no raw SQL in components"
+  - "supabase/migrations/ — schema and RLS policies as SQL migrations"
+  - "types/ — shared TypeScript types generated from the schema"
+  - "tests/ — mirrors the source tree"
+
+naming:
+  files: kebab-case (booking-form.tsx)
+  components: PascalCase (BookingForm)
+  functions_and_variables: camelCase
+  database: snake_case, singular table names, id / created_at / updated_at everywhere
+  operations: verb_entity (create_booking) — matches the architecture's operation names
+
+secure_by_default:
+  - "Row-level security ON for every table, with explicit policies — never a blanket allow."
+  - "Validate every input at the server boundary with a schema (zod); never trust the client."
+  - "Authorization is checked server-side per operation; hiding a UI control is not access control."
+  - "Secrets only from environment variables — never in client code, never committed."
+  - "Parameterised queries only; no string-built SQL."
+  - "No secrets, tokens or personal data in logs or error messages."
+
+tests:
+  - "Every operation gets at least one test covering its happy path and its main failure."
+  - "Access rules get tests proving one user cannot reach another's rows."
+  - "Tests run without network access; external connectors are stubbed."
+
+accessibility:
+  - "Semantic HTML first; ARIA only where semantics fall short."
+  - "Every interactive element is keyboard reachable with a visible focus ring."
+  - "Form inputs have associated labels; errors are announced, not only coloured."
+  - "Respect prefers-reduced-motion; never convey meaning by colour alone."
+
+quality:
+  - "No dead code, no commented-out blocks, no TODOs left behind."
+  - "Comments explain why, never what the code already says."
+  - "Match the architecture's canonical vocabulary exactly — one name per concept."
+  - "Stay inside the scope guard (non-goals); do not build what was explicitly deferred."

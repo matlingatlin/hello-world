@@ -5,6 +5,21 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-09 — B034: Layer B built in the engine (apps/engine/layerb) — a buildable
+  AppSpec now yields all three LAYER-B.md outputs. Deterministic backbone (no LLM):
+  canonical vocabulary collapsing variant terms to one name, entities → tables with
+  relations and RLS on, sign_in → auth (no sign-in means no auth tables and contact-based
+  identity), roles → RBAC, actions → typed operations + screens/routing, sensitivity →
+  secure-by-default posture, conditionals → connectors, look → design tokens; every node
+  records the spec field it came from. Rule validation runs BEFORE any generation and
+  returns violations plus the exact spec fields to reopen surgically (missing entity,
+  ghost permission, no-login-vs-roles/user-data conflict, dangling FK). The whole is
+  generated through the B031 relay from a grounded fact set with assumptions flagged from
+  Layer A metadata, falling back to a deterministic narrative if no model answers. The
+  playbook (playbook.yaml: locked ADR-0011 stack, structure, naming, secure-by-default,
+  tests, a11y) assembles into build context. API: POST /architecture (422 on a
+  non-buildable spec). 115 tests + lint green; live runs verified, including a derivation
+  fix so "book a table" yields create_booking rather than create_table.
 - 2026-08-09 — B031: engine execution machinery (apps/engine/execution) — the layer
   Layer B, extraction and codegen will run on. A ModelProvider abstraction with
   Anthropic / OpenAI (incl. Azure OpenAI) / Google implementations plus a deterministic
@@ -84,4 +99,4 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Build Layer B in the engine (architecture graph + playbook + validation, B034). Then Layer C.
+- Layer C: build plan / decomposition (design, planning chat), then build it.

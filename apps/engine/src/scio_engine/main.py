@@ -25,6 +25,7 @@ from .execution.relay import (
 )
 from .intake.gate import BuildableResult, is_buildable, triggered_conditionals
 from .intake.schema import AppSpec
+from .layerb.service import LayerBResult, NotBuildableError, run_layer_b
 
 app = FastAPI(
     title="Scio Engine",
@@ -80,6 +81,34 @@ def validate_intake(spec: AppSpec) -> ValidateResponse:
         triggered=triggered_conditionals(spec),
         still_needed=[*result.missing_core, *result.unresolved_conditionals],
     )
+
+
+class ArchitectureRequest(BaseModel):
+    spec: AppSpec
+    whole_passes: int = Field(
+        default=2, description="Relay passes for the whole narrative (1-4)"
+    )
+
+
+@app.post("/architecture", response_model=LayerBResult)
+async def architecture(req: ArchitectureRequest) -> LayerBResult:
+    """Layer B: a buildable spec in, the whole + architecture graph + playbook +
+    validation out. Rejects a spec that hasn't passed Layer A's gate — running
+    Layer B on an incomplete spec would only produce a confident wrong answer."""
+    try:
+        return await run_layer_b(
+            req.spec, registry=build_registry(), whole_passes=req.whole_passes
+        )
+    except NotBuildableError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Spec is not buildable yet — finish the wizard first.",
+                "missing_core": exc.result.missing_core,
+                "unresolved_conditionals": exc.result.unresolved_conditionals,
+                "contradictions": [c.model_dump() for c in exc.result.contradictions],
+            },
+        ) from exc
 
 
 @app.get("/matrix/tasks")
