@@ -5,6 +5,18 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-09 — B031: engine execution machinery (apps/engine/execution) — the layer
+  Layer B, extraction and codegen will run on. A ModelProvider abstraction with
+  Anthropic / OpenAI (incl. Azure OpenAI) / Google implementations plus a deterministic
+  FakeProvider bound via a registry, so the whole flow runs with no API keys; a
+  data-driven capability matrix (matrix.yaml: 7 task types → ranked models with
+  cost/latency/context metadata) with top_n selection; the transparency narration; and
+  the multi-pass relay (best model → review passes → final pass back in the best),
+  with structured Pydantic hand-off between passes, per-task pass count, a hard 4-pass
+  cap, timeouts + retries, and a budget hook for 4.5 metering. API: POST /generate
+  streams narration + each pass + result as SSE, POST /generate/plan previews the
+  selection, GET /matrix/tasks lists the rankings. 56 tests + lint green; live SSE run
+  verified. No extraction, no Layer B logic, no codegen yet — those build on this.
 - 2026-08-07 — Layer B defined (ADR-0012 + docs/LAYER-B.md) and generated-app stack locked
   (ADR-0011: Next.js + TypeScript + Tailwind + Supabase). Layer B manufactures the prompt
   substrate: the whole, a machine-readable architecture graph, and the generation playbook,
@@ -72,4 +84,4 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Build Layer B in the engine (architecture graph + playbook + validation), and build the engine's provider abstraction + matrix + multi-pass (B031). Then Layer C.
+- Build Layer B in the engine (architecture graph + playbook + validation, B034). Then Layer C.

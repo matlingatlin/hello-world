@@ -7,19 +7,28 @@ dependencies = [
     "fastapi>=0.115",
     "pydantic>=2.9",
     "pydantic-settings>=2.5",
+    "pyyaml>=6.0",
     "uvicorn>=0.32",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3",
+    "pytest-asyncio>=0.24",
     "httpx>=0.27",
     "ruff>=0.7",
+]
+# Real model SDKs — only needed when calling real models (keys in env).
+providers = [
+    "anthropic>=0.40",
+    "openai>=1.55",
+    "google-genai>=0.3",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+asyncio_mode = "auto"
 
 [tool.ruff]
 src = ["src", "tests"]

@@ -31,7 +31,7 @@
 | B028 | Build Layer A in engine (Pydantic + is_buildable)        | PP4   | P0       | done        |
 | B029 | Layer B: understanding / architecture (design)           | PP4   | P0       | todo        |
 | B030 | Layer C: build plan / decomposition (design)             | PP4   | P0       | todo        |
-| B031 | Engine: scaffold + provider abstraction + matrix + multi-pass | PP4 | P0     | todo        |
+| B031 | Engine: scaffold + provider abstraction + matrix + multi-pass | PP4 | P0     | done        |
 | B032 | Generated-app stack locked (ADR-0011)                    | PP4   | P0       | done        |
 | B033 | Layer B: understanding/architecture (ADR-0012 + doc)     | PP4   | P0       | done        |
 | B034 | Build Layer B in engine (arch graph + playbook + validate) | PP4  | P0       | todo        |
