@@ -5,6 +5,14 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-08 — Layer A built in the engine (apps/engine — the engine scaffold now exists:
+  Python + FastAPI + Pydantic, ruff + pytest, .env.example, /health): the INTAKE-SCHEMA
+  as typed models (FieldMeta with value/source/confidence/provenance, DownstreamTag enum,
+  AppSpec with core / conditional / defaulted-and-flagged fields), is_buildable() per the
+  gate rule, trigger detection (incl. multiple-roles and sensitive-data derived triggers),
+  downstream-tag mapping for Layer C, and POST /intake/validate returning the verdict +
+  what's still needed. 21 tests + lint green; service boot verified live. No extraction/LLM
+  calls yet (4.3); matrix + multi-pass is the next engine kickoff (B031).
 - 2026-08-07 — Layer A intake schema defined (ADR-0010 + docs/INTAKE-SCHEMA.md): six core
   fields + conditional follow-ups + non-goals, per-field metadata (value/source/confidence/
   provenance), downstream build-area tags, and the is_buildable gate rule. Part of a
@@ -60,4 +68,5 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Build Layer A in the engine (Pydantic models + is_buildable + tests), then Layer B (understanding/architecture).
+- Layer B: understanding / architecture (design, planning chat). Then B031: engine provider
+  abstraction + matrix + multi-pass.

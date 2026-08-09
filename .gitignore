@@ -1,6 +1,13 @@
 # Dependencies
 node_modules/
 
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
 # Env & secrets
 .env
 .env.*
