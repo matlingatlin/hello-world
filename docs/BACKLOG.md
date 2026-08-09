@@ -27,3 +27,7 @@
 | B020 | Auth integration (Clerk)                                 | PP3.3 | P0       | done        |
 | B021 | Project CRUD + persistence                               | PP3.4 | P0       | done        |
 | B022 | Port remaining screens to React (step 2)                 | PP2   | P0       | todo        |
+| B027 | Layer A: intake schema (doc, ADR-0010)                   | PP4   | P0       | done        |
+| B028 | Build Layer A in engine (Pydantic + is_buildable)        | PP4   | P0       | todo        |
+| B029 | Layer B: understanding / architecture (design)           | PP4   | P0       | todo        |
+| B030 | Layer C: build plan / decomposition (design)             | PP4   | P0       | todo        |

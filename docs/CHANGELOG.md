@@ -5,6 +5,10 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-07 — Layer A intake schema defined (ADR-0010 + docs/INTAKE-SCHEMA.md): six core
+  fields + conditional follow-ups + non-goals, per-field metadata (value/source/confidence/
+  provenance), downstream build-area tags, and the is_buildable gate rule. Part of a
+  three-layer model: A intake -> B understanding -> C build plan.
 - 2026-08-08 — Phase 3.5a real React app, step 1 (apps/app): Vite + React + TS + Tailwind
   scaffold with the DESIGN.md tokens as CSS variables (light default + dark toggle, fonts
   loaded), design-system components from the prototype (buttons, status chips, sidebar,
@@ -56,4 +60,4 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Phase 3.5b (B022): port the remaining prototype screens to React.
+- Build Layer A in the engine (Pydantic models + is_buildable + tests), then Layer B (understanding/architecture).
