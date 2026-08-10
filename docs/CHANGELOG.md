@@ -5,6 +5,11 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-07 — Full technical architecture written (docs/ARCHITECTURE.md, replacing the skeleton):
+  service topology, the agent set (intake, architect, planner, design, builder, vision/critique,
+  validation) on the matrix + multi-pass relay, the shared A->B->C + sandbox + marking->code +
+  vision-loop core, end-to-end gate flow, data/persistence, cross-cutting security & cost,
+  type-awareness, and the built-vs-to-build sequence.
 - 2026-08-07 — Product overview written (docs/PRODUCT-OVERVIEW.md): the full refined vision —
   one engine / three gates, the shared A->B->C + sandbox + marking->code core, lifecycle &
   persistence, reference RAG, cost/estimate/budget, build-failure handling, security, wait UX,
@@ -103,4 +108,4 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Layer C (build plan / decomposition), then the full technical architecture (agents + models), then the builder + sandbox + marking->code core.
+- Layer C (the planner: decomposition into build packages), then the sandbox + marking->code core (the shared hard part).
