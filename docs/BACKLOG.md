@@ -36,3 +36,4 @@
 | B033 | Layer B: understanding/architecture (ADR-0012 + doc)     | PP4   | P0       | done        |
 | B034 | Build Layer B in engine (arch graph + playbook + validate) | PP4  | P0       | done        |
 | B035 | Layer C: build plan / decomposition (design)             | PP4   | P0       | todo        |
+| B036 | Product overview (synthesis doc)                         | PP4   | P0       | done        |

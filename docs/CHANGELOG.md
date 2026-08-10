@@ -5,6 +5,10 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-07 — Product overview written (docs/PRODUCT-OVERVIEW.md): the full refined vision —
+  one engine / three gates, the shared A->B->C + sandbox + marking->code core, lifecycle &
+  persistence, reference RAG, cost/estimate/budget, build-failure handling, security, wait UX,
+  and the three types (app/website/automation) with build order. Captured from the spec walkthrough.
 - 2026-08-09 — B034: Layer B built in the engine (apps/engine/layerb) — a buildable
   AppSpec now yields all three LAYER-B.md outputs. Deterministic backbone (no LLM):
   canonical vocabulary collapsing variant terms to one name, entities → tables with
@@ -99,4 +103,4 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Layer C: build plan / decomposition (design, planning chat), then build it.
+- Layer C (build plan / decomposition), then the full technical architecture (agents + models), then the builder + sandbox + marking->code core.
