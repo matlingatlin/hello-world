@@ -1,0 +1,297 @@
+"""Deterministic decomposition: architecture graph -> build packages (docs/LAYER-C.md).
+
+Rules group the nodes — foundation, schema, auth, one package per feature,
+connectors, design tokens — and a topological sort turns the dependency edges
+into the build sequence. No model call happens here; the LLM is reserved for
+genuinely ambiguous grouping (see judgment.py).
+
+Granularity is per feature: an entity's operations plus its screens. Per file
+would be too fine to stay coherent; per app would be the huge-context failure
+mode Scio exists to fix.
+"""
+
+from __future__ import annotations
+
+from ..layerb.architecture import Architecture, AuthMode
+from .plan import BuildPackage, BuildPlan, NodeRef, PackageInterface, PackageKind
+
+FOUNDATION_ID = "pkg_foundation"
+SCHEMA_ID = "pkg_schema"
+AUTH_ID = "pkg_auth"
+TOKENS_ID = "pkg_design_tokens"
+
+
+class CyclicPlanError(ValueError):
+    """Raised when the dependency graph cannot be ordered."""
+
+
+def architecture_nodes(arch: Architecture) -> list[NodeRef]:
+    """Every node a package must cover. Coverage is checked against this list,
+    so anything addable to the architecture must be addable here too."""
+    nodes = [NodeRef(kind="table", name=t.name) for t in arch.data_model.tables]
+    nodes += [NodeRef(kind="operation", name=op.name) for op in arch.operations]
+    nodes += [NodeRef(kind="screen", name=s.route) for s in arch.screens_routing.screens]
+    nodes += [NodeRef(kind="connector", name=c.name) for c in arch.connectors]
+    nodes.append(NodeRef(kind="auth", name="auth_access"))
+    nodes.append(NodeRef(kind="tokens", name="design_tokens"))
+    nodes.append(NodeRef(kind="security", name="security_posture"))
+    return nodes
+
+
+def _shell_screens(arch: Architecture) -> list:
+    """Screens that carry no operations — home, orientation, navigation. They
+    belong to the shell; without this they'd belong to no feature and quietly
+    vanish from the built app."""
+    return [s for s in arch.screens_routing.screens if not s.operations]
+
+
+def _foundation_package(arch: Architecture) -> BuildPackage:
+    shell_screens = _shell_screens(arch)
+    routes = [s.route for s in shell_screens]
+    return BuildPackage(
+        id=FOUNDATION_ID,
+        kind=PackageKind.foundation,
+        goal=(
+            "Scaffold the locked stack: a Next.js + TypeScript + Tailwind project wired to "
+            "Supabase, with the folder structure, linting and test runner in place"
+            + (f", plus the app shell and its screens ({', '.join(routes)})." if routes else ".")
+        ),
+        architecture_slice=[
+            NodeRef(kind="security", name="security_posture"),
+            *[NodeRef(kind="screen", name=route) for route in routes],
+        ],
+        dependencies=[],
+        interface=PackageInterface(
+            routes=routes,
+            exports=["app shell", "navigation", "supabase client", "test runner", "lint config"],
+        ),
+        acceptance_criteria=[
+            "The project builds and starts with no errors.",
+            "The test runner executes and passes on an empty suite.",
+            "Secrets are read from environment variables only.",
+            "Secure defaults from the playbook are configured (headers, input validation helper).",
+            *(
+                [f"The shell screens render and navigation reaches them: {', '.join(routes)}."]
+                if routes
+                else []
+            ),
+        ],
+    )
+
+
+def _schema_package(arch: Architecture) -> BuildPackage:
+    tables = [t.name for t in arch.data_model.tables]
+    criteria = [
+        "Every table exists with its columns, keys and timestamps.",
+        "Row-level security is enabled on every table with explicit policies.",
+        "Foreign keys resolve and migrations run cleanly from empty.",
+    ]
+    if not tables:
+        criteria = ["No tables are required by the architecture."]
+    return BuildPackage(
+        id=SCHEMA_ID,
+        kind=PackageKind.schema,
+        goal=(
+            "Create the Supabase schema: "
+            + (", ".join(tables) if tables else "no tables required")
+            + " — as SQL migrations, with row-level security on."
+        ),
+        architecture_slice=[NodeRef(kind="table", name=name) for name in tables],
+        dependencies=[FOUNDATION_ID],
+        interface=PackageInterface(tables=tables, exports=["generated database types"]),
+        acceptance_criteria=criteria,
+    )
+
+
+def _auth_package(arch: Architecture) -> BuildPackage:
+    auth = arch.auth_access
+    if auth.mode is AuthMode.none:
+        goal = (
+            "Set up identification without accounts: guests are identified by "
+            f"{', '.join(auth.identity_fields) or 'contact details'}. Deliberately no auth "
+            "tables, no sessions, no login UI."
+        )
+        criteria = [
+            "No authentication tables, providers or login screens exist.",
+            f"Records capture {', '.join(auth.identity_fields) or 'contact details'} instead.",
+        ]
+        exports = ["guest identification helper"]
+    else:
+        roles = ", ".join(r.name for r in auth.roles) or "a single role"
+        goal = (
+            f"Set up {auth.mode.value} sign-in via {auth.provider}, with sessions and the "
+            f"access rules for {roles}."
+        )
+        criteria = [
+            "A user can sign in and out; sessions persist across reloads.",
+            "Server-side authorization is enforced per operation, not only in the UI.",
+            "A user cannot read or change another user's rows (covered by a test).",
+        ]
+        exports = ["session helper", "authorization guard"]
+
+    return BuildPackage(
+        id=AUTH_ID,
+        kind=PackageKind.auth,
+        goal=goal,
+        architecture_slice=[NodeRef(kind="auth", name="auth_access")],
+        dependencies=[FOUNDATION_ID, SCHEMA_ID],
+        interface=PackageInterface(exports=exports),
+        acceptance_criteria=criteria,
+    )
+
+
+def _feature_packages(arch: Architecture) -> list[BuildPackage]:
+    """One package per feature: an entity's operations plus the screens that use
+    them. Operations with no entity are grouped under a "general" feature so
+    nothing is silently dropped — validation then reports them if they are
+    genuinely unattached."""
+    by_entity: dict[str, list] = {}
+    for op in arch.operations:
+        by_entity.setdefault(op.entity or "general", []).append(op)
+
+    packages: list[BuildPackage] = []
+    for entity, ops in by_entity.items():
+        op_names = {op.name for op in ops}
+        screens = [
+            s
+            for s in arch.screens_routing.screens
+            if s.operations and set(s.operations) & op_names
+        ]
+        protected = any(s.requires_role for s in screens) or bool(arch.auth_access.permissions)
+
+        slice_nodes = [NodeRef(kind="operation", name=op.name) for op in ops]
+        slice_nodes += [NodeRef(kind="screen", name=s.route) for s in screens]
+
+        dependencies = [FOUNDATION_ID, SCHEMA_ID, TOKENS_ID]
+        if protected or arch.auth_access.mode is not AuthMode.none:
+            dependencies.append(AUTH_ID)
+
+        packages.append(
+            BuildPackage(
+                id=f"pkg_feature_{entity}",
+                kind=PackageKind.feature,
+                goal=(
+                    f"Build the {entity} feature: "
+                    + ", ".join(op.description or op.name for op in ops)
+                    + (
+                        f" — with the screens {', '.join(s.route for s in screens)}."
+                        if screens
+                        else " (no dedicated screen)."
+                    )
+                ),
+                architecture_slice=slice_nodes,
+                dependencies=dependencies,
+                interface=PackageInterface(
+                    operations=sorted(op_names),
+                    routes=sorted(s.route for s in screens),
+                ),
+                acceptance_criteria=[
+                    *(
+                        f"'{op.description or op.name}' works end to end and persists."
+                        for op in ops
+                    ),
+                    "Inputs are validated server-side and invalid input is rejected clearly.",
+                    "The screens render without console errors and are keyboard navigable.",
+                    "Each operation has a test for its happy path and its main failure.",
+                ],
+            )
+        )
+    return packages
+
+
+def _connector_packages(arch: Architecture) -> list[BuildPackage]:
+    return [
+        BuildPackage(
+            id=f"pkg_connector_{connector.name}",
+            kind=PackageKind.connector,
+            goal=f"Wire up the {connector.kind} connector: {connector.detail}",
+            architecture_slice=[NodeRef(kind="connector", name=connector.name)],
+            dependencies=[FOUNDATION_ID, SCHEMA_ID],
+            interface=PackageInterface(exports=[f"{connector.name} client"]),
+            acceptance_criteria=[
+                f"The {connector.kind} integration works against its sandbox/test mode.",
+                "Credentials come from environment variables; none appear in code or logs.",
+                "Failures degrade gracefully with a clear message rather than crashing.",
+            ],
+        )
+        for connector in arch.connectors
+    ]
+
+
+def _tokens_package(arch: Architecture) -> BuildPackage:
+    return BuildPackage(
+        id=TOKENS_ID,
+        kind=PackageKind.design_tokens,
+        goal=(
+            "Encode the design tokens (palette, typography, radius) as CSS variables and a "
+            "Tailwind theme, so every screen styles from tokens rather than ad-hoc values."
+        ),
+        architecture_slice=[NodeRef(kind="tokens", name="design_tokens")],
+        dependencies=[FOUNDATION_ID],
+        interface=PackageInterface(exports=["design tokens", "tailwind theme"]),
+        acceptance_criteria=[
+            "Tokens are defined once and consumed by the Tailwind config.",
+            "No hard-coded colours or font families outside the token definitions.",
+        ],
+    )
+
+
+def decompose(arch: Architecture) -> list[BuildPackage]:
+    """Group the architecture graph into packages. Deterministic."""
+    packages = [
+        _foundation_package(arch),
+        _schema_package(arch),
+        _tokens_package(arch),
+        _auth_package(arch),
+        *_feature_packages(arch),
+        *_connector_packages(arch),
+    ]
+    return packages
+
+
+def topological_order(packages: list[BuildPackage]) -> list[str]:
+    """Build sequence from the dependency edges (Kahn's algorithm).
+
+    Ties are broken by package id so the order is reproducible — a plan that
+    shuffles between runs would make diffing builds impossible.
+    """
+    ids = {p.id for p in packages}
+    remaining = {p.id: {d for d in p.dependencies if d in ids} for p in packages}
+    order: list[str] = []
+
+    while remaining:
+        ready = sorted(pid for pid, deps in remaining.items() if not deps)
+        if not ready:
+            raise CyclicPlanError(
+                "Dependency cycle among packages: " + ", ".join(sorted(remaining))
+            )
+        for pid in ready:
+            order.append(pid)
+            del remaining[pid]
+        for deps in remaining.values():
+            deps.difference_update(ready)
+    return order
+
+
+def mark_parallelizable(packages: list[BuildPackage]) -> None:
+    """Flag packages that share no dependency path with a sibling of the same
+    kind. MVP builds sequentially; this is the information a later scheduler
+    needs, recorded now while the graph is in hand."""
+    features = [p for p in packages if p.kind is PackageKind.feature]
+    connectors = [p for p in packages if p.kind is PackageKind.connector]
+    for group in (features, connectors):
+        if len(group) > 1:
+            for package in group:
+                package.parallelizable = True
+
+
+def build_plan(arch: Architecture) -> BuildPlan:
+    """The deterministic plan: packages, dependency graph, build order."""
+    packages = decompose(arch)
+    mark_parallelizable(packages)
+    order = topological_order(packages)
+    return BuildPlan(
+        packages=packages,
+        order=order,
+        graph={p.id: list(p.dependencies) for p in packages},
+    )

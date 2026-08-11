@@ -38,4 +38,5 @@
 | B035 | Layer C: build plan / decomposition (design)             | PP4   | P0       | done        |
 | B036 | Product overview (synthesis doc)                         | PP4   | P0       | done        |
 | B037 | Technical architecture (docs/ARCHITECTURE.md)            | PP4   | P0       | done        |
-| B038 | Build Layer C in engine (the planner)                    | PP4   | P0       | todo        |
+| B038 | Build Layer C in engine (the planner)                    | PP4   | P0       | done        |
+| B039 | Sandbox + marking->code core (the shared hard part)      | PP6   | P0       | todo        |

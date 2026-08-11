@@ -25,7 +25,9 @@ from .execution.relay import (
 )
 from .intake.gate import BuildableResult, is_buildable, triggered_conditionals
 from .intake.schema import AppSpec
+from .layerb.architecture import Architecture
 from .layerb.service import LayerBResult, NotBuildableError, run_layer_b
+from .layerc.service import LayerCResult, run_layer_c
 
 app = FastAPI(
     title="Scio Engine",
@@ -109,6 +111,27 @@ async def architecture(req: ArchitectureRequest) -> LayerBResult:
                 "contradictions": [c.model_dump() for c in exc.result.contradictions],
             },
         ) from exc
+
+
+class PlanRequest(BaseModel):
+    architecture: Architecture
+    whole: str = Field(default="", description="The approved whole, for each package's 'why'")
+    use_judgment: bool = Field(
+        default=True,
+        description="Consult the relay for genuinely ambiguous grouping; false stays deterministic",
+    )
+
+
+@app.post("/plan", response_model=LayerCResult)
+async def plan(req: PlanRequest) -> LayerCResult:
+    """Layer C: a Layer B architecture in, a validated build plan out — ordered,
+    contract-bearing packages with their assembled prompts."""
+    return await run_layer_c(
+        req.architecture,
+        registry=build_registry(),
+        whole=req.whole,
+        use_judgment=req.use_judgment,
+    )
 
 
 @app.get("/matrix/tasks")

@@ -9,9 +9,11 @@ Python + FastAPI + Pydantic (ADR-0006). Two things live here today:
 - **Layer B** — a buildable spec becomes the whole, a machine-readable
   architecture graph, and the generation playbook, validated before generation
   (`docs/LAYER-B.md`).
+- **Layer C** — the architecture becomes a validated, dependency-ordered plan of
+  small contract-bearing build packages (`docs/LAYER-C.md`).
 
-Requirements extraction (4.3), Layer C (build decomposition) and codegen are
-still to come.
+That completes the A -> B -> C brain. Requirements extraction (4.3), the builder,
+the sandbox and the marking->code core are still to come.
 
 ## Run locally
 
@@ -99,6 +101,26 @@ A spec that hasn't passed the gate gets a 422 listing what's missing; an
 architecture that fails validation still returns, with `validation.valid: false`
 and `revisit_fields` naming the spec fields the wizard should reopen.
 
+## Run Layer C
+
+`POST /plan` takes a Layer B architecture and returns the build plan: ordered
+packages, the dependency graph, the validation result, and each package's
+assembled contract prompt.
+
+```bash
+# take the architecture straight from /architecture:
+curl -s -X POST localhost:8000/architecture -H "Content-Type: application/json" \
+  -d @spec.json > arch.json
+python3 -c "import json; d=json.load(open('arch.json')); \
+  json.dump({'architecture': d['architecture'], 'whole': d['whole']['narrative']}, \
+  open('plan-req.json','w'))"
+curl -s -X POST localhost:8000/plan -H "Content-Type: application/json" -d @plan-req.json
+```
+
+Decomposition and ordering are deterministic. The relay is consulted only when
+the rules leave something genuinely ambiguous (an operation the architecture
+couldn't attach to an entity); pass `"use_judgment": false` to skip even that.
+
 ## Layout
 
 - `src/scio_engine/intake/schema.py` — FieldMeta (value/source/confidence/provenance),
@@ -126,5 +148,12 @@ and `revisit_fields` naming the spec fields the wizard should reopen.
 - `src/scio_engine/layerb/whole.py` — the narrative, generated via the relay from
   a grounded fact set.
 - `src/scio_engine/layerb/service.py` — derive → validate → generate, in that order.
+- `src/scio_engine/layerc/plan.py` — BuildPackage / BuildPlan / NodeRef.
+- `src/scio_engine/layerc/decompose.py` — the deterministic planner: foundation,
+  schema, auth, one package per feature, connectors, tokens; topological ordering.
+- `src/scio_engine/layerc/contract.py` — assembles each package's prompt: its
+  slice in full detail, its dependencies' *interfaces* only, the why, the rules.
+- `src/scio_engine/layerc/validate.py` — coverage, acyclicity, contract checks.
+- `src/scio_engine/layerc/judgment.py` — the one place the relay is consulted.
 - `src/scio_engine/main.py` — FastAPI app: `/health`, `/intake/validate`,
-  `/matrix/tasks`, `/generate/plan`, `/generate`, `/architecture`.
+  `/matrix/tasks`, `/generate/plan`, `/generate`, `/architecture`, `/plan`.

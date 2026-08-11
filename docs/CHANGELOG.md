@@ -5,6 +5,19 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-09 — B038: Layer C built in the engine (apps/engine/layerc) — **the A -> B -> C brain
+  is now complete**. A Layer B architecture becomes a validated build plan: deterministic
+  decomposition into foundation / schema / auth / one-package-per-feature / connectors / tokens,
+  a dependency graph topologically ordered (foundation first, schema and tokens before the
+  features that use them, auth before protected features), sibling packages flagged
+  parallelizable. Each package carries a full contract — its architecture slice in detail, its
+  dependencies' *interfaces* only (never their code), the why, the house rules, canonical
+  vocabulary, scope guard and testable acceptance criteria — assembled into the builder's prompt.
+  Plan validation before building catches dropped nodes, cycles, missing dependencies, broken
+  order and incomplete contracts. The relay is consulted only for genuinely ambiguous grouping.
+  API: POST /plan. 155 tests + lint green; full A->B->C chain verified live, including a
+  decomposition fix so operation-less shell screens (Home) belong to the foundation package
+  instead of silently vanishing.
 - 2026-08-07 — Layer C defined (ADR-0013 + docs/LAYER-C.md): decompose the architecture graph into
   a dependency-ordered graph of small, contract-bearing build packages (per-feature granularity),
   with deterministic grouping, topological ordering, and plan validation before building. This is
@@ -113,4 +126,4 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Build Layer C in the engine (the planner), then the sandbox + marking->code core (the shared hard part).
+- The sandbox + marking->code core (the shared hard part), then the builder + vision loop.
