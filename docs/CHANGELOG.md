@@ -5,6 +5,11 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-07 — Layer C defined (ADR-0013 + docs/LAYER-C.md): decompose the architecture graph into
+  a dependency-ordered graph of small, contract-bearing build packages (per-feature granularity),
+  with deterministic grouping, topological ordering, and plan validation before building. This is
+  the marking->code mapping and the basis for directed regeneration, cost control, and failure
+  isolation.
 - 2026-08-07 — Full technical architecture written (docs/ARCHITECTURE.md, replacing the skeleton):
   service topology, the agent set (intake, architect, planner, design, builder, vision/critique,
   validation) on the matrix + multi-pass relay, the shared A->B->C + sandbox + marking->code +
@@ -108,4 +113,4 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Layer C (the planner: decomposition into build packages), then the sandbox + marking->code core (the shared hard part).
+- Build Layer C in the engine (the planner), then the sandbox + marking->code core (the shared hard part).
