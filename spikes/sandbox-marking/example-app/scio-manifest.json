@@ -1,0 +1,101 @@
+{
+  "$comment": "SPIKE: hand-written stand-in for what the builder will emit per package. Maps element identity -> Layer C package -> source location.",
+  "version": 1,
+  "packages": {
+    "pkg_foundation": {
+      "files": ["app/layout.tsx", "components/site-header.tsx"],
+      "goal": "App shell and navigation"
+    },
+    "pkg_design_tokens": {
+      "files": ["app/globals.css"],
+      "goal": "Design tokens as CSS variables"
+    },
+    "pkg_feature_booking": {
+      "files": ["app/page.tsx", "components/booking-form.tsx", "components/booking-list.tsx"],
+      "goal": "The booking feature: create, list and cancel bookings"
+    }
+  },
+  "elements": {
+    "site-header": {
+      "package": "pkg_foundation",
+      "file": "components/site-header.tsx",
+      "component": "SiteHeader",
+      "line": 5
+    },
+    "main": {
+      "package": "pkg_foundation",
+      "file": "app/layout.tsx",
+      "component": "RootLayout",
+      "line": 13
+    },
+    "booking-form": {
+      "package": "pkg_feature_booking",
+      "file": "components/booking-form.tsx",
+      "component": "BookingForm",
+      "line": 13
+    },
+    "booking-form-title": {
+      "package": "pkg_feature_booking",
+      "file": "components/booking-form.tsx",
+      "component": "BookingForm",
+      "line": 14
+    },
+    "booking-form-subtitle": {
+      "package": "pkg_feature_booking",
+      "file": "components/booking-form.tsx",
+      "component": "BookingForm",
+      "line": 17
+    },
+    "booking-field-date": {
+      "package": "pkg_feature_booking",
+      "file": "components/booking-form.tsx",
+      "component": "BookingForm",
+      "line": 22
+    },
+    "booking-field-party": {
+      "package": "pkg_feature_booking",
+      "file": "components/booking-form.tsx",
+      "component": "BookingForm",
+      "line": 27
+    },
+    "booking-slots": {
+      "package": "pkg_feature_booking",
+      "file": "components/booking-form.tsx",
+      "component": "BookingForm",
+      "line": 32
+    },
+    "booking-submit": {
+      "package": "pkg_feature_booking",
+      "file": "components/booking-form.tsx",
+      "component": "BookingForm",
+      "line": 47
+    },
+    "booking-list": {
+      "package": "pkg_feature_booking",
+      "file": "components/booking-list.tsx",
+      "component": "BookingList",
+      "line": 10
+    },
+    "booking-list-title": {
+      "package": "pkg_feature_booking",
+      "file": "components/booking-list.tsx",
+      "component": "BookingList",
+      "line": 11
+    }
+  },
+  "element_patterns": {
+    "$comment": "Elements rendered in a loop share one source location; the id carries the instance key.",
+    "booking-slot-*": {
+      "package": "pkg_feature_booking",
+      "file": "components/booking-form.tsx",
+      "component": "BookingForm",
+      "line": 34
+    },
+    "booking-row-*": {
+      "package": "pkg_feature_booking",
+      "file": "components/booking-list.tsx",
+      "component": "BookingList",
+      "line": 14
+    }
+  }
+}

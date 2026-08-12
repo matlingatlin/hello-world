@@ -5,6 +5,20 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-09 — B039 spike: the sandbox + marking->code mechanic proven locally
+  (spikes/sandbox-marking, see FINDINGS.md). **Verdict: the mechanic is sound — build it.**
+  End to end: a SandboxProvider interface with a local implementation serving a live preview
+  (ready in ~7s), Playwright capturing screenshot + console, a click at (x,y) resolving to
+  its element -> Layer C package -> source line, a directed change touching only that
+  package's file, and a hash proof that the other 5 files stayed byte-identical. 16 tests.
+  **Headline finding: a lost data-scio-id does not fail loudly — the click falls through to
+  the nearest instrumented ancestor and resolves to the WRONG package**, so a directed change
+  would rewrite the app shell instead of the marked button. Defences: emit the manifest from
+  the builder, and verify instrumentation after every regeneration. Second finding: a missing
+  favicon logs a console 404 on every load whose text names nothing, so the vision loop must
+  classify console noise by source URL or it would fail every build ever made. Not proven:
+  isolation (no Docker daemon here — it ran as a process), ACA at scale, and real LLM
+  regeneration.
 - 2026-08-09 — B038: Layer C built in the engine (apps/engine/layerc) — **the A -> B -> C brain
   is now complete**. A Layer B architecture becomes a validated build plan: deterministic
   decomposition into foundation / schema / auth / one-package-per-feature / connectors / tokens,
@@ -126,4 +140,5 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- The sandbox + marking->code core (the shared hard part), then the builder + vision loop.
+- B040: build the real sandbox + marking->code core, guided by the spike findings. Then the
+  builder + vision loop.

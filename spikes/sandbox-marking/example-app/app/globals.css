@@ -1,0 +1,119 @@
+/* Tokens from docs/DESIGN.md — owned by pkg_design_tokens. */
+:root {
+  --ink: #14181c;
+  --muted: #586268;
+  --paper: #e7ebea;
+  --surface: #f5f7f6;
+  --line: #c6cfd1;
+  --teal: #0b5563;
+  --radius-card: 7px;
+  --radius-control: 5px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+.header {
+  border-bottom: 1px solid var(--line);
+  padding: 16px 24px;
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.card {
+  max-width: 360px;
+  margin: 40px auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 22px;
+}
+
+.card h1 {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.sub {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+
+label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 12px 0 6px;
+}
+
+.field {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 10px 12px;
+  font-size: 14px;
+  background: var(--paper);
+}
+
+.slots {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.slot {
+  font-size: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 6px 12px;
+  background: var(--paper);
+  cursor: pointer;
+}
+
+.slot[data-on="true"] {
+  background: var(--teal);
+  color: #fff;
+  border-color: var(--teal);
+}
+
+.book {
+  margin-top: 18px;
+  background: var(--teal);
+  color: #fff;
+  text-align: center;
+  padding: 11px;
+  border-radius: var(--radius-control);
+  font-weight: 500;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+}
+
+.list {
+  max-width: 360px;
+  margin: 0 auto 40px;
+}
+
+.list h2 {
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+
+.row {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
