@@ -5,6 +5,26 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — B050 / 4.3: the intake agent — extraction + next-question (apps/engine/intake).
+  **Gate 1's brain is now complete**: a conversation goes in, a typed AppSpec with provenance
+  comes back, and the wizard asks the one thing still missing. The split is deliberate — WHICH
+  field to ask is decided by Layer A's gate (deterministic, free, unarguable), only the WORDING
+  goes to the relay. Extraction is grounded by rules the prompt cannot bend: a value claimed as
+  "stated" must cite a real user message or it is dropped (an empty slot becomes a question; an
+  invented one becomes the wrong app), an inference is recorded as `derived`, never at high
+  confidence, and never over something the user actually said — while a later stated answer does
+  correct an earlier one. Values outside the schema are dropped, placeholders ("unknown", "n/a")
+  count as no answer, the defaulted-and-flagged fields keep their "assumed" tag, and list answers
+  merge through Layer B's canonical vocabulary so "reservations" is recognised as the "bookings"
+  already recorded — keeping the user's own wording, because Layer A records what was said and
+  Layer B decides naming. Every question carries an example structurally ({question, example}),
+  falling back to INTAKE-SCHEMA.md's own wording when the model's reply is unusable. Contradictions
+  ("no sign-in" + several roles; "not sensitive" + payment data; a non-goal the app also needs) are
+  detected by rule and **asked about, never resolved** — the gate stays shut until the user
+  decides. Exposed as POST /intake/step -> { updated_spec, buildable, next_question | null,
+  contradictions[] } (+ the gate verdict and an auditable extraction report of what was rejected
+  and why). 272 tests + lint green; the service boots and answers live on the fake provider. The
+  refined confirmation / "the whole" stays Layer B's job; gate wiring is B043.
 - 2026-08-07 — Strategy & moat written (docs/STRATEGY.md): the full user flow with its three
   connecting gaps (intake agent, cost estimate, component library), and the bigger ideas that make
   Scio structurally better + cheaper than Lovable — the library as a growing 5-layer asset,

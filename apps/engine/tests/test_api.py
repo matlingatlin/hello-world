@@ -127,3 +127,33 @@ def test_generate_reports_budget_errors_as_an_event():
         body = "".join(res.iter_text())
     assert "event: error" in body
     assert "budget_exceeded" in body
+
+
+def test_intake_step_asks_the_first_question_on_an_empty_conversation():
+    res = client.post(
+        "/intake/step",
+        json={"messages": [{"role": "user", "text": "I want an app for my restaurant."}]},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["buildable"] is False
+    assert body["next_question"]["field"]  # something concrete is being asked
+    assert body["next_question"]["example"]  # never a bare question
+    assert body["updated_spec"]["platform"]["source"] == "default"
+
+
+def test_intake_step_carries_a_spec_forward():
+    res = client.post(
+        "/intake/step",
+        json={
+            "messages": [{"id": "m1", "role": "user", "text": "Guests book a table."}],
+            "spec": {"purpose": {"value": "Guests book a table."}},
+        },
+    )
+    assert res.status_code == 200
+    body = res.json()
+    # The fake provider returns a digest, not JSON, so nothing new is extracted —
+    # and the spec that came in is still intact.
+    assert body["updated_spec"]["purpose"]["value"] == "Guests book a table."
+    assert body["extraction"]["parsed"] is False
+    assert body["next_question"]["field"] == "users_and_roles"

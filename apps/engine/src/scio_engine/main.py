@@ -23,8 +23,10 @@ from .execution.relay import (
     clamp_passes,
     stream_relay,
 )
+from .intake.conversation import IntakeMessage
 from .intake.gate import BuildableResult, is_buildable, triggered_conditionals
 from .intake.schema import AppSpec
+from .intake.service import IntakeStep, run_intake_step
 from .layerb.architecture import Architecture
 from .layerb.service import LayerBResult, NotBuildableError, run_layer_b
 from .layerc.service import LayerCResult, run_layer_c
@@ -82,6 +84,34 @@ def validate_intake(spec: AppSpec) -> ValidateResponse:
         result=result,
         triggered=triggered_conditionals(spec),
         still_needed=[*result.missing_core, *result.unresolved_conditionals],
+    )
+
+
+class IntakeStepRequest(BaseModel):
+    """The conversation so far, plus whatever the spec already holds."""
+
+    messages: list[IntakeMessage] = Field(default_factory=list)
+    spec: AppSpec | None = Field(
+        default=None, description="The spec as it stands; omit on the first turn"
+    )
+    extraction_passes: int = Field(default=2, description="Relay passes for extraction (1-4)")
+    question_passes: int = Field(default=1, description="Relay passes for the question (1-4)")
+
+
+@app.post("/intake/step", response_model=IntakeStep)
+async def intake_step(req: IntakeStepRequest) -> IntakeStep:
+    """One turn of gate 1: extract what was said, then ask what is still missing.
+
+    Returns the updated spec, whether it is buildable, the next question (null
+    once it is), and any contradiction the answers contain — surfaced as a
+    question rather than resolved for the user.
+    """
+    return await run_intake_step(
+        req.messages,
+        req.spec,
+        registry=build_registry(),
+        extraction_passes=req.extraction_passes,
+        question_passes=req.question_passes,
     )
 
 

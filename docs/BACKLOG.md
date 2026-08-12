@@ -50,3 +50,4 @@
 | B047 | Fleet learning (capture fixes/patterns -> playbook + library)  | post-MVP | P1 | todo |
 | B048 | Quality gate at reveal (Lighthouse + security + lint scores)   | PP9      | P1 | todo |
 | B049 | Model-passes control in Settings (1 = same model x2; more = best->review->best) | PP4 | P0 | todo |
+| B050 | Intake agent: extraction + next-question loop (gate 1's brain) | PP4 | P0 | done |
