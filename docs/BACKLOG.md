@@ -44,3 +44,9 @@
 | B041 | The builder: LLM generates each package into a working app | PP6 | P0      | done        |
 | B042 | Builder: orchestrate the full plan (B041b)               | PP6   | P0       | done        |
 | B043 | Wire the gates: engine <-> api <-> app + the real design window | PP6 | P0 | todo        |
+| B044 | Strategy & moat doc (docs/STRATEGY.md)                         | PP4      | P0 | done |
+| B045 | Component library — the growing asset (5 layers), the nave     | PP4      | P0 | todo |
+| B046 | Cost estimate (deterministic, from plan + library hits)        | PP4      | P0 | todo |
+| B047 | Fleet learning (capture fixes/patterns -> playbook + library)  | post-MVP | P1 | todo |
+| B048 | Quality gate at reveal (Lighthouse + security + lint scores)   | PP9      | P1 | todo |
+| B049 | Model-passes control in Settings (1 = same model x2; more = best->review->best) | PP4 | P0 | todo |

@@ -5,6 +5,12 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-07 — Strategy & moat written (docs/STRATEGY.md): the full user flow with its three
+  connecting gaps (intake agent, cost estimate, component library), and the bigger ideas that make
+  Scio structurally better + cheaper than Lovable — the library as a growing 5-layer asset,
+  build-without-the-LLM, fleet learning, determinism-first, a measurable quality gate, speed, and
+  predictable pricing (the compounding moat). Plus honest core-vs-moat sequencing and a Settings
+  control for model passes (1 = same model twice; more = best -> review -> best).
 - 2026-08-12 — B041b: full build-plan orchestration + incremental app assembly
   (apps/engine/builder/orchestrate.py). **Scio now generates a whole app end to end**:
   intake -> Layer A -> Layer B -> Layer C -> built, tested, instrumented, running app —
@@ -194,5 +200,4 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- B043: wire the gates — engine <-> api <-> app, and the real design window on top of the
-  running assembled app.
+- Spec the component library (the nave), then the cost estimate, then the intake agent, then wire the gates.
