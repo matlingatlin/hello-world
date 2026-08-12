@@ -26,3 +26,6 @@ Thumbs.db
 
 # Scratch
 workspace/
+
+# Engine run artifacts
+apps/engine/out/
