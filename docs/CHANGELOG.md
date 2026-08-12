@@ -5,6 +5,23 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — B041a: the single-package build loop (apps/engine/builder) — the relay, the
+  core and Layer C's contracts joined into one capped loop: generate -> write ->
+  instrumentation verify -> validation agents -> run + look (screenshot + classified console)
+  -> critique against the package's "done when" -> fix -> repeat, capped. All three B040
+  guardrails hold *inside* the loop: a fix that drops a data-scio-id is rejected and rolled
+  back to the previous code (the file on disk is proven unchanged), a favicon 404 passes while
+  the identical message from /api/... fails, and a package that runs out of attempts comes back
+  as "needs a look" with named remainders instead of a silent pass. Deterministic parts stay
+  deterministic — file paths per package (file_plan), security/quality/tests/contract agents
+  (validation) — and judgment is used only where judgment is needed (critique), where an
+  unparseable verdict counts as a fail. Code arrives in a strict FILE-block format; paths
+  outside the package (and any `..` traversal) are dropped rather than written. Each build is
+  persisted as a build_version + git_sha with its manifest **in the same commit**, so a
+  restored version carries its own marking->code coupling. 213 tests + lint green, and the
+  real preview path was run live: dev server booted, Playwright rendered and screenshotted the
+  page, and the favicon 404 was suppressed rather than failing the build. Full-plan
+  orchestration (dependency order, assembly, aggregate status) is B041b/B042.
 - 2026-08-09 — B040: the real sandbox + marking->code core (apps/engine/core) — the shared
   hard part gates 2 and 3 both run on, **with both spike guardrails enforced in code**.
   SandboxProvider with local docker/process implementations (AcaSandbox wired per ADR-0005

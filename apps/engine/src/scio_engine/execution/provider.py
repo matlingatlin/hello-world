@@ -96,6 +96,51 @@ class FakeProvider(ModelProvider):
         )
 
 
+class ScriptedProvider(ModelProvider):
+    """Returns prepared replies in order — a stand-in for a model that must
+    produce *real* output (code, a critique verdict) rather than a digest.
+
+    FakeProvider proves the plumbing; this proves what the plumbing carries.
+    Tests script exactly what the model "says", so a loop that generates, fails,
+    fixes and passes is reproducible to the character.
+    """
+
+    vendor = Vendor.fake
+
+    def __init__(self, replies: list[str], *, loop_last: bool = True) -> None:
+        if not replies:
+            raise ValueError("ScriptedProvider needs at least one reply")
+        self.replies = list(replies)
+        self.loop_last = loop_last
+        self.calls: list[tuple[str, list[Message]]] = []
+
+    async def complete(
+        self,
+        model: str,
+        messages: list[Message],
+        *,
+        max_tokens: int = 4096,
+        temperature: float = 0.2,
+        timeout_s: float = 120.0,
+    ) -> Completion:
+        index = len(self.calls)
+        self.calls.append((model, messages))
+        if index < len(self.replies):
+            text = self.replies[index]
+        elif self.loop_last:
+            text = self.replies[-1]
+        else:
+            raise ProviderError(f"ScriptedProvider ran out of replies at call {index + 1}")
+        return Completion(
+            text=text,
+            model=model,
+            vendor=Vendor.fake,
+            input_tokens=sum(len(m.content.split()) for m in messages),
+            output_tokens=len(text.split()),
+            stop_reason="end_turn",
+        )
+
+
 class AnthropicProvider(ModelProvider):
     """Claude models via the Anthropic SDK. Imported lazily so the engine runs
     (and tests pass) without the SDK or a key present."""
@@ -285,6 +330,19 @@ class ProviderRegistry(BaseModel):
     @classmethod
     def fake(cls) -> ProviderRegistry:
         shared = FakeProvider()
+        return cls(
+            providers={
+                Vendor.anthropic: shared,
+                Vendor.openai: shared,
+                Vendor.google: shared,
+                Vendor.fake: shared,
+            }
+        )
+
+    @classmethod
+    def scripted(cls, replies: list[str], *, loop_last: bool = True) -> ProviderRegistry:
+        """Every vendor answers from one script, so relay passes consume it in order."""
+        shared = ScriptedProvider(replies, loop_last=loop_last)
         return cls(
             providers={
                 Vendor.anthropic: shared,
