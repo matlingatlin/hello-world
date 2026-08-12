@@ -5,6 +5,28 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — B041b: full build-plan orchestration + incremental app assembly
+  (apps/engine/builder/orchestrate.py). **Scio now generates a whole app end to end**:
+  intake -> Layer A -> Layer B -> Layer C -> built, tested, instrumented, running app —
+  fake/scripted-driven here, real the moment keys are added. Packages build in Layer C's
+  topological order, each generated INTO the workspace the earlier ones already occupy, with
+  one sandbox, one URL and one app-wide manifest — so package N integrates with 1..N-1 rather
+  than being correct alone and wrong together. Each package is told what is already standing
+  (files + ids already taken) on top of its contract. The guardrails became app-wide: the id
+  snapshot now covers every built package, so a new package colliding with an earlier id is
+  rejected and rolled back at the moment it is written. Cross-package failure isolation: a
+  package that cannot meet its "done when" at the cap is isolated, its dependents are marked
+  **blocked** (transitively, naming the root cause) and never built on broken ground, while
+  independent packages keep building; the aggregate says "2 of 5 parts work" with every
+  remainder named. The assembled app is persisted as one build_version + git_sha with the
+  app-wide manifest even when parts need a look, and per-package progress events stream for
+  the build view's real progression. 233 tests + lint green. **Verified live**
+  (scripts/verify_build_plan.py): five packages assembled into ONE running Next.js app —
+  `/`, `/booking` and `/menu` all render in the same server, each showing the foundation's
+  shell *and* its own package's elements, no console failures, 19 instrumented elements
+  app-wide, one commit. That live run also caught a real bug the scripted tests hid:
+  Playwright's sync API refuses to run inside a running asyncio loop, so the preview is now
+  driven off the event loop.
 - 2026-08-12 — B041a: the single-package build loop (apps/engine/builder) — the relay, the
   core and Layer C's contracts joined into one capped loop: generate -> write ->
   instrumentation verify -> validation agents -> run + look (screenshot + classified console)
@@ -172,5 +194,5 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- B041: the builder — the LLM generates each package into a working app, on this core + the
-  relay + the vision loop.
+- B043: wire the gates — engine <-> api <-> app, and the real design window on top of the
+  running assembled app.

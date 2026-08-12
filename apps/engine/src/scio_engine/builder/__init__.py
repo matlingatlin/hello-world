@@ -31,6 +31,14 @@ from .loop import (
     ScriptedPreview,
     build_package,
 )
+from .orchestrate import (
+    AppBuildOptions,
+    AppBuildResult,
+    BuildProgress,
+    assembly_context,
+    run_build_plan,
+    stream_build_plan,
+)
 from .persistence import GitError, PersistedBuild, ensure_repo, persist_package_build
 from .result import Attempt, PackageBuildResult, PackageStatus, Remainder
 from .validation import (
@@ -52,9 +60,12 @@ __all__ = [
     "FIX_SYSTEM",
     "GATES",
     "Agent",
+    "AppBuildOptions",
+    "AppBuildResult",
     "Attempt",
     "BuildOptions",
     "BuildPreview",
+    "BuildProgress",
     "CodeExtractionError",
     "CriterionVerdict",
     "Critique",
@@ -70,6 +81,7 @@ __all__ = [
     "ScriptedPreview",
     "Severity",
     "ValidationReport",
+    "assembly_context",
     "build_critique_prompt",
     "build_package",
     "build_prompt",
@@ -85,5 +97,7 @@ __all__ = [
     "parse_critique",
     "persist_package_build",
     "planned_files",
+    "run_build_plan",
+    "stream_build_plan",
     "validate_package",
 ]

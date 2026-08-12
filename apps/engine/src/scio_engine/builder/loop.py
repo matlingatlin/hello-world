@@ -23,6 +23,7 @@ aggregate status — is B041b. This builds one package.
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -77,6 +78,11 @@ class BuildPreview(ABC):
     def close(self) -> None:  # noqa: B027 - optional: a scripted preview owns nothing
         """Tear down anything started. Must be safe to call twice."""
 
+    @property
+    def url(self) -> str:
+        """Where the app is being served, when it is. Empty when nothing runs."""
+        return ""
+
 
 class ScriptedPreview(BuildPreview):
     """Canned observations, in order — for tests and dry runs."""
@@ -117,6 +123,10 @@ class SandboxPreview(BuildPreview):
         if self._handle is None:
             self._handle = self.sandbox.start(app_dir)
         return self._handle
+
+    @property
+    def url(self) -> str:
+        return self._handle.url if self._handle else ""
 
     def apply(self, app_dir: Path, files: dict[str, str]) -> None:
         if self._handle is None:
@@ -265,17 +275,27 @@ async def build_package(
     registry: ProviderRegistry,
     preview: BuildPreview,
     options: BuildOptions | None = None,
+    close_preview: bool = True,
 ) -> PackageBuildResult:
     """Build one package until it passes or the cap is reached.
 
     Never returns a cheerful result it cannot evidence: a package that ran out of
     attempts comes back as `needs_look` with the remainders that are still true,
     and one that never produced usable code comes back as `failed`.
+
+    `close_preview=False` is for the orchestrator (B041b): packages are built
+    into ONE growing app, so the sandbox running it outlives any single package
+    and closing it here would tear down the app between parts.
     """
     opts = options or BuildOptions()
     app_dir = Path(app_dir).resolve()
     app_dir.mkdir(parents=True, exist_ok=True)
     allowed = planned_files(package)
+    # Everything already standing, when we are building into an assembled app —
+    # so the guardrail is app-wide, not merely package-wide.
+    tracked = sorted(
+        {f for files in (opts.package_files or {}).values() for f in files} | set(allowed)
+    )
 
     result = PackageBuildResult(
         package_id=package.id,
@@ -284,7 +304,6 @@ async def build_package(
     )
     problems: list[str] = []
     last_gate = _Gate()
-    wrote_anything = False
     manifest: Manifest | None = None
 
     try:
@@ -321,11 +340,14 @@ async def build_package(
 
             # Snapshot before writing: a rejected build must leave no trace.
             before = _snapshot(app_dir, allowed)
-            expected_ids = (
-                ids_in_source(app_dir, allowed) if wrote_anything else None
-            )
+            # Every id standing right now must still be addressable afterwards —
+            # including ids belonging to packages built before this one.
+            expected_ids = ids_in_source(app_dir, tracked) or None
 
-            preview.apply(app_dir, extracted.files)
+            # Off the event loop: a real preview writes into a sandbox and waits
+            # for a dev server to recompile, and Playwright's sync API refuses to
+            # run inside a running asyncio loop at all.
+            await asyncio.to_thread(preview.apply, app_dir, extracted.files)
             attempt.files_written = sorted(extracted.files)
 
             gate = _Gate()
@@ -349,7 +371,6 @@ async def build_package(
                 last_gate = gate
                 continue
 
-            wrote_anything = True
             on_disk = _files_on_disk(app_dir, allowed)
 
             report = validate_package(package, on_disk)
@@ -361,7 +382,7 @@ async def build_package(
                     for f in report.errors
                 ]
 
-            observation = preview.observe(app_dir, attempt=index)
+            observation = await asyncio.to_thread(preview.observe, app_dir, attempt=index)
             console_problems = _console_problems(observation.console)
             if console_problems:
                 # GUARDRAIL 3: benign browser noise was already filtered out.
@@ -403,7 +424,8 @@ async def build_package(
                 break
             problems = gate.problems
     finally:
-        preview.close()
+        if close_preview:
+            await asyncio.to_thread(preview.close)
 
     result.files = sorted(_files_on_disk(app_dir, allowed))
     result.checks_passed = last_gate.score

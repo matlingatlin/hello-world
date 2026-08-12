@@ -16,6 +16,7 @@ class PackageStatus(StrEnum):
     passed = "passed"
     needs_look = "needs_look"  # built, but a known remainder — honest status
     failed = "failed"  # could not produce usable code at all
+    blocked = "blocked"  # never attempted: something it depends on is broken
 
 
 class Remainder(BaseModel):
@@ -70,5 +71,8 @@ class PackageBuildResult(BaseModel):
             first = self.remainders[0].as_line() if self.remainders else "something is unfinished"
             more = f" (+{len(self.remainders) - 1} more)" if len(self.remainders) > 1 else ""
             return f"{self.package_id}: needs a look — {first}{more}"
+        if self.status is PackageStatus.blocked:
+            reason = self.remainders[0].as_line() if self.remainders else "a dependency is broken"
+            return f"{self.package_id}: not built — {reason}"
         reason = self.remainders[0].as_line() if self.remainders else "no usable code was produced"
         return f"{self.package_id}: failed — {reason}"
