@@ -40,4 +40,5 @@
 | B037 | Technical architecture (docs/ARCHITECTURE.md)            | PP4   | P0       | done        |
 | B038 | Build Layer C in engine (the planner)                    | PP4   | P0       | done        |
 | B039 | Sandbox + marking->code core (the shared hard part)      | PP6   | P0       | in progress |
-| B040 | Build the real sandbox + marking->code core (per spike findings) | PP6 | P0   | todo        |
+| B040 | Build the real sandbox + marking->code core (per spike findings) | PP6 | P0   | done        |
+| B041 | The builder: LLM generates each package into a working app | PP6 | P0      | todo        |

@@ -1,0 +1,5 @@
+{
+  "$comment": "The Layer C plan's package -> files map. Test fixture for the core.",
+  "pkg_foundation": ["app/layout.tsx", "components/site-header.tsx"],
+  "pkg_feature_booking": ["components/booking-form.tsx"]
+}

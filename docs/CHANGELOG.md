@@ -5,6 +5,21 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-09 — B040: the real sandbox + marking->code core (apps/engine/core) — the shared
+  hard part gates 2 and 3 both run on, **with both spike guardrails enforced in code**.
+  SandboxProvider with local docker/process implementations (AcaSandbox wired per ADR-0005
+  but never run here and honest about it); the manifest **derived from source** by a builder
+  rather than hand-written; the coupling persisted beside the code so a project resumes with
+  markings intact. Guardrails: (1) the verifier rejects any regeneration that loses a
+  data-scio-id — the spike's silent failure is now a failed build, and the change is rolled
+  back; (2) the resolver raises instead of climbing to a parent, naming the ancestor as
+  evidence rather than using it as an answer; (3) the console classifier judges by source, so
+  a favicon 404 passes while the identical message from /api/... fails. Directed regeneration
+  enforces isolation by hash and refuses a regenerator that reaches outside its package.
+  200 tests + lint green, and scripts/verify_core.py proved all eight steps against a real
+  running sandbox (boot, screenshot, classified console, strict click resolution, the lost-id
+  refusal, a change touching 1 file with 5 byte-identical, and a rejected regeneration rolled
+  back cleanly).
 - 2026-08-09 — B039 spike: the sandbox + marking->code mechanic proven locally
   (spikes/sandbox-marking, see FINDINGS.md). **Verdict: the mechanic is sound — build it.**
   End to end: a SandboxProvider interface with a local implementation serving a live preview
@@ -140,5 +155,5 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- B040: build the real sandbox + marking->code core, guided by the spike findings. Then the
-  builder + vision loop.
+- B041: the builder — the LLM generates each package into a working app, on this core + the
+  relay + the vision loop.

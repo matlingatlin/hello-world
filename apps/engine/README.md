@@ -12,8 +12,11 @@ Python + FastAPI + Pydantic (ADR-0006). Two things live here today:
 - **Layer C** — the architecture becomes a validated, dependency-ordered plan of
   small contract-bearing build packages (`docs/LAYER-C.md`).
 
-That completes the A -> B -> C brain. Requirements extraction (4.3), the builder,
-the sandbox and the marking->code core are still to come.
+- **The core** — the sandbox and the marking->code coupling that gates 2 and 3
+  share, with the guardrails the spike proved necessary (`core/`).
+
+That completes the A -> B -> C brain plus the core it runs on. Requirements
+extraction (4.3) and the LLM builder (B041) are still to come.
 
 ## Run locally
 
@@ -121,6 +124,32 @@ Decomposition and ordering are deterministic. The relay is consulted only when
 the rules leave something genuinely ambiguous (an operation the architecture
 couldn't attach to an entity); pass `"use_judgment": false` to skip even that.
 
+## The core (sandbox + marking→code)
+
+`core/` is what gate 2 (preview) and gate 3 (build) both run on: start a sandbox,
+serve a preview, look at it, resolve a marking to its package, regenerate only
+that package. Three guardrails, each from a real failure in
+`spikes/sandbox-marking/FINDINGS.md`:
+
+1. **The verifier** — a regeneration that loses a `data-scio-id` is a **failed
+   build**. In the spike a lost id let a click resolve confidently to the wrong
+   package, so a directed change would have rewritten the app shell.
+2. **The resolver** — a marking resolves exactly or **raises**. It never climbs
+   to a parent and guesses; the error names the ancestor as evidence that
+   instrumentation is missing there.
+3. **The console classifier** — console output is classified by source before
+   the vision loop judges it. A favicon 404 (whose text names nothing) does not
+   fail a build; the identical message from `/api/...` does.
+
+The manifest is **derived from the source**, never hand-written, and saved beside
+the code so a project resumes with its coupling intact.
+
+Prove it against a real running app:
+
+```bash
+.venv/bin/python scripts/verify_core.py    # boots a sandbox, clicks, regenerates
+```
+
 ## Layout
 
 - `src/scio_engine/intake/schema.py` — FieldMeta (value/source/confidence/provenance),
@@ -155,5 +184,15 @@ couldn't attach to an entity); pass `"use_judgment": false` to skip even that.
   slice in full detail, its dependencies' *interfaces* only, the why, the rules.
 - `src/scio_engine/layerc/validate.py` — coverage, acyclicity, contract checks.
 - `src/scio_engine/layerc/judgment.py` — the one place the relay is consulted.
+- `src/scio_engine/core/sandbox.py` — SandboxProvider + local docker/process
+  implementations; `aca_sandbox.py` is wired per ADR-0005 but **never run**.
+- `src/scio_engine/core/instrumentation.py` — the id/package contract + manifest.
+- `src/scio_engine/core/manifest_builder.py` — derives the manifest from source.
+- `src/scio_engine/core/verifier.py` — guardrail 1.
+- `src/scio_engine/core/resolver.py` — guardrail 2.
+- `src/scio_engine/core/console.py` — guardrail 3.
+- `src/scio_engine/core/preview.py` — Playwright: screenshot, console, clicks.
+- `src/scio_engine/core/regenerate.py` — directed change, isolation proof, rollback.
+- `src/scio_engine/core/persistence.py` — the coupling saved with the project.
 - `src/scio_engine/main.py` — FastAPI app: `/health`, `/intake/validate`,
   `/matrix/tasks`, `/generate/plan`, `/generate`, `/architecture`, `/plan`.
