@@ -157,6 +157,21 @@ def _check_criteria_are_reachable(plan: BuildPlan) -> list[PlanViolation]:
                         subject=package.id,
                     )
                 )
+            elif coverage.observed_by is Observability.render and not coverage.observable:
+                # Marked "the critique will see it" by a package that renders
+                # nothing. The build scopes it out rather than failing, but the
+                # contract is still wrong and this is where it gets fixed.
+                violations.append(
+                    PlanViolation(
+                        rule="criterion_observable",
+                        message=(
+                            f"Package '{package.id}': \"{coverage.criterion}\" is marked as "
+                            "judged from the rendered app, but this package produces no markup. "
+                            "Check it deterministically or scope it out."
+                        ),
+                        subject=package.id,
+                    )
+                )
             elif coverage.observed_by is Observability.unsupported:
                 violations.append(
                     PlanViolation(

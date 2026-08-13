@@ -260,6 +260,23 @@ MENU_CODE = feature_code("menu", "/menu", "list_menu")
 # The same menu package, but reusing the booking form's id — an app-wide collision.
 MENU_CODE_STEALING_AN_ID = feature_code("menu", "/menu", "list_menu", form_id="booking-form")
 
+SCHEMA_BROKEN = """FILE: supabase/migrations/0001_init.sql
+```sql
+create table bookings (id uuid primary key, guest_name text not null);
+```
+
+FILE: types/database.ts
+```ts
+```
+"""
+"""A schema package that fails deterministically — an empty types file.
+
+It used to fail its critique instead. It cannot any more, and that is the point
+of B054: a package that renders nothing is never asked to prove itself from a
+screenshot. Failure isolation is still real, it just arrives through the channel
+that applies — the validation agents.
+"""
+
 PASS = '{"verdict": "pass", "criteria": [], "problems": []}'
 FAIL = (
     '{"verdict": "fail", "criteria": [], '
@@ -434,7 +451,7 @@ class TestFailureIsolation:
         replies = [
             FOUNDATION_CODE, PASS,
             TOKENS_CODE, PASS,
-            SCHEMA_CODE, FAIL, SCHEMA_CODE, FAIL,  # schema never meets its "done when"
+            SCHEMA_BROKEN, SCHEMA_BROKEN,  # schema never passes its validation
         ]
         result, _, _ = await run(tmp_path, replies)
 
@@ -451,7 +468,7 @@ class TestFailureIsolation:
         replies = [
             FOUNDATION_CODE, PASS,
             TOKENS_CODE, PASS,
-            SCHEMA_CODE, FAIL, SCHEMA_CODE, FAIL,
+            SCHEMA_BROKEN, SCHEMA_BROKEN,
         ]
         result, _, _ = await run(tmp_path, replies)
 
@@ -469,7 +486,7 @@ class TestFailureIsolation:
         replies = [
             FOUNDATION_CODE, PASS,
             TOKENS_CODE, PASS,
-            SCHEMA_CODE, FAIL, SCHEMA_CODE, FAIL,
+            SCHEMA_BROKEN, SCHEMA_BROKEN,
         ]
         result, _, _ = await run(tmp_path, replies)
 
@@ -498,7 +515,7 @@ class TestFailureIsolation:
         replies = [
             FOUNDATION_CODE, PASS,
             TOKENS_CODE, PASS,
-            SCHEMA_CODE, FAIL, SCHEMA_CODE, FAIL,
+            SCHEMA_BROKEN, SCHEMA_BROKEN,
         ]
         result, _, _ = await run(tmp_path, replies, plan=plan)
 

@@ -161,7 +161,9 @@ def _auth_package(arch: Architecture) -> BuildPackage:
             f"access rules for {roles}."
         )
         criteria = [
-            renders("A user can sign in and out; sessions persist across reloads.", "lib/auth.ts"),
+            # The auth package writes helpers, not screens, and the vision loop
+            # loads one page — it cannot sign in, sign out and reload.
+            unobservable("A user can sign in and out; sessions persist across reloads."),
             checked(
                 "Server-side authorization is enforced per operation, not only in the UI.",
                 "lib/auth.ts",
@@ -227,20 +229,40 @@ def _feature_packages(arch: Architecture) -> list[BuildPackage]:
                     routes=sorted(s.route for s in screens),
                 ),
                 acceptance_criteria=[
+                    # What the evidence can settle: the screen loaded and the
+                    # controls for each operation are on it. What it cannot:
+                    # whether a booking survives a round trip — the loop looks at
+                    # one page load, it does not fill the form and press send.
                     *(
                         renders(
-                            f"'{op.description or op.name}' works end to end and persists.",
+                            f"The interface for '{op.description or op.name}' is on the "
+                            "screen and reachable.",
                             "components/",
+                        )
+                        if screens
+                        else checked(
+                            f"'{op.description or op.name}' is implemented against the schema.",
                             "lib/db/",
                         )
                         for op in ops
                     ),
-                    renders(
-                        "The screens render without console errors and are keyboard navigable.",
-                        "page.tsx",
-                    )
-                    if screens
-                    else checked(
+                    *(
+                        [
+                            renders(
+                                "The screens render without console errors.",
+                                "page.tsx",
+                            )
+                        ]
+                        if screens
+                        else []
+                    ),
+                    *(
+                        unobservable(
+                            f"'{op.description or op.name}' works end to end and persists."
+                        )
+                        for op in ops
+                    ),
+                    checked(
                         "The feature's data access is implemented.",
                         "lib/db/",
                     ),
@@ -296,14 +318,18 @@ def _tokens_package(arch: Architecture) -> BuildPackage:
         architecture_slice=[NodeRef(kind="tokens", name="design_tokens")],
         dependencies=[FOUNDATION_ID],
         interface=PackageInterface(exports=["design tokens", "tailwind theme"]),
+        # This package writes a stylesheet and a Tailwind config. Nothing it
+        # produces is markup, so nothing it does can be judged from a rendered
+        # page — the second real run failed it for exactly that, asking for
+        # "computed CSS variable values" the evidence never carries.
         acceptance_criteria=[
-            renders(
-                "The app renders with the token palette and typography applied.",
-                "app/globals.css",
-            ),
             checked(
                 "Tokens are defined once and consumed by the Tailwind config.",
                 "tailwind.config.ts",
+            ),
+            checked(
+                "The palette and typography are defined as CSS variables.",
+                "app/globals.css",
             ),
             checked(
                 "No hard-coded colours or font families outside the token definitions.",

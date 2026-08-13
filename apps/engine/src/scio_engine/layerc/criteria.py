@@ -42,6 +42,13 @@ class Observability(StrEnum):
     build, because a build must not fail for something nobody looked at."""
 
 
+UI_SUFFIXES = (".tsx", ".jsx", ".html")
+"""What the vision loop can actually see. Its evidence is a rendered page, its
+console, its element ids and a screenshot *path* — so a package that produces no
+markup produces nothing observable, whatever its criteria claim. A migration, a
+db helper and a stylesheet are all judged by reading them, not by looking."""
+
+
 class Criterion(BaseModel):
     """One "done when", with the two things that make it checkable."""
 
@@ -83,6 +90,20 @@ class Criterion(BaseModel):
     def judged_by_critique(self) -> bool:
         return self.observed_by is Observability.render
 
+    def observable_in(self, planned_files: list[str]) -> bool:
+        """Whether the evidence could settle this at all.
+
+        A render criterion needs the package to produce markup. Classifying one
+        by hand is easy to get wrong — the second real run failed the design
+        tokens package on "the palette is applied", which no screenshot *path*
+        can show — so the structural half is checked rather than trusted.
+        """
+        if self.observed_by is Observability.unsupported:
+            return False
+        if self.observed_by is Observability.validation:
+            return True
+        return any(path.endswith(UI_SUFFIXES) for path in planned_files)
+
 
 def coerce(value: object) -> Criterion:
     """Accept a plain string as a render criterion.
@@ -121,11 +142,12 @@ class Coverage(BaseModel):
 
     criterion: str
     produced: bool
+    observable: bool
     observed_by: Observability
 
     @property
     def judgeable(self) -> bool:
-        return self.produced and self.observed_by is Observability.render
+        return self.produced and self.observable and self.observed_by is Observability.render
 
     @property
     def reason(self) -> str:
@@ -135,6 +157,8 @@ class Coverage(BaseModel):
             return "no evidence channel can observe it"
         if self.observed_by is Observability.validation:
             return "a deterministic validation agent checks it instead"
+        if not self.observable:
+            return "the package renders nothing, so no evidence could show it"
         return "judged by the critique"
 
 
@@ -143,6 +167,7 @@ def cover(criteria: list[Criterion], planned_files: list[str]) -> list[Coverage]
         Coverage(
             criterion=c.text,
             produced=c.produced_by_plan(planned_files),
+            observable=c.observable_in(planned_files),
             observed_by=c.observed_by,
         )
         for c in criteria
@@ -154,12 +179,15 @@ def judgeable(criteria: list[Criterion], planned_files: list[str]) -> list[Crite
 
     Everything else is either someone else's job or nobody's — and asking for a
     verdict on it produces exactly the spurious failure this module exists to
-    stop.
+    stop. A misclassified criterion is dropped here too: a mistake in the
+    contract must never become a failed build.
     """
     return [
         c
         for c in criteria
-        if c.judged_by_critique and c.produced_by_plan(planned_files)
+        if c.judged_by_critique
+        and c.produced_by_plan(planned_files)
+        and c.observable_in(planned_files)
     ]
 
 
