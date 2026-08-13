@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 from enum import StrEnum
+from pathlib import PurePosixPath
 
 from pydantic import BaseModel, Field
 
@@ -23,6 +24,7 @@ class Agent(StrEnum):
     tests_present = "tests_present"
     security = "security"
     contract_consistency = "contract_consistency"
+    import_boundary = "import_boundary"
 
 
 class Severity(StrEnum):
@@ -199,7 +201,125 @@ def _package_renders_ui(package: BuildPackage, files: dict[str, str]) -> bool:
     return any(path.endswith((".tsx", ".jsx")) for path in files)
 
 
-def validate_package(package: BuildPackage, files: dict[str, str]) -> ValidationReport:
+_IMPORT = re.compile(
+    r"""(?:^|\n)\s*(?:import|export)[^'"\n]*?from\s*['"]([^'"]+)['"]|"""
+    r"""(?:^|\n)\s*import\s*['"]([^'"]+)['"]|"""
+    r"""\brequire\(\s*['"]([^'"]+)['"]\s*\)"""
+)
+
+_STACK_MODULES = (
+    # Files the workspace scaffolds, not any package's output (builder/workspace.py).
+    "app/globals.css",
+    "tailwind.config",
+    "next.config",
+)
+
+
+def _imported_paths(content: str) -> list[str]:
+    return [next(g for g in match if g) for match in _IMPORT.findall(content)]
+
+
+def _resolve(specifier: str, from_file: str) -> str | None:
+    """A project-relative path for an import, or None if it leaves the project.
+
+    Bare specifiers (`next`, `react`, `@supabase/supabase-js`) are dependencies
+    from package.json — someone else's code, and not this guardrail's business.
+    """
+    if specifier.startswith("@/"):
+        target = specifier[2:]
+    elif specifier.startswith("./") or specifier.startswith("../"):
+        base = PurePosixPath(from_file).parent
+        target = str((base / specifier).as_posix())
+        # Normalise ".." without touching the filesystem.
+        parts: list[str] = []
+        for part in target.split("/"):
+            if part in ("", "."):
+                continue
+            if part == "..":
+                if parts:
+                    parts.pop()
+                continue
+            parts.append(part)
+        target = "/".join(parts)
+    else:
+        return None
+    return target
+
+
+def _same_module(target: str, path: str) -> bool:
+    """`lib/db/booking` names `lib/db/booking.ts` — extensions are optional in TS."""
+    stem = path.rsplit(".", 1)[0]
+    return target == path or target == stem or stem.endswith(f"/{target}")
+
+
+def check_import_boundary(
+    package: BuildPackage,
+    files: dict[str, str],
+    *,
+    package_files: dict[str, list[str]] | None = None,
+) -> list[Finding]:
+    """GUARDRAIL: a package may import only from its declared dependencies.
+
+    The first real run wrote `import { env } from '@/lib/env'` into the
+    foundation package — a file no package in the plan produces. It compiled
+    nowhere and broke nothing visible, because the module was never imported by a
+    rendered route, so every other gate passed it. An import that resolves
+    outside the dependency set is either a file that will never exist or a reach
+    into a package this one is not allowed to know about; both are caught here,
+    deterministically, and fed back as a fix.
+    """
+    if package_files is None:
+        return []
+
+    own = set(package_files.get(package.id, []))
+    allowed = set(own)
+    for dependency in package.dependencies:
+        allowed |= set(package_files.get(dependency, []))
+
+    findings: list[Finding] = []
+    for path, content in sorted(files.items()):
+        if not path.endswith(_CODE_SUFFIXES):
+            continue
+        for specifier in _imported_paths(content):
+            target = _resolve(specifier, path)
+            if target is None:
+                continue  # a node_modules dependency
+            if any(module in target for module in _STACK_MODULES):
+                continue  # scaffolded by the workspace, owned by nobody
+            if any(_same_module(target, candidate) for candidate in allowed):
+                continue
+
+            owner = next(
+                (pid for pid, paths in package_files.items()
+                 if any(_same_module(target, p) for p in paths)),
+                "",
+            )
+            why = (
+                f"'{owner}' is not one of this package's dependencies "
+                f"({', '.join(package.dependencies) or 'none'})"
+                if owner
+                else "no package in the build plan produces that file"
+            )
+            findings.append(
+                Finding(
+                    agent=Agent.import_boundary,
+                    message=(
+                        f"imports '{specifier}', which is out of bounds: {why}. "
+                        "Import only from this package's own files and its declared "
+                        "dependencies' interfaces."
+                    ),
+                    file=path,
+                )
+            )
+    return findings
+
+
+def validate_package(
+    package: BuildPackage,
+    files: dict[str, str],
+    *,
+    package_files: dict[str, list[str]] | None = None,
+) -> ValidationReport:
     """Run every agent over a package's generated files."""
     return ValidationReport(
         findings=[
@@ -207,5 +327,6 @@ def validate_package(package: BuildPackage, files: dict[str, str]) -> Validation
             *check_code_quality(files),
             *check_tests_present(package, files),
             *check_contract_consistency(package, files),
+            *check_import_boundary(package, files, package_files=package_files),
         ]
     )

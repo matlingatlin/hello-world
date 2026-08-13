@@ -13,6 +13,7 @@ mode Scio exists to fix.
 from __future__ import annotations
 
 from ..layerb.architecture import Architecture, AuthMode
+from .criteria import checked, renders, unobservable
 from .plan import BuildPackage, BuildPlan, NodeRef, PackageInterface, PackageKind
 
 FOUNDATION_ID = "pkg_foundation"
@@ -51,10 +52,15 @@ def _foundation_package(arch: Architecture) -> BuildPackage:
     return BuildPackage(
         id=FOUNDATION_ID,
         kind=PackageKind.foundation,
+        # The goal names only what this package's files can deliver. It used to
+        # promise linting and a test runner as well — neither of which is in its
+        # file plan, and the stack itself is scaffolded by the workspace before a
+        # package runs (builder/workspace.py). Asking for them here only invited
+        # code with nowhere to live.
         goal=(
-            "Scaffold the locked stack: a Next.js + TypeScript + Tailwind project wired to "
-            "Supabase, with the folder structure, linting and test runner in place"
-            + (f", plus the app shell and its screens ({', '.join(routes)})." if routes else ".")
+            "Build the app shell on the locked stack (Next.js + TypeScript + Tailwind): the "
+            "root layout, the navigation, and the Supabase client the rest of the app uses"
+            + (f", plus the shell screens ({', '.join(routes)})." if routes else ".")
         ),
         architecture_slice=[
             NodeRef(kind="security", name="security_posture"),
@@ -66,14 +72,36 @@ def _foundation_package(arch: Architecture) -> BuildPackage:
             exports=["app shell", "navigation", "supabase client", "test runner", "lint config"],
         ),
         acceptance_criteria=[
-            "The project builds and starts with no errors.",
-            "The test runner executes and passes on an empty suite.",
-            "Secrets are read from environment variables only.",
-            "Secure defaults from the playbook are configured (headers, input validation helper).",
+            # The shell's job, and only the shell's job. The first real run failed
+            # this package for not proving a test runner and security headers it
+            # does not own and nobody could observe — see criteria.py.
+            renders(
+                "The app shell renders: the page loads with its header and navigation.",
+                "app/layout.tsx",
+                "components/",
+            ),
+            renders("The page loads with no console errors caused by the app itself."),
             *(
-                [f"The shell screens render and navigation reaches them: {', '.join(routes)}."]
+                [
+                    renders(
+                        "The shell screens render and navigation reaches them: "
+                        f"{', '.join(routes)}.",
+                        "page.tsx",
+                    )
+                ]
                 if routes
                 else []
+            ),
+            checked(
+                "Secrets are read from environment variables only.",
+                "lib/supabase.ts",
+            ),
+            unobservable(
+                "The test runner executes and passes on an empty suite.",
+            ),
+            unobservable(
+                "Secure defaults from the playbook are configured "
+                "(headers, input validation helper).",
             ),
         ],
     )
@@ -81,13 +109,20 @@ def _foundation_package(arch: Architecture) -> BuildPackage:
 
 def _schema_package(arch: Architecture) -> BuildPackage:
     tables = [t.name for t in arch.data_model.tables]
+    # A migration renders nothing, so none of this is the critique's to judge.
     criteria = [
-        "Every table exists with its columns, keys and timestamps.",
-        "Row-level security is enabled on every table with explicit policies.",
-        "Foreign keys resolve and migrations run cleanly from empty.",
+        checked(
+            "Every table exists with its columns, keys and timestamps.",
+            "supabase/migrations/",
+        ),
+        checked(
+            "Row-level security is enabled on every table with explicit policies.",
+            "supabase/migrations/",
+        ),
+        unobservable("Foreign keys resolve and migrations run cleanly from empty."),
     ]
     if not tables:
-        criteria = ["No tables are required by the architecture."]
+        criteria = [checked("No tables are required by the architecture.")]
     return BuildPackage(
         id=SCHEMA_ID,
         kind=PackageKind.schema,
@@ -112,8 +147,11 @@ def _auth_package(arch: Architecture) -> BuildPackage:
             "tables, no sessions, no login UI."
         )
         criteria = [
-            "No authentication tables, providers or login screens exist.",
-            f"Records capture {', '.join(auth.identity_fields) or 'contact details'} instead.",
+            checked("No authentication tables, providers or login screens exist.", "lib/auth.ts"),
+            checked(
+                f"Records capture {', '.join(auth.identity_fields) or 'contact details'} instead.",
+                "lib/auth.ts",
+            ),
         ]
         exports = ["guest identification helper"]
     else:
@@ -123,9 +161,12 @@ def _auth_package(arch: Architecture) -> BuildPackage:
             f"access rules for {roles}."
         )
         criteria = [
-            "A user can sign in and out; sessions persist across reloads.",
-            "Server-side authorization is enforced per operation, not only in the UI.",
-            "A user cannot read or change another user's rows (covered by a test).",
+            renders("A user can sign in and out; sessions persist across reloads.", "lib/auth.ts"),
+            checked(
+                "Server-side authorization is enforced per operation, not only in the UI.",
+                "lib/auth.ts",
+            ),
+            unobservable("A user cannot read or change another user's rows (covered by a test)."),
         ]
         exports = ["session helper", "authorization guard"]
 
@@ -187,12 +228,30 @@ def _feature_packages(arch: Architecture) -> list[BuildPackage]:
                 ),
                 acceptance_criteria=[
                     *(
-                        f"'{op.description or op.name}' works end to end and persists."
+                        renders(
+                            f"'{op.description or op.name}' works end to end and persists.",
+                            "components/",
+                            "lib/db/",
+                        )
                         for op in ops
                     ),
-                    "Inputs are validated server-side and invalid input is rejected clearly.",
-                    "The screens render without console errors and are keyboard navigable.",
-                    "Each operation has a test for its happy path and its main failure.",
+                    renders(
+                        "The screens render without console errors and are keyboard navigable.",
+                        "page.tsx",
+                    )
+                    if screens
+                    else checked(
+                        "The feature's data access is implemented.",
+                        "lib/db/",
+                    ),
+                    checked(
+                        "Inputs are validated server-side and invalid input is rejected clearly.",
+                        "lib/db/",
+                    ),
+                    checked(
+                        "Each operation has a test for its happy path and its main failure.",
+                        "tests/",
+                    ),
                 ],
             )
         )
@@ -209,9 +268,17 @@ def _connector_packages(arch: Architecture) -> list[BuildPackage]:
             dependencies=[FOUNDATION_ID, SCHEMA_ID],
             interface=PackageInterface(exports=[f"{connector.name} client"]),
             acceptance_criteria=[
-                f"The {connector.kind} integration works against its sandbox/test mode.",
-                "Credentials come from environment variables; none appear in code or logs.",
-                "Failures degrade gracefully with a clear message rather than crashing.",
+                unobservable(
+                    f"The {connector.kind} integration works against its sandbox/test mode."
+                ),
+                checked(
+                    "Credentials come from environment variables; none appear in code or logs.",
+                    "lib/connectors/",
+                ),
+                checked(
+                    "Failures degrade gracefully with a clear message rather than crashing.",
+                    "lib/connectors/",
+                ),
             ],
         )
         for connector in arch.connectors
@@ -230,8 +297,18 @@ def _tokens_package(arch: Architecture) -> BuildPackage:
         dependencies=[FOUNDATION_ID],
         interface=PackageInterface(exports=["design tokens", "tailwind theme"]),
         acceptance_criteria=[
-            "Tokens are defined once and consumed by the Tailwind config.",
-            "No hard-coded colours or font families outside the token definitions.",
+            renders(
+                "The app renders with the token palette and typography applied.",
+                "app/globals.css",
+            ),
+            checked(
+                "Tokens are defined once and consumed by the Tailwind config.",
+                "tailwind.config.ts",
+            ),
+            checked(
+                "No hard-coded colours or font families outside the token definitions.",
+                "app/globals.css",
+            ),
         ],
     )
 

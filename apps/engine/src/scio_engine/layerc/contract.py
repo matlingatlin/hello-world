@@ -157,6 +157,25 @@ def contract_prompt(package: BuildPackage, plan: BuildPlan, arch: Architecture) 
             *interfaces,
         ]
 
+    # Stated explicitly because a real model does not infer it: on the first real
+    # run the foundation package imported `@/lib/env` and `@/types/supabase`,
+    # neither of which any package produces. A deterministic guardrail catches it
+    # (validation.py), but saying so up front is cheaper than a repair round.
+    parts += [
+        "",
+        "## Import boundary (enforced)",
+        "You may import ONLY from:",
+        "- files this package writes (listed below), and",
+        (
+            "- the packages it depends on: "
+            + (", ".join(package.dependencies) if package.dependencies else "none")
+            + " — through the interfaces above."
+        ),
+        "- npm dependencies from package.json (next, react, @supabase/supabase-js, …).",
+        "Do not import a file no package produces, and never invent a helper module: "
+        "if you need it, write it inside one of your own files.",
+    ]
+
     if package.why:
         parts += ["", "## Why this exists", package.why]
 

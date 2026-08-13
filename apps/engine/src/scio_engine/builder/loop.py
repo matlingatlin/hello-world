@@ -33,6 +33,7 @@ from ..core.instrumentation import Manifest
 from ..core.manifest_builder import build_manifest
 from ..core.preview import Observation, PreviewInspector
 from ..core.sandbox import SandboxHandle, SandboxProvider
+from ..core.stamping import stamp_files
 from ..core.verifier import ids_in_source, verify_instrumentation
 from ..execution.provider import ProviderRegistry
 from ..execution.relay import BudgetExceeded, RelayOptions, run_relay
@@ -181,6 +182,7 @@ class _Gate:
     critique_passed: bool = False
     problems: list[str] = field(default_factory=list)
     remainders: list[Remainder] = field(default_factory=list)
+    unjudged: list[str] = field(default_factory=list)
 
     @property
     def passed(self) -> bool:
@@ -367,6 +369,11 @@ async def build_package(
                 last_gate = _Gate(problems=list(problems))
                 continue
 
+            # The package tag is ours to write, not the model's to remember: it
+            # is knowledge we already have, and an element that arrives without
+            # one resolves to whichever package was written above it.
+            extracted.files = stamp_files(extracted.files, package.id)
+
             # Snapshot before writing: a rejected build must leave no trace.
             before = _snapshot(app_dir, allowed)
             # Every id standing right now must still be addressable afterwards —
@@ -402,7 +409,7 @@ async def build_package(
 
             on_disk = _files_on_disk(app_dir, allowed)
 
-            report = validate_package(package, on_disk)
+            report = validate_package(package, on_disk, package_files=opts.package_files)
             if not report.passed:
                 gate.validation_ok = False
                 gate.problems += report.instructions()
@@ -433,6 +440,10 @@ async def build_package(
                     package, evidence, registry=registry, passes=opts.critique_passes
                 )
                 gate.critique_passed = critique.passed
+                # A criterion nobody could observe never fails the build — but it
+                # is not silently dropped either. It rides along as a remainder so
+                # "works" still means "works, and here is what nobody checked".
+                gate.unjudged = list(critique.unjudged)
                 if not critique.passed:
                     gate.problems += critique.problems or [
                         f"Criterion not met: {c}" for c in critique.unmet
@@ -461,7 +472,10 @@ async def build_package(
 
     if last_gate.passed:
         result.status = PackageStatus.passed
-        result.remainders = []
+        result.remainders = [
+            Remainder(what=f"Not verified: {item}", where=package.id, source="scope")
+            for item in last_gate.unjudged
+        ]
     elif result.files:
         # Built, but with something still wrong: say what, and where.
         result.status = PackageStatus.needs_look

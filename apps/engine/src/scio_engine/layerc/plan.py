@@ -11,7 +11,9 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from .criteria import Criterion, coerce
 
 
 class PackageKind(StrEnum):
@@ -81,8 +83,17 @@ class BuildPackage(BaseModel):
     house_rules: str = ""
     canonical_vocabulary: dict[str, list[str]] = Field(default_factory=dict)
     scope_guard: list[str] = Field(default_factory=list)
-    acceptance_criteria: list[str] = Field(default_factory=list)
+    acceptance_criteria: list[Criterion] = Field(default_factory=list)
     parallelizable: bool = False
+
+    @field_validator("acceptance_criteria", mode="before")
+    @classmethod
+    def _read_criteria(cls, value: object) -> object:
+        """A plain string is still a valid criterion — it just means "judge this
+        from the rendered app", which is the common case."""
+        if isinstance(value, list):
+            return [coerce(item) for item in value]
+        return value
 
     def slice_ids(self) -> set[str]:
         return {node.id for node in self.architecture_slice}

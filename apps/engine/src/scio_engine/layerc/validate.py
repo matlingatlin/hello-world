@@ -12,7 +12,9 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from ..builder.file_plan import planned_files
 from ..layerb.architecture import Architecture
+from .criteria import Observability, cover
 from .decompose import architecture_nodes
 from .plan import BuildPlan
 
@@ -127,6 +129,50 @@ def _check_contracts(plan: BuildPlan) -> list[PlanViolation]:
     return violations
 
 
+def _check_criteria_are_reachable(plan: BuildPlan) -> list[PlanViolation]:
+    """Every "done when" must map to a file the package actually produces.
+
+    The first real run failed a package on criteria its own file plan could never
+    satisfy. That is a contract bug, and it costs a whole relay run and a sandbox
+    to discover during a build — so it is caught here, before generation, for the
+    price of a string comparison.
+
+    A criterion nobody can *observe* is a warning, not an error: it is recorded,
+    scoped out of the critique, and must never fail a build.
+    """
+    violations: list[PlanViolation] = []
+    for package in plan.packages:
+        files = planned_files(package)
+        for coverage in cover(package.acceptance_criteria, files):
+            if not coverage.produced:
+                violations.append(
+                    PlanViolation(
+                        rule="criterion_producible",
+                        message=(
+                            f"Package '{package.id}' must be done when \"{coverage.criterion}\", "
+                            "but nothing in its file plan would produce that. Either the "
+                            "criterion belongs to another package or the file plan is missing "
+                            "a file."
+                        ),
+                        subject=package.id,
+                    )
+                )
+            elif coverage.observed_by is Observability.unsupported:
+                violations.append(
+                    PlanViolation(
+                        rule="criterion_observable",
+                        severity=Severity.warning,
+                        message=(
+                            f"Package '{package.id}': \"{coverage.criterion}\" has no evidence "
+                            "channel, so nobody verifies it. It is scoped out of the critique "
+                            "rather than failing the build."
+                        ),
+                        subject=package.id,
+                    )
+                )
+    return violations
+
+
 def _check_order_respects_dependencies(plan: BuildPlan) -> list[PlanViolation]:
     position = {pid: i for i, pid in enumerate(plan.order)}
     return [
@@ -168,6 +214,7 @@ def validate_plan(plan: BuildPlan, arch: Architecture) -> PlanValidation:
         *_check_acyclic(plan),
         *_check_dependencies_exist(plan),
         *_check_contracts(plan),
+        *_check_criteria_are_reachable(plan),
         *_check_order_respects_dependencies(plan),
     ]
     has_error = any(v.severity is Severity.error for v in violations)

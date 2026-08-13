@@ -54,7 +54,7 @@
 | B051 | Gate 1 wired end-to-end (wizard <-> api <-> engine, spec freeze) | PP5 | P0 | done |
 | B052 | Wire the build + reveal end-to-end (step 3)                    | PP5 | P0 | done |
 | B053 | Prepare the first REAL run (model ids, 1+Claude config, real-code sandbox, runbook) | PP5 | P0 | in progress |
-| B054 | Harden the first real run (fix what real code surfaces)        | PP5 | P0 | todo |
+| B054 | Harden the first real run (fix what real code surfaces)        | PP5 | P0 | done |
 | B055 | Adopt prompt caching on build-package prompt prefixes (cost)      | PP4      | P1 | todo |
 | B056 | Adopt Batch API for parallelizable build packages (cost)          | PP4      | P1 | todo |
 | B057 | Evaluate Advisor tool vs our multi-pass relay (spike)             | post-MVP | P2 | todo |

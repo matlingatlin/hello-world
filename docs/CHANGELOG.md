@@ -5,6 +5,29 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — B054: **hardened what the first real run surfaced** — three defects a real model
+  exposed that every existing test had passed. (1) **"Done when" is now a contract, not a wish
+  list** (`layerc/criteria.py`): a criterion declares which planned files would produce it and
+  which channel can observe it (`render` → the critique, `validation` → a deterministic agent,
+  `unsupported` → recorded and judged by nobody). Only observable criteria reach the critique, so
+  the real run's three "no evidence was provided" failures cannot recur; `validate_plan` now
+  catches a criterion no file in the package's plan would produce **before** generation (an error)
+  and warns about one nothing can observe (never a failure). pkg_foundation's "done when" is now
+  the shell and its routes — not a test runner and security headers it neither owns nor could
+  show — and its *goal* stopped promising them too. What nobody verified still travels to the
+  reveal as a "Not verified:" remainder, so "works" never quietly means "unchecked". (2) **An
+  import-boundary guardrail** (`validation.py`): imports are resolved deterministically and
+  anything outside the package's own files plus its declared dependencies is a build failure fed
+  back as a fix — the real run wrote `@/lib/env` and `@/types/supabase`, files no package
+  produces, and every other gate passed it because no rendered route imported them. The contract
+  prompt now states the boundary explicitly as well. (3) **`data-scio-package` is stamped, not
+  requested** (`core/stamping.py`): the builder knows which package it is generating, so it writes
+  the tag itself; the model supplies only the id. The verifier now requires BOTH attributes on the
+  same element and fails a build that has an id without a package — previously the manifest
+  inherited the nearest tag above, which is the silent wrong answer the spike warned about.
+  **Verified against the real run's own output**: the guardrail catches both invented imports, and
+  stamping fills all three untagged `<li>` elements. 336 engine tests green (25 new), ruff clean,
+  all three TS workspaces typecheck.
 - 2026-08-12 — Build-vs-adopt analysis added to docs/STRATEGY.md (section G): adopt prompt caching
   (cache the static package-prompt prefix; ~90% off reads) and the Batch API (50% off, stacks) for
   cost; evaluate the Advisor tool (vs our multi-pass) and the memory tool/stores; keep our own

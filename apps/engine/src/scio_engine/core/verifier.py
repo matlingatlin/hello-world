@@ -17,13 +17,14 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from .instrumentation import ID_ATTRIBUTE, Manifest
+from .instrumentation import ID_ATTRIBUTE, PACKAGE_ATTRIBUTE, Manifest
 from .manifest_builder import (
     _ID_LITERAL,
     _ID_TEMPLATE,
     SOURCE_SUFFIXES,
     _template_to_pattern,
 )
+from .stamping import ids_missing_package
 
 
 class Severity(StrEnum):
@@ -168,6 +169,28 @@ def verify_instrumentation(
                     message=(
                         f"'{scio_id}' claims package '{location.package}', which is not in the "
                         "build plan."
+                    ),
+                    subject=scio_id,
+                )
+            )
+
+    # 3a. THE CONTRACT IS BOTH ATTRIBUTES. An element carrying only an id is
+    # resolvable by luck: the manifest falls back to the nearest package written
+    # above it, so a click lands confidently in the wrong package. The builder
+    # stamps the package deterministically (core/stamping.py), so anything
+    # reaching here without one is a real break, not a model's slip.
+    for relative in tracked:
+        path = app_dir / relative
+        if not path.exists() or path.suffix not in SOURCE_SUFFIXES:
+            continue
+        for scio_id in ids_missing_package(path.read_text()):
+            issues.append(
+                InstrumentationIssue(
+                    rule="element_has_package_attribute",
+                    message=(
+                        f"'{scio_id}' has {ID_ATTRIBUTE} but no {PACKAGE_ATTRIBUTE} on the same "
+                        f"element ({relative}). It would resolve to whichever package was "
+                        "written above it."
                     ),
                     subject=scio_id,
                 )

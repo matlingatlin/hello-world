@@ -20,7 +20,9 @@ from pydantic import BaseModel, Field
 from ..core.console import ConsoleReport
 from ..execution.provider import ProviderRegistry
 from ..execution.relay import RelayOptions, run_relay
+from ..layerc.criteria import Criterion, judgeable, scoped_out
 from ..layerc.plan import BuildPackage
+from .file_plan import planned_files
 
 CRITIQUE_SYSTEM = """You are Scio's critique agent. You judge whether a built package \
 meets its acceptance criteria, using the evidence you are given.
@@ -50,6 +52,10 @@ class Critique(BaseModel):
     problems: list[str] = Field(default_factory=list)
     parsed: bool = True
     raw: str = ""
+    unjudged: list[str] = Field(
+        default_factory=list,
+        description="Criteria no evidence channel could settle — recorded, never a failure",
+    )
 
     @property
     def passed(self) -> bool:
@@ -142,12 +148,27 @@ def parse_critique(text: str) -> Critique:
 
 
 def build_critique_prompt(package: BuildPackage, evidence: Evidence) -> str:
-    criteria = "\n".join(f"- {c}" for c in package.acceptance_criteria)
+    """Only the criteria this evidence can actually settle.
+
+    Sending the rest produced exactly one thing on the first real run: three
+    "no evidence was provided" failures on a package that was, in fact, correct.
+    """
+    criteria = "\n".join(f"- {c}" for c in judgeable_criteria(package))
     return (
         f"## Package\n{package.id} — {package.goal}\n\n"
         f"## Acceptance criteria (judge against exactly these)\n{criteria}\n\n"
         f"{evidence.as_prompt_section()}\n"
     )
+
+
+def judgeable_criteria(package: BuildPackage) -> list[Criterion]:
+    """The package's criteria that the vision loop's evidence can settle."""
+    return judgeable(package.acceptance_criteria, planned_files(package))
+
+
+def unjudged_criteria(package: BuildPackage) -> list[str]:
+    """What nobody judged, and why — the trust receipt's raw material."""
+    return scoped_out(package.acceptance_criteria, planned_files(package))
 
 
 async def critique_package(
@@ -162,7 +183,19 @@ async def critique_package(
     One pass by default: a critique is a short judgment, and the four-pass relay
     would multiply cost on every loop iteration for little gain. Hard packages
     can raise it.
+
+    A package whose criteria the evidence cannot settle (a migration renders
+    nothing) is not sent at all: there is no question to ask, and asking one
+    anyway only manufactures a failure.
     """
+    if not judgeable_criteria(package):
+        return Critique(
+            verdict="pass",
+            criteria=[],
+            problems=[],
+            unjudged=unjudged_criteria(package),
+        )
+
     prompt = build_critique_prompt(package, evidence)
     try:
         result = await run_relay(
@@ -184,4 +217,8 @@ async def critique_package(
             problems=[f"The critique could not run: {exc}"],
             parsed=False,
         )
-    return parse_critique(result.final_text)
+    critique = parse_critique(result.final_text)
+    # What nobody could judge travels with the verdict, so a "pass" is never
+    # mistaken for "everything was checked".
+    critique.unjudged = unjudged_criteria(package)
+    return critique
