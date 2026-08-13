@@ -171,13 +171,24 @@ class AnthropicProvider(ModelProvider):
         turns = [
             {"role": m.role, "content": m.content} for m in messages if m.role != "system"
         ]
+        # Omit `system` entirely when there is none: the SDK sends an explicit
+        # None as `"system": null`, which the API rejects with
+        # "system: Input should be a valid array". Not passing the key is not
+        # the same as passing None here.
+        extra = {"system": system} if system else {}
+
+        # `temperature` is deliberately NOT sent. Current Claude models (Sonnet 5,
+        # Opus 5 / 4.8 / 4.7) reject sampling parameters with a 400 — behaviour is
+        # steered by prompting instead. The argument stays in the interface
+        # because other vendors still honour it; determinism for this vendor comes
+        # from the instruction, not the knob (and temperature=0 never guaranteed
+        # identical output anyway).
         try:
             res = await client.messages.create(
                 model=model,
                 max_tokens=max_tokens,
-                temperature=temperature,
-                system=system or None,
                 messages=turns,
+                **extra,
             )
         except Exception as exc:  # pragma: no cover - network path
             raise ProviderError(f"Anthropic call failed: {exc}") from exc
