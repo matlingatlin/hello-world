@@ -3,15 +3,15 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { CreatePage } from "./pages/CreatePage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
+import { BuildPage } from "./pages/BuildPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
+import { RevealPage } from "./pages/RevealPage";
 import { SpecPage } from "./pages/SpecPage";
 import { WizardPage } from "./pages/WizardPage";
 
 const PLACEHOLDERS: Array<{ path: string; title: string }> = [
   { path: "/involve", title: "How involved" },
   { path: "/design", title: "Design" },
-  { path: "/build", title: "Building" },
-  { path: "/reveal", title: "Ready" },
   { path: "/live", title: "Refine" },
   { path: "/versions", title: "Versions" },
   { path: "/ship", title: "Ship" },
@@ -50,8 +50,12 @@ export function App() {
             provenance all belong to it, so the routes carry its id. */}
         <Route path="/projects/:projectId/wizard" element={<WizardPage />} />
         <Route path="/projects/:projectId/spec" element={<SpecPage />} />
+        <Route path="/projects/:projectId/build" element={<BuildPage />} />
+        <Route path="/projects/:projectId/reveal" element={<RevealPage />} />
         <Route path="/wizard" element={<Navigate to="/projects" replace />} />
         <Route path="/spec" element={<Navigate to="/projects" replace />} />
+        <Route path="/build" element={<Navigate to="/projects" replace />} />
+        <Route path="/reveal" element={<Navigate to="/projects" replace />} />
         {PLACEHOLDERS.map(({ path, title }) => (
           <Route key={path} path={path} element={<PlaceholderPage title={title} />} />
         ))}

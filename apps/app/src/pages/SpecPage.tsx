@@ -23,7 +23,6 @@ export function SpecPage() {
   const [step, setStep] = useState<IntakeStepResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
-  const [locked, setLocked] = useState<{ number: number } | null>(null);
 
   const load = useCallback(() => {
     setError(null);
@@ -39,31 +38,15 @@ export function SpecPage() {
     setApproving(true);
     setError(null);
     try {
-      const res = await api.approveSpec(projectId);
-      setLocked({ number: res.specVersion.number });
+      // The whole is what they are approving, so it is frozen with the spec.
+      await api.approveSpec(projectId, step?.whole ?? undefined);
+      // Level 1: approval leads straight to the build. No detour — the user
+      // said "build it", and a screen in between would only be ceremony.
+      navigate(`/projects/${projectId}/build`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
-    } finally {
       setApproving(false);
     }
-  }
-
-  if (locked) {
-    return (
-      <section>
-        <Eyebrow>Gate 1 · passed</Eyebrow>
-        <PageTitle>Spec locked</PageTitle>
-        <Lede>Version {locked.number} is frozen — this is what your build will be held to.</Lede>
-        <StateCard
-          icon="✓"
-          title="Build is next"
-          action={<Button onClick={() => navigate("/projects")}>Back to projects</Button>}
-        >
-          Your spec is saved as a version you can always come back to. Building from it is the next
-          step — it isn't wired up yet.
-        </StateCard>
-      </section>
-    );
   }
 
   const spec = step?.updated_spec ?? {};

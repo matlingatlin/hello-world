@@ -125,6 +125,15 @@ export interface EngineStatus {
   degraded?: string[];
 }
 
+/**
+ * The whole is what the user actually approved at the spec gate, so it is stored
+ * with the frozen spec — the reveal's "what you built" then quotes the contract
+ * rather than re-deriving prose that might come out differently.
+ */
+export interface ApproveSpecRequest {
+  whole?: string;
+}
+
 export interface ApproveSpecResponse {
   specVersion: {
     id: string;
@@ -133,4 +142,90 @@ export interface ApproveSpecResponse {
     createdAt: string;
   };
   projectStatus: string;
+}
+
+/**
+ * Gate 1 leads straight to the build on the Level 1 path (no design window), so
+ * the build's contract lives beside it.
+ */
+
+/** Sent once, before any part is built: the real schedule the build view draws. */
+export interface BuildStarted {
+  project_id: string;
+  whole: string;
+  packages: string[];
+  total: number;
+  workspace: string;
+}
+
+/** One part finishing. `done`/`total` is a real count, never a timer. */
+export interface BuildProgress {
+  package_id: string;
+  index: number;
+  total: number;
+  done: number;
+  status: string;
+  message: string;
+}
+
+/** The reveal's payload: the running app, and what is honestly true about it. */
+export interface BuildFinished {
+  project_id: string;
+  app_url: string;
+  build_version: number | null;
+  git_sha: string;
+  whole: string;
+  summary: string;
+  works: boolean;
+  parts_working: string[];
+  parts_needing_a_look: string[];
+  parts_blocked: string[];
+  parts_failed: string[];
+  remainders: string[];
+  element_count: number;
+  files: string[];
+  total_cost_usd: number;
+  /** True when the code came from the stand-in builder (no API keys): the
+   *  pipeline is real, the code is not. Shown to the user, never hidden. */
+  standin: boolean;
+}
+
+export interface BuildErrorEvent {
+  type: string;
+  message: string;
+}
+
+export type BuildEventName = "started" | "progress" | "package" | "finished" | "error";
+
+export interface BuildEvent {
+  event: BuildEventName;
+  data: BuildStarted | BuildProgress | BuildFinished | BuildErrorEvent | Record<string, unknown>;
+}
+
+/**
+ * What the reveal shows. Read back from the database rather than carried in the
+ * router, so returning to a finished project months later shows the same thing.
+ */
+export interface LatestBuildResponse {
+  buildVersion: {
+    id: string;
+    number: number;
+    description: string;
+    gitSha: string;
+    isCurrent: boolean;
+    createdAt: string;
+  } | null;
+  previewUrl: string | null;
+  projectStatus: string;
+  honestStatus: {
+    works: boolean;
+    summary: string;
+    working: string[];
+    needs_look: string[];
+    blocked: string[];
+    failed: string[];
+    remainders: string[];
+    standin: boolean;
+  } | null;
+  whole: string | null;
 }

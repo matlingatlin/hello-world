@@ -124,6 +124,10 @@ model Project {
   /// Lives on the project because it is still being edited; a spec_version is a
   /// contract and must never be rewritten in place.
   draftSpec   Json?         @map("draft_spec")
+  /// Where the current build is being served (a sandbox URL). Points at a
+  /// running preview, so it is expected to go stale — the build_version is the
+  /// durable record, this is only what to embed right now.
+  previewUrl  String?       @map("preview_url")
   deletedAt   DateTime?     @map("deleted_at") // soft delete
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")

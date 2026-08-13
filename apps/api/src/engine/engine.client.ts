@@ -62,6 +62,29 @@ export interface EngineArchitectureResponse {
   [key: string]: unknown;
 }
 
+export interface EngineBuildRequest {
+  spec: IntakeSpec;
+  project_id: string;
+  build_version: number;
+  max_attempts?: number;
+}
+
+/** One `event:`/`data:` frame from an SSE stream. */
+function parseFrame(frame: string): { event: string; data: Record<string, unknown> } | null {
+  let event = "message";
+  let raw = "";
+  for (const line of frame.split("\n")) {
+    if (line.startsWith("event: ")) event = line.slice(7).trim();
+    else if (line.startsWith("data: ")) raw += line.slice(6);
+  }
+  if (!raw) return null;
+  try {
+    return { event, data: JSON.parse(raw) as Record<string, unknown> };
+  } catch {
+    return null; // a frame we cannot read is dropped, not guessed at
+  }
+}
+
 export interface EnginePlanResponse {
   plan?: { packages?: Array<{ id: string }>; order?: string[] };
   [key: string]: unknown;
@@ -123,6 +146,49 @@ export class EngineClient {
     } catch (err) {
       this.logger.warn(`architecture unavailable: ${(err as Error).message}`);
       return null;
+    }
+  }
+
+  /**
+   * The whole build, streamed.
+   *
+   * Events are handed to the caller one at a time rather than collected: a build
+   * takes minutes, and the build view's progress is only honest if it arrives
+   * while the parts are actually finishing.
+   */
+  async streamBuild(
+    body: EngineBuildRequest,
+    onEvent: (event: string, data: Record<string, unknown>) => Promise<void> | void,
+  ): Promise<void> {
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}/build`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      throw new EngineUnavailableError(`/build: ${(err as Error).message}`);
+    }
+    if (!res.ok || !res.body) {
+      throw new EngineUnavailableError(`/build returned ${res.status}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      // SSE frames are separated by a blank line; a partial frame stays buffered.
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
+      for (const frame of frames) {
+        const parsed = parseFrame(frame);
+        if (parsed) await onEvent(parsed.event, parsed.data);
+      }
     }
   }
 

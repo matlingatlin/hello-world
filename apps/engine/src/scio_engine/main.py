@@ -12,6 +12,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from .builder.pipeline import stream_full_build
+from .builder.workspace import WorkspaceUnavailable
 from .config import build_registry, use_fake_providers
 from .execution.matrix import UnknownTaskError, default_matrix
 from .execution.narration import narrate
@@ -162,6 +164,49 @@ async def plan(req: PlanRequest) -> LayerCResult:
         whole=req.whole,
         use_judgment=req.use_judgment,
     )
+
+
+class BuildRequest(BaseModel):
+    spec: AppSpec
+    project_id: str = Field(default="project", description="Names the workspace directory")
+    build_version: int = Field(default=1, description="The version number to persist as")
+    max_attempts: int = Field(default=2, description="Vision-loop attempts per package")
+
+
+@app.post("/build")
+async def build(req: BuildRequest) -> StreamingResponse:
+    """The whole path: an approved spec in, a running app out, streamed.
+
+    Events: `started` (the plan and the whole), then `progress`/`package` as each
+    part finishes, then `finished` (the running URL and the honest status).
+    Errors arrive as an `error` event rather than a severed stream, so the build
+    view can show them where the progress was.
+
+    Without keys this builds with the stand-in (see builder/standin.py): it
+    proves the pipeline, not the quality of the code.
+    """
+
+    async def event_stream() -> AsyncIterator[str]:
+        try:
+            async for event, payload in stream_full_build(
+                req.spec,
+                project_id=req.project_id,
+                registry=build_registry(),
+                build_version=req.build_version,
+                max_attempts=req.max_attempts,
+            ):
+                if isinstance(payload, str):
+                    yield _sse(event, json.dumps({"text": payload}))
+                else:
+                    yield _sse(event, payload.model_dump_json())
+        except NotBuildableError as exc:
+            yield _sse("error", json.dumps({"type": "not_buildable", "message": str(exc)}))
+        except WorkspaceUnavailable as exc:
+            yield _sse("error", json.dumps({"type": "workspace_unavailable", "message": str(exc)}))
+        except Exception as exc:  # a build must never sever the stream silently
+            yield _sse("error", json.dumps({"type": "build_failed", "message": str(exc)}))
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @app.get("/matrix/tasks")

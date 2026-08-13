@@ -13,9 +13,11 @@ __pycache__/
 .env.*
 !.env.example
 
-# Build output
-dist/
-build/
+# Build output. Anchored to the repo root: a bare `build/` also matches source
+# directories called "build" — it silently excluded apps/api/src/modules/build.
+/dist/
+/build/
+**/dist/
 
 # Logs
 *.log

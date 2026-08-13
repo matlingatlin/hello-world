@@ -1,5 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import type {
+  ApproveSpecRequest,
   ApproveSpecResponse,
   IntakeSpec,
   SpecField,
@@ -47,7 +48,11 @@ export class SpecService {
    * are the "assumed" tags the user was shown at the review screen, and a frozen
    * contract must record what was actually assumed on their behalf.
    */
-  async approve(workspaceId: string, projectId: string): Promise<ApproveSpecResponse> {
+  async approve(
+    workspaceId: string,
+    projectId: string,
+    body: ApproveSpecRequest = {},
+  ): Promise<ApproveSpecResponse> {
     const project = await this.project(workspaceId, projectId);
     const spec = (project.draftSpec ?? null) as IntakeSpec | null;
     if (!spec || Object.keys(spec).length === 0) {
@@ -72,7 +77,11 @@ export class SpecService {
         projectId,
         number,
         content: spec as object,
-        assumptions: { assumed: assumedFields(spec) },
+        assumptions: {
+          assumed: assumedFields(spec),
+          // What was on screen when they pressed the button.
+          ...(body.whole ? { whole: body.whole } : {}),
+        },
         isCurrent: true,
       },
     });

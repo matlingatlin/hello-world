@@ -5,6 +5,29 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — B052: **the build + reveal wired end to end — the whole path now runs**. Input ->
+  understanding -> plan -> built, assembled, running app -> reveal, across app <-> api <-> engine,
+  fake-driven. Engine: POST /build streams the whole pipeline (Layer B -> Layer C -> B041b's
+  orchestrated package build into ONE running app), emitting `started` (the real schedule + the
+  whole), `progress`/`package` per part, then `finished` (running URL, git_sha, honest aggregate);
+  a workspace is scaffolded from a prepared app (SCIO_SCAFFOLD_DIR / SCIO_WORKSPACE_ROOT) because
+  the sandbox refuses to install dependencies during startup, and the preview is left running so
+  the reveal can embed it. Without keys the code comes from a new **stand-in builder** — it reads
+  the contract it is given and writes instrumented placeholder files, so the pipeline is testable
+  without keys; it is labelled as such everywhere, including on the reveal, because the pipeline is
+  real and the code inside is not. API: POST /projects/:id/build relays the stream to the browser
+  as SSE and persists a build_version (+ git_sha + the whole honest status, not just the good news)
+  with the preview URL, moving the project building -> ready/error; GET .../build/latest reads it
+  back so the reveal survives a reload. App: a real build view (the schedule drawn from the plan,
+  parts ticked off as they actually finish, "you can leave — we'll notify you", no fake progress
+  bar) and a real reveal (the running app embedded, "what you built" from the approved whole, and a
+  trust receipt where what needs a look and what was never built are as visible as what works).
+  Level 1: approving the spec goes straight to the build. 283 engine + 46 api + 35 app tests green,
+  all three build. **Verified live**: an approved booking spec ran the whole path through the engine
+  — 5 parts in dependency order, all 4/4 checks, assembled into one Next.js app at a live URL,
+  committed as version 1, and `/booking` renders the operations Layer B derived from the spec.
+  Also fixed: the root .gitignore's bare `build/` had been silently excluding
+  apps/api/src/modules/build from git since phase 3.2.
 - 2026-08-12 — B051: **gate 1 wired end to end** — the UI now runs the real engine. app <-> api <->
   engine: a turn in the wizard hits POST /projects/:id/intake/message, which loads the project's
   conversation, appends what was said, calls the engine's /intake/step, persists the messages and the
@@ -239,5 +262,5 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Step 3: wire the build + reveal end-to-end (gate 1 now runs on the real engine). Then the
-  component library (the nave) and the cost estimate, per docs/STRATEGY.md.
+- Step 4: add API keys, verify the capability matrix's model IDs, and make a real end-to-end run
+  against Claude. Then the component library (the nave) and the cost estimate, per docs/STRATEGY.md.

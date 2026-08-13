@@ -239,16 +239,19 @@ describe("Review (spec gate)", () => {
     expect(line.textContent).toContain("not a price");
   });
 
-  it("freezes the spec and lands on the locked state", async () => {
-    const api = mockApi({ getIntake: vi.fn().mockResolvedValue(step({ buildable: true })) });
+  it("freezes the spec with the whole and goes straight to the build (Level 1)", async () => {
+    const whole = "You're building a table-booking app for your guests.";
+    const api = mockApi({
+      getIntake: vi.fn().mockResolvedValue(step({ buildable: true, whole })),
+    });
     renderAt("/projects/p1/spec", <SpecPage />);
 
     await userEvent.click(await screen.findByRole("button", { name: /Yes, build it/ }));
 
-    expect(api.approveSpec).toHaveBeenCalledWith("p1");
-    expect(await screen.findByText("Spec locked")).toBeDefined();
-    expect(screen.getByText(/Version 1 is frozen/)).toBeDefined();
-    expect(screen.getByText(/Build is next/)).toBeDefined();
+    // The whole is frozen with the spec: it is what they actually approved.
+    expect(api.approveSpec).toHaveBeenCalledWith("p1", whole);
+    // No involvement detour on Level 1 — they said build it.
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects/p1/build"));
   });
 
   it("offers the two other exits", async () => {
