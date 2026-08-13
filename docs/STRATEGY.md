@@ -91,3 +91,46 @@ the same marking->code core.
 
 Recommended order: library (the nave) -> cost estimate -> intake agent -> wire the gates -> then
 the moat layers.
+
+## G. Build vs adopt — Anthropic API primitives
+Several of our moat ideas (caching, multi-pass, memory, orchestration) already exist as Anthropic
+API primitives. The stance: build ON the cheap primitives, evaluate the higher-level ones, and
+spend our own effort on the differentiators. (Verify exact pricing, minimum lengths, and beta
+status in the Anthropic console / docs before relying — they change.)
+
+### Adopt now (clear wins, low risk)
+- **Prompt caching — our single biggest cost lever.** Cache reads cost ~0.1x base input (~90%
+  cheaper); a 5-minute cache write is 1.25x and a 1-hour write is 2x base input. Automatic or
+  explicit breakpoints (up to 4), supported on all active models, workspace-isolated, ZDR-eligible.
+  Minimum cacheable length is model-specific (~1024 tokens for Sonnet 5, ~512 for Opus 5). Use it on
+  the STATIC prefix of every build-package prompt — the playbook, house rules, architecture slice,
+  and canonical vocabulary. The breakpoint must sit on content identical across calls: put it at the
+  end of the static prefix, NOT on the varying package-specific tail. Pre-warm the shared prefix
+  (max_tokens:0) before a build to cut first-token latency. This REPLACES our own caching idea.
+- **Batch API — for the async build.** The 50% batch discount stacks with the caching discount.
+  Route parallelizable packages (Layer C already flags them) through Batch for the non-interactive
+  build. Keep interactive changes (the design window) on standard/fast — batch adds latency and
+  returns results out of order (match on custom_id, never on position).
+
+### Evaluate (spike / compare before adopting)
+- **Advisor tool (beta)** — a cheaper model consults a stronger advisor mid-task; overlaps our
+  multi-pass / matrix. Compare quality + cost against our own relay on a real build before replacing
+  anything. Our relay stays until proven.
+- **Memory tool / memory stores (beta)** — a client-side /memories directory the agent reads before
+  tasks and updates as it works, persisting across sessions (memory stores = the managed-agents
+  server-side version). Could complement our DB-stored contracts for a living project. Evaluate vs
+  our own persistence; not a replacement for the library or fleet learning.
+
+### Keep our own (too custom / the differentiator)
+- **Orchestration + sandbox + marking->code.** Anthropic's Managed Agents host sandboxing, state, and
+  orchestration, and the Agent SDK ships the single-agent loop + sessions + checkpointing +
+  telemetry (multi-agent coordination and organizational memory are left to you). But our sandbox
+  needs custom instrumentation (data-scio-id) + marking->code + the vision loop, which a generic
+  managed sandbox won't support. Keep ours. Borrow SDK primitives (session persistence, checkpointing,
+  telemetry) only where they save work without constraining the core.
+- **The component library + fleet learning.** No Anthropic primitive replaces these; they are the moat.
+
+### The principle
+Build ON the cheap primitives (caching + batch), evaluate the higher-level ones (advisor, memory),
+and spend our own effort on the unique combination (gates + library + marking->code + our
+instrumented sandbox). This sharpens the wedge rather than splitting it.

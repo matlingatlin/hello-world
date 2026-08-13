@@ -55,6 +55,10 @@
 | B052 | Wire the build + reveal end-to-end (step 3)                    | PP5 | P0 | done |
 | B053 | Prepare the first REAL run (model ids, 1+Claude config, real-code sandbox, runbook) | PP5 | P0 | in progress |
 | B054 | Harden the first real run (fix what real code surfaces)        | PP5 | P0 | todo |
+| B055 | Adopt prompt caching on build-package prompt prefixes (cost)      | PP4      | P1 | todo |
+| B056 | Adopt Batch API for parallelizable build packages (cost)          | PP4      | P1 | todo |
+| B057 | Evaluate Advisor tool vs our multi-pass relay (spike)             | post-MVP | P2 | todo |
+| B058 | Evaluate memory tool / stores vs our own persistence             | post-MVP | P2 | todo |
 
 **B053 is prep, not the run.** The engine, the config and the runbook are done and
 tested here; the run itself is operator-driven — it needs an Anthropic key and an

@@ -5,6 +5,11 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — Build-vs-adopt analysis added to docs/STRATEGY.md (section G): adopt prompt caching
+  (cache the static package-prompt prefix; ~90% off reads) and the Batch API (50% off, stacks) for
+  cost; evaluate the Advisor tool (vs our multi-pass) and the memory tool/stores; keep our own
+  orchestration + instrumented sandbox + marking->code and the library + fleet learning. Grounded in
+  Anthropic's API docs.
 - 2026-08-12 — B053: **prepared for the first REAL run against Claude** (the run itself is the
   operator's — their key, their environment). Four things. (1) **Real model ids**: matrix.yaml now
   carries `claude-fable-5`, `claude-opus-5`, `claude-opus-4-8`, `claude-sonnet-5`, `claude-haiku-4-5`
