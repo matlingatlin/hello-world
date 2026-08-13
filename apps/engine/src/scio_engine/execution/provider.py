@@ -183,13 +183,18 @@ class AnthropicProvider(ModelProvider):
         # because other vendors still honour it; determinism for this vendor comes
         # from the instruction, not the knob (and temperature=0 never guaranteed
         # identical output anyway).
+        # Streamed, always. A codegen pass writes several complete files and can
+        # run for minutes; a non-streaming request that long is what the SDK
+        # warns about and what times out client-side. Streaming keeps the
+        # connection alive and yields the same final message.
         try:
-            res = await client.messages.create(
+            async with client.messages.stream(
                 model=model,
                 max_tokens=max_tokens,
                 messages=turns,
                 **extra,
-            )
+            ) as stream:
+                res = await stream.get_final_message()
         except Exception as exc:  # pragma: no cover - network path
             raise ProviderError(f"Anthropic call failed: {exc}") from exc
 

@@ -152,6 +152,11 @@ CODEGEN_MAX_TOKENS = 16000
 the third one in half. Generous rather than exact: output tokens are only billed
 when used, and a truncated reply costs a whole extra attempt."""
 
+CODEGEN_TIMEOUT_S = 900.0
+"""Writing that much code takes minutes, not seconds. The relay's 120s default is
+sized for short calls (a question, a critique verdict); using it for codegen made
+every real pass time out — twice, silently, before failing the build."""
+
 
 @dataclass
 class BuildOptions:
@@ -254,6 +259,7 @@ async def _generate(
             system=CODEGEN_SYSTEM if first else FIX_SYSTEM,
             budget_usd=options.budget_usd,
             max_tokens=CODEGEN_MAX_TOKENS,
+            timeout_s=CODEGEN_TIMEOUT_S,
         ),
     )
     return result.final_text, result.total_cost_usd, result.truncated

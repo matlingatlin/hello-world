@@ -143,7 +143,7 @@ async def _complete_with_retry(
     the relay — silently dropping it would hand the user a shorter relay than
     the narration promised."""
     provider = registry.get(card.vendor)
-    last: Exception | None = None
+    last: str = ""
     for attempt in range(opts.retries + 1):
         try:
             return await asyncio.wait_for(
@@ -156,10 +156,14 @@ async def _complete_with_retry(
                 ),
                 timeout=opts.timeout_s,
             )
-        except (ProviderError, TimeoutError) as exc:
-            last = exc
-            if attempt < opts.retries:
-                await asyncio.sleep(0.2 * (attempt + 1))
+        except TimeoutError:
+            # A bare TimeoutError stringifies to "", which turns the message
+            # below into "after 2 attempts:" and tells the operator nothing.
+            last = f"no reply within {opts.timeout_s:.0f}s"
+        except ProviderError as exc:
+            last = str(exc)
+        if attempt < opts.retries:
+            await asyncio.sleep(0.2 * (attempt + 1))
     raise ProviderError(f"Pass failed on {card.id} after {opts.retries + 1} attempts: {last}")
 
 

@@ -169,7 +169,14 @@ async def critique_package(
             "review",
             prompt,
             registry=registry,
-            options=RelayOptions(passes=passes, system=CRITIQUE_SYSTEM, temperature=0.0),
+            options=RelayOptions(
+                passes=passes,
+                system=CRITIQUE_SYSTEM,
+                temperature=0.0,
+                # It reads a whole package before answering; the relay's default
+                # is sized for a one-line reply.
+                timeout_s=300.0,
+            ),
         )
     except Exception as exc:
         return Critique(
