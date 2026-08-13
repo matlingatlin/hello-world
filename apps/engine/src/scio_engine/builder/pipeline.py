@@ -21,6 +21,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from ..core.sandbox import SandboxProvider, choose_sandbox
+from ..execution.profile import run_profile
 from ..execution.provider import ProviderRegistry
 from ..intake.schema import AppSpec
 from ..layerb.service import run_layer_b
@@ -41,6 +42,7 @@ class BuildStarted(BaseModel):
     packages: list[str] = Field(default_factory=list)
     total: int = 0
     workspace: str = ""
+    models: str = ""  # what the relay will run, so the build view can say so
 
 
 class BuildFinished(BaseModel):
@@ -108,7 +110,7 @@ async def stream_full_build(
     app_dir: Path | None = None,
     build_version: int = 1,
     max_attempts: int = 2,
-    codegen_passes: int = 1,
+    codegen_passes: int | None = None,
     close_preview: bool = False,
 ) -> AsyncIterator[tuple[str, BaseModel | str]]:
     """Run the whole path, yielding events as they happen.
@@ -124,6 +126,11 @@ async def stream_full_build(
     """
     # Layer B raises NotBuildableError on a spec that has not passed gate 1, and
     # it runs first — so a half-answered spec never reaches a workspace.
+    # The run profile is the user-facing "how hard to work" setting (STRATEGY.md
+    # section E): 1 means one model, run twice — generate, then self-review.
+    profile = run_profile()
+    passes = codegen_passes if codegen_passes is not None else profile.passes
+
     using_standin = builder_registry is None and registry.is_fake
     builder = builder_registry or (standin_registry() if using_standin else registry)
 
@@ -152,6 +159,7 @@ async def stream_full_build(
             packages=plan.order,
             total=len(plan.order),
             workspace=str(workspace),
+            models=profile.describe(),
         ),
     )
 
@@ -165,7 +173,7 @@ async def stream_full_build(
         options=AppBuildOptions(
             package=BuildOptions(
                 max_attempts=max_attempts,
-                codegen_passes=codegen_passes,
+                codegen_passes=passes,
                 critique_passes=1,
             ),
             build_version=build_version,

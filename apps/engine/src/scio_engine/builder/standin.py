@@ -70,7 +70,11 @@ def _page(package: str, path: str, operations: list[str]) -> str:
 
 
 def _layout(package: str) -> str:
-    return f"""export const metadata = {{ title: "Scio app" }};
+    # The stylesheet is part of the locked stack and the workspace scaffolds it,
+    # so this import always resolves — even before the design-tokens package runs.
+    return f"""import "./globals.css";
+
+export const metadata = {{ title: "Scio app" }};
 
 export default function RootLayout({{ children }}: {{ children: React.ReactNode }}) {{
   return (
@@ -119,11 +123,30 @@ def _test(path: str, operations: list[str]) -> str:
     )
 
 
+_TAILWIND_CONFIG = """import type { Config } from "tailwindcss";
+
+const config: Config = {
+  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
+  theme: { extend: {} },
+  plugins: [],
+};
+
+export default config;
+"""
+
+
 def _content_for(package: str, path: str, operations: list[str]) -> str:
     if path.endswith(".sql"):
         return "-- schema placeholder\nselect 1;\n"
+    if path.endswith("tailwind.config.ts"):
+        # A real config, not a placeholder: PostCSS loads this file on every
+        # compile, so an `export const ready = true` here breaks the whole app.
+        return _TAILWIND_CONFIG
     if path.endswith(".css"):
-        return ":root { --ink: #101319; --paper: #ffffff; }\n"
+        return (
+            "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n"
+            ":root { --ink: #101319; --paper: #ffffff; }\n"
+        )
     if path == "app/layout.tsx":
         return _layout(package)
     if path.endswith("/page.tsx"):

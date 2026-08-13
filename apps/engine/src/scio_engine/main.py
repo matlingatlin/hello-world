@@ -17,6 +17,7 @@ from .builder.workspace import WorkspaceUnavailable
 from .config import build_registry, use_fake_providers
 from .execution.matrix import UnknownTaskError, default_matrix
 from .execution.narration import narrate
+from .execution.profile import run_profile
 from .execution.provider import ProviderError
 from .execution.relay import (
     BudgetExceeded,
@@ -43,6 +44,13 @@ app = FastAPI(
 class HealthResponse(BaseModel):
     status: str = "ok"
     providers: str = Field(description="'fake' when no API keys are configured")
+    profile: str = Field(
+        default="", description="Which models will run, and how many passes (SCIO_MODEL et al.)"
+    )
+    builder: str = Field(
+        default="",
+        description="'standin' when no real model is available to write code, else 'model'",
+    )
 
 
 class ValidateResponse(BaseModel):
@@ -75,7 +83,18 @@ class PlanResponse(BaseModel):
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    return HealthResponse(providers="fake" if use_fake_providers() else "real")
+    """Says plainly what this engine would actually do if asked to build.
+
+    The operator's first check before a real run: if this still reports `fake`
+    and `standin`, no key reached the process and the build will produce
+    placeholder code.
+    """
+    fake = use_fake_providers()
+    return HealthResponse(
+        providers="fake" if fake else "real",
+        profile=run_profile().describe(),
+        builder="standin" if fake else "model",
+    )
 
 
 @app.post("/intake/validate", response_model=ValidateResponse)

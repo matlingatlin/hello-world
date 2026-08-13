@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from scio_engine.execution.matrix import default_matrix
 from scio_engine.main import app
 
 client = TestClient(app)
@@ -104,7 +105,9 @@ def test_generate_streams_narration_passes_and_result():
 
     events = [line[len("event: ") :] for line in body.splitlines() if line.startswith("event: ")]
     assert events == ["narration", "pass", "pass", "pass", "pass", "result"]
-    assert "claude-fable-5" in body
+    # The matrix is data and its rankings shift; what must hold is that the
+    # stream names the model it actually ran.
+    assert default_matrix().top_n("codegen")[0].id in body
 
 
 def test_generate_honours_a_single_pass():

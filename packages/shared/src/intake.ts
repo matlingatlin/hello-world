@@ -156,6 +156,9 @@ export interface BuildStarted {
   packages: string[];
   total: number;
   workspace: string;
+  /** What the relay will actually run — e.g. "claude-sonnet-5 only, 2 passes".
+   *  Shown rather than assumed: a build's quality follows from this. */
+  models?: string;
 }
 
 /** One part finishing. `done`/`total` is a real count, never a timer. */

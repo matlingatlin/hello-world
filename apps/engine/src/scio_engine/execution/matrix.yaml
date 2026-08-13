@@ -1,33 +1,62 @@
-# Capability matrix — which models are best at which task, ranked.
+# Capability matrix — which model is best at which task, ranked.
 #
 # Data, not code: rankings shift monthly, so this file is meant to be edited
 # without touching the engine. `rank` 1 = first choice (runs pass 1 and the
-# final pass). cost is USD per 1M output tokens; latency is a coarse class.
+# final pass). latency is a coarse class.
+#
+# cost_per_mtok is USD per 1M **output** tokens — the relay prices a pass on its
+# output (execution/relay.py `_cost`). Input is cheaper on every model here, so
+# this over-estimates rather than under-estimates, which is the safe direction
+# for a budget cap.
+#
+# OPERATOR: confirm the exact model id strings and current prices in the
+# Anthropic console and docs.claude.com before a real run, and adjust the cost
+# weights. Prices below are Anthropic's first-party list rates as of 2026-08;
+# introductory pricing and partner platforms (Bedrock, Vertex, Foundry) differ.
+# The non-Anthropic entries are best guesses and must be checked against each
+# vendor's own pricing page.
 #
 # Adding a vendor: register a ModelProvider for it (execution/provider.py).
 
 models:
+  # --- Anthropic (ADR-0006). Ids are complete as written — never append a
+  # date suffix; `claude-haiku-4-5-20251001` is not a valid current id.
   - id: claude-fable-5
     vendor: anthropic
-    context_limit: 200000
-    cost_per_mtok: 15.0
+    context_limit: 1000000
+    cost_per_mtok: 50.0
+    latency: slow
+    strength: The most capable model — hardest reasoning and long-horizon agentic work
+
+  - id: claude-opus-5
+    vendor: anthropic
+    context_limit: 1000000
+    cost_per_mtok: 25.0
     latency: medium
-    strength: Deep reasoning, long-horizon code work, careful review
+    strength: Complex agentic coding and deep reasoning; the default first choice
+
+  - id: claude-opus-4-8
+    vendor: anthropic
+    context_limit: 1000000
+    cost_per_mtok: 25.0
+    latency: medium
+    strength: Previous-generation Opus — strong long-horizon agentic work
 
   - id: claude-sonnet-5
+    vendor: anthropic
+    context_limit: 1000000
+    cost_per_mtok: 15.0
+    latency: fast
+    strength: Near-Opus quality on coding and agentic work, at Sonnet cost
+
+  - id: claude-haiku-4-5
     vendor: anthropic
     context_limit: 200000
     cost_per_mtok: 5.0
     latency: fast
-    strength: Strong general coding at lower cost
-
-  - id: claude-haiku-4-5-20251001
-    vendor: anthropic
-    context_limit: 200000
-    cost_per_mtok: 1.0
-    latency: fast
     strength: Cheap, quick passes and light edits
 
+  # --- Other vendors. Unverified: check each vendor's pricing page.
   - id: gpt-5
     vendor: openai
     context_limit: 400000
@@ -45,28 +74,28 @@ models:
 tasks:
   spec_extraction:
     description: Wizard answers -> typed spec + wholeness object
-    ranking: [claude-fable-5, gpt-5, gemini-2.5-pro]
+    ranking: [claude-opus-5, gpt-5, gemini-2.5-pro]
 
   architecture:
     description: Layer B — the whole, architecture graph, playbook
-    ranking: [claude-fable-5, gpt-5, gemini-2.5-pro]
+    ranking: [claude-opus-5, gpt-5, gemini-2.5-pro]
 
   codegen:
     description: Generate app code against the frozen contracts
-    ranking: [claude-fable-5, claude-sonnet-5, gpt-5]
+    ranking: [claude-opus-5, claude-sonnet-5, gpt-5]
 
   review:
     description: Review, rewrite and complement a previous pass
-    ranking: [gpt-5, claude-fable-5, gemini-2.5-pro]
+    ranking: [gpt-5, claude-opus-5, gemini-2.5-pro]
 
   fix:
     description: Directed repair of a specific defect
-    ranking: [claude-fable-5, claude-sonnet-5, gpt-5]
+    ranking: [claude-opus-5, claude-sonnet-5, gpt-5]
 
   design:
     description: Design generation and directed regeneration
-    ranking: [claude-fable-5, gemini-2.5-pro, gpt-5]
+    ranking: [claude-opus-5, gemini-2.5-pro, gpt-5]
 
   light_edit:
     description: Small, cheap changes — single pass by default
-    ranking: [claude-haiku-4-5-20251001, claude-sonnet-5, claude-fable-5]
+    ranking: [claude-haiku-4-5, claude-sonnet-5, claude-opus-5]

@@ -5,6 +5,37 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — B053: **prepared for the first REAL run against Claude** (the run itself is the
+  operator's — their key, their environment). Four things. (1) **Real model ids**: matrix.yaml now
+  carries `claude-fable-5`, `claude-opus-5`, `claude-opus-4-8`, `claude-sonnet-5`, `claude-haiku-4-5`
+  with output-token prices, and a note telling the operator to confirm ids + pricing in the Anthropic
+  console before spending — ids are complete as written, never suffixed with a date (the old
+  `claude-haiku-4-5-20251001` was not a valid id). (2) **The "1 + Claude" run profile**
+  (`execution/profile.py`): `SCIO_ONLY_PROVIDER` / `SCIO_MODEL` / `SCIO_MODEL_PASSES` narrow the whole
+  engine to one vendor and one model without editing YAML, and **setting 1 runs that model twice —
+  generate, then self-review** (STRATEGY §E), with tests proving the doubling, proving the second pass
+  really receives the first, and proving a caller that asks the relay for one pass still gets one.
+  `/health` now reports what would actually happen (`providers`, `profile`, `builder`), so a key that
+  never reached the process is caught before a build, and the build view shows the models it ran.
+  (3) **The sandbox runs REAL generated code** — the B052 gap. A workspace is now *generated*, not
+  borrowed: package.json for the locked stack (Next.js + TypeScript + Tailwind + Supabase, ADR-0011,
+  pinned) plus tsconfig/next.config/postcss/Tailwind config, then `npm install` as an **explicit
+  blocking step before anything serves** — which is the answer to "the sandbox won't install
+  dependencies during startup" (a dev server that installs on first boot dies mid-startup). Installs
+  go to a cache keyed by the dependency set and are symlinked in, so the first build pays ~35s and
+  every later one pays a symlink; a prepared `SCIO_SCAFFOLD_DIR` or the repo's spike app still works
+  offline. **Verified live here**: the full path built a real Next.js app into an npm-installed
+  workspace — 5 parts, all 4/4 checks, dev server serving `/booking` with the instrumentation intact
+  and Tailwind compiled (11KB of CSS, preflight present). Also raised codegen's output budget to
+  16,000 tokens (a package is several complete files; the 4,096 default cut the third one in half)
+  and made a truncated reply a named, retried failure instead of "no usable files" — half a component
+  never reaches disk. (4) **docs/RUNBOOK-FIRST-RUN.md**: the operator's exact steps (Postgres +
+  migrations, Clerk, `ANTHROPIC_API_KEY`, the 1+Claude env, the three services, wizard -> review ->
+  build -> reveal), what to watch for (real code is not stand-in code; the instrumentation contract
+  meets a real model for the first time; how to verify the install without spending anything; every
+  build leaves a dev server running — with the cleanup), the cost shape, and a symptom table. The
+  fake stand-in remains the default whenever no key is set, and `SCIO_FAKE_PROVIDERS=1` still forces
+  it — that is how CI runs. 310 engine + 46 api + 35 app tests green, ruff and all three builds clean.
 - 2026-08-12 — B052: **the build + reveal wired end to end — the whole path now runs**. Input ->
   understanding -> plan -> built, assembled, running app -> reveal, across app <-> api <-> engine,
   fake-driven. Engine: POST /build streams the whole pipeline (Layer B -> Layer C -> B041b's

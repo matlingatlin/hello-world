@@ -15,7 +15,12 @@ from scio_engine.builder.loop import BuildOptions, ScriptedPreview, build_packag
 from scio_engine.builder.result import PackageStatus
 from scio_engine.core.console import ConsoleEntry, classify_console
 from scio_engine.core.preview import Observation
-from scio_engine.execution.provider import ProviderRegistry
+from scio_engine.execution.provider import (
+    Completion,
+    ModelProvider,
+    ProviderRegistry,
+    Vendor,
+)
 from scio_engine.layerc.plan import BuildPackage, NodeRef, PackageKind
 
 PACKAGE_ID = "pkg_feature_booking"
@@ -292,6 +297,47 @@ class TestFailureIsolation:
 
         assert result.status is PackageStatus.failed
         assert any("budget" in r.what.lower() for r in result.remainders)
+
+
+class CutOffProvider(ModelProvider):
+    """A model that ran into max_tokens mid-file — the shape a real codegen
+    reply takes when a package is bigger than the output budget."""
+
+    vendor = Vendor.anthropic
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def complete(self, model, messages, **kwargs) -> Completion:
+        self.calls += 1
+        return Completion(
+            text=GOOD_CODE[: len(GOOD_CODE) // 2],
+            model=model,
+            vendor=Vendor.anthropic,
+            output_tokens=16000,
+            stop_reason="max_tokens",
+        )
+
+
+class TestTruncatedReply:
+    """Half a component on disk is worse than none: the loop must notice."""
+
+    async def test_a_cut_off_reply_writes_nothing_and_says_why(self, package, tmp_path):
+        provider = CutOffProvider()
+        result = await build_package(
+            package,
+            "## Goal\nA guest can book a table.\n",
+            tmp_path,
+            registry=ProviderRegistry(providers={Vendor.anthropic: provider}),
+            preview=ScriptedPreview([clean_observation()]),
+            options=one_pass(max_attempts=2),
+        )
+
+        assert result.status is PackageStatus.failed
+        assert result.files == []
+        assert not list(tmp_path.glob("**/*.tsx"))
+        assert any("cut off" in problem for a in result.attempts for problem in a.problems)
+        assert provider.calls == 2  # it was retried, and told what went wrong
 
 
 class TestExtraction:

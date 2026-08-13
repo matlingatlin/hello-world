@@ -27,6 +27,12 @@ pip install -e ".[dev]"
 uvicorn scio_engine.main:app --reload --port 8000   # http://localhost:8000/docs
 ```
 
+With no provider key set this runs the deterministic fake provider and the
+stand-in builder — the full pipeline, placeholder code. `GET /health` says which
+it is, and which models a build would use. To run it for real against Claude,
+follow **`docs/RUNBOOK-FIRST-RUN.md`**; the short version is `ANTHROPIC_API_KEY`
+plus `SCIO_ONLY_PROVIDER` / `SCIO_MODEL` / `SCIO_MODEL_PASSES` (see `.env.example`).
+
 Try the gate:
 
 ```bash

@@ -147,6 +147,12 @@ class SandboxPreview(BuildPreview):
             self._handle = None
 
 
+CODEGEN_MAX_TOKENS = 16000
+"""A package is several complete files, and the relay's 4096-token default cuts
+the third one in half. Generous rather than exact: output tokens are only billed
+when used, and a truncated reply costs a whole extra attempt."""
+
+
 @dataclass
 class BuildOptions:
     """The caps. Every one of them exists so a bad package costs a known amount."""
@@ -228,8 +234,11 @@ async def _generate(
     options: BuildOptions,
     current_files: dict[str, str],
     problems: list[str],
-) -> tuple[str, float]:
-    """One codegen relay — a first draft, or a repair with the code in hand."""
+) -> tuple[str, float, bool]:
+    """One codegen relay — a first draft, or a repair with the code in hand.
+
+    Returns the reply, what it cost, and whether it was cut off.
+    """
     first = not problems
     prompt = (
         build_prompt(package, contract)
@@ -244,9 +253,10 @@ async def _generate(
             passes=options.codegen_passes,
             system=CODEGEN_SYSTEM if first else FIX_SYSTEM,
             budget_usd=options.budget_usd,
+            max_tokens=CODEGEN_MAX_TOKENS,
         ),
     )
-    return result.final_text, result.total_cost_usd
+    return result.final_text, result.total_cost_usd, result.truncated
 
 
 def _check_instrumentation(
@@ -312,7 +322,7 @@ async def build_package(
             current = _files_on_disk(app_dir, allowed)
 
             try:
-                text, cost = await _generate(
+                text, cost, truncated = await _generate(
                     package,
                     contract,
                     registry=registry,
@@ -328,6 +338,19 @@ async def build_package(
                 break
             attempt.cost_usd = cost
             result.total_cost_usd += cost
+
+            if truncated:
+                # The reply ends inside a file. Writing what arrived would put
+                # half a component on disk, so nothing is written and the next
+                # attempt is told exactly what went wrong.
+                attempt.problems = [
+                    "[codegen] the reply hit the output-token limit and was cut off — "
+                    "no partial file was written. Return the files complete, and shorter."
+                ]
+                result.attempts.append(attempt)
+                problems = attempt.problems
+                last_gate = _Gate(problems=list(problems))
+                continue
 
             try:
                 extracted = extract_files(text, allowed=allowed)

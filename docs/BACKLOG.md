@@ -52,4 +52,11 @@
 | B049 | Model-passes control in Settings (1 = same model x2; more = best->review->best) | PP4 | P0 | todo |
 | B050 | Intake agent: extraction + next-question loop (gate 1's brain) | PP4 | P0 | done |
 | B051 | Gate 1 wired end-to-end (wizard <-> api <-> engine, spec freeze) | PP5 | P0 | done |
-| B052 | Wire the build + reveal end-to-end (step 3)                    | PP5 | P0 | todo |
+| B052 | Wire the build + reveal end-to-end (step 3)                    | PP5 | P0 | done |
+| B053 | Prepare the first REAL run (model ids, 1+Claude config, real-code sandbox, runbook) | PP5 | P0 | in progress |
+| B054 | Harden the first real run (fix what real code surfaces)        | PP5 | P0 | todo |
+
+**B053 is prep, not the run.** The engine, the config and the runbook are done and
+tested here; the run itself is operator-driven — it needs an Anthropic key and an
+environment we don't have in CI. See `docs/RUNBOOK-FIRST-RUN.md`. B053 closes when
+the operator has done the run; whatever it surfaces becomes B054.

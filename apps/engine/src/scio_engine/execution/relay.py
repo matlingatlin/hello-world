@@ -17,8 +17,9 @@ from collections.abc import AsyncIterator
 
 from pydantic import BaseModel, Field
 
-from .matrix import CapabilityMatrix, ModelCard, default_matrix
+from .matrix import CapabilityMatrix, ModelCard
 from .narration import narrate, plan_models
+from .profile import active_matrix
 from .provider import Completion, Message, ProviderError, ProviderRegistry
 
 MAX_PASSES = 4
@@ -62,6 +63,7 @@ class PassResult(BaseModel):
     output_tokens: int = 0
     cost_usd: float = 0.0
     duration_ms: int = 0
+    stop_reason: str = ""  # "max_tokens" here means the answer is incomplete
 
 
 class RelayResult(BaseModel):
@@ -75,6 +77,15 @@ class RelayResult(BaseModel):
     @property
     def total_tokens(self) -> int:
         return sum(p.input_tokens + p.output_tokens for p in self.passes)
+
+    @property
+    def truncated(self) -> bool:
+        """The answer ran into max_tokens, so it is cut off mid-sentence.
+
+        Worth its own flag: a truncated codegen reply ends inside a file, and
+        "no usable files" is a mystifying way to report "ask for less at a time".
+        """
+        return bool(self.passes) and self.passes[-1].stop_reason == "max_tokens"
 
 
 class BudgetExceeded(RuntimeError):
@@ -165,7 +176,10 @@ async def stream_relay(
     Events: "narration" (str), "pass" (PassResult), "result" (RelayResult).
     The API turns these into SSE; tests consume them directly.
     """
-    matrix = matrix or default_matrix()
+    # The active matrix honours the run profile (SCIO_MODEL), so a
+    # single-model deployment narrows every relay without threading a
+    # matrix through every service.
+    matrix = matrix or active_matrix()
     opts = options or RelayOptions()
 
     models = matrix.top_n(task, n=3)
@@ -206,6 +220,7 @@ async def stream_relay(
             output_tokens=completion.output_tokens,
             cost_usd=cost,
             duration_ms=duration_ms,
+            stop_reason=completion.stop_reason or "",
         )
         result.passes.append(pass_result)
         result.total_cost_usd += cost

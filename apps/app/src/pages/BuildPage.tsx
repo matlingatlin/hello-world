@@ -128,6 +128,13 @@ export function BuildPage() {
           {started?.whole && (
             <p className="text-[13px] text-muted mt-4 leading-relaxed">{started.whole}</p>
           )}
+          {started?.models && (
+            // What is writing this code is not a detail: it is what the result
+            // costs and how good it will be.
+            <p className="font-mono text-[11px] text-muted mt-3" data-testid="build-models">
+              {started.models}
+            </p>
+          )}
           <div className="font-mono text-[11px] text-muted mt-4" data-testid="build-log">
             {lines.slice(-6).map((line) => (
               <div key={line} className="py-0.5">
