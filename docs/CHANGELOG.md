@@ -5,6 +5,25 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — B051: **gate 1 wired end to end** — the UI now runs the real engine. app <-> api <->
+  engine: a turn in the wizard hits POST /projects/:id/intake/message, which loads the project's
+  conversation, appends what was said, calls the engine's /intake/step, persists the messages and the
+  updated spec, and answers with the next question. New in the api: an EngineClient (ENGINE_URL) that
+  separates failures by consequence — the turn itself throws (503, "the engine is not reachable")
+  while the review screen's decorations degrade to null so the user still sees their spec; a
+  workspace-scoped intake module; and a real spec freeze (POST /projects/:id/spec/approve) writing a
+  spec_version with the assumptions read off the spec's own metadata, marking it current and setting
+  the project to the new `spec_locked` status. New in the app: the real wizard (conversation + a live
+  wholeness panel that tags every assumed and inferred field, honest 'n of 6 core answers' progress,
+  contradictions surfaced as "needs your call") and the real review screen (the whole above the
+  field-by-field spec, the assumptions listed, a part count explicitly marked rough — not a price —
+  and the three exits: adjust, not now, freeze). Schema: `project.draft_spec` for the working spec
+  (a spec_version is a contract and is never rewritten in place) + `spec_locked`, migration 0002
+  generated. 273 engine + 35 api + 21 app tests green, all three build. Two real bugs were caught by
+  checking the contract against the *running* engine rather than the mocks: Layer B's `whole` is an
+  object, not a string (the review screen would have silently always fallen back), and on the fake
+  provider the whole was a hash digest — the engine now uses its deterministic grounded narrative
+  whenever no real model is available, because a digest must never be the thing a user approves.
 - 2026-08-12 — B050 / 4.3: the intake agent — extraction + next-question (apps/engine/intake).
   **Gate 1's brain is now complete**: a conversation goes in, a typed AppSpec with provenance
   comes back, and the wizard asks the one thing still missing. The split is deliberate — WHICH
@@ -220,4 +239,5 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   the full build plan (docs/PROJECT-PLAN.md).
 
 ### Next
-- Spec the component library (the nave), then the cost estimate, then the intake agent, then wire the gates.
+- Step 3: wire the build + reveal end-to-end (gate 1 now runs on the real engine). Then the
+  component library (the nave) and the cost estimate, per docs/STRATEGY.md.

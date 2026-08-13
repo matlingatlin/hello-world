@@ -34,13 +34,24 @@ class TestWholeGrounding:
 
     @pytest.mark.asyncio
     async def test_whole_is_generated_through_the_relay(self):
-        registry = ProviderRegistry.fake()
+        # A scripted provider, not the fake one: FakeProvider returns a digest,
+        # and a digest must never become the text a user approves — so the whole
+        # deliberately falls back to its deterministic narrative there.
+        registry = ProviderRegistry.scripted(["You're building a table-booking app."])
         whole = await generate_whole(booking_spec(), registry=registry, passes=2)
         assert whole.generated is True
-        assert whole.narrative
+        assert whole.narrative == "You're building a table-booking app."
         assert len(whole.models_used) == 2
-        # the relay actually ran: the fake provider saw both passes
+        # the relay actually ran: the provider saw both passes
         assert len(registry.get(Vendor.anthropic).calls) == 2
+
+    @pytest.mark.asyncio
+    async def test_a_fake_provider_never_puts_a_digest_at_the_spec_gate(self):
+        whole = await generate_whole(booking_spec(), registry=ProviderRegistry.fake())
+
+        assert whole.generated is False  # honest: no model wrote this
+        assert "pass-output" not in whole.narrative
+        assert "Guests book a table" in whole.narrative  # but it is still true
 
     @pytest.mark.asyncio
     async def test_whole_is_deterministic_with_the_fake_provider(self):

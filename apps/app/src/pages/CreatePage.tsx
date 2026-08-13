@@ -65,8 +65,10 @@ export function CreatePage() {
     setSaving(true);
     setError(null);
     try {
-      await api.createProject({ name: trimmed.slice(0, 200), type: "app" });
-      navigate("/projects");
+      const created = await api.createProject({ name: trimmed.slice(0, 200), type: "app" });
+      // Straight into the wizard: creating a project and describing it are one
+      // intent, and bouncing through the project list breaks that.
+      navigate(`/projects/${created.project.id}/wizard`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
       setSaving(false);

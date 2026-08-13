@@ -117,6 +117,17 @@ async def generate_whole(
     facts = grounding_facts(spec)
     prompt = build_prompt(spec)
 
+    if registry.is_fake:
+        # No real model available: the deterministic narrative is plainer but
+        # true, and the spec gate must never ask someone to approve a digest.
+        return Whole(
+            narrative=fallback_narrative(spec),
+            assumptions=assumed_fields(spec),
+            grounding=facts,
+            models_used=[],
+            generated=False,
+        )
+
     try:
         result = await run_relay(
             "architecture",

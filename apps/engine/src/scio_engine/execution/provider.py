@@ -311,6 +311,20 @@ class ProviderRegistry(BaseModel):
 
     providers: dict[Vendor, ModelProvider] = Field(default_factory=dict)
 
+    @property
+    def is_fake(self) -> bool:
+        """True when nothing here can produce real prose.
+
+        Callers whose output is shown to the user (the whole at the spec gate)
+        use this to fall back to a deterministic text: a digest like
+        "[fake:...] pass-output 8067fd" is not a narrative, and showing one as
+        the thing a user approves would be worse than showing nothing.
+        ScriptedProvider is deliberately not counted — its replies are real text.
+        """
+        return bool(self.providers) and all(
+            type(p) is FakeProvider for p in self.providers.values()
+        )
+
     def get(self, vendor: Vendor) -> ModelProvider:
         provider = self.providers.get(vendor)
         if provider is None:

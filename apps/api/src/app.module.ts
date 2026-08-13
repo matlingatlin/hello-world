@@ -1,7 +1,9 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { EngineModule } from "./engine/engine.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { HealthModule } from "./health/health.module";
+import { IntakeModule } from "./modules/intake/intake.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { BuildModule } from "./modules/build/build.module";
 import { DeploymentModule } from "./modules/deployment/deployment.module";
@@ -19,11 +21,13 @@ import { WorkspaceModule } from "./modules/workspace/workspace.module";
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    EngineModule,
     HealthModule,
     AuthModule,
     WorkspaceModule,
     UserModule,
     ProjectModule,
+    IntakeModule,
     SpecModule,
     DesignModule,
     BuildModule,

@@ -33,6 +33,8 @@ enum ProjectType {
 
 enum ProjectStatus {
   draft
+  /// The spec is frozen and the build is next (gate 1 passed).
+  spec_locked
   building
   ready
   error
@@ -118,6 +120,10 @@ model Project {
   name        String
   type        ProjectType   @default(app)
   status      ProjectStatus @default(draft)
+  /// The wizard's working spec (Layer A), before it is frozen as a spec_version.
+  /// Lives on the project because it is still being edited; a spec_version is a
+  /// contract and must never be rewritten in place.
+  draftSpec   Json?         @map("draft_spec")
   deletedAt   DateTime?     @map("deleted_at") // soft delete
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")

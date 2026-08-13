@@ -1,27 +1,29 @@
-import { CurrentWorkspace } from "../../auth/auth-context";
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import { Controller, Get, Param, Post } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
-import type { FreezeSpecRequest, SpecVersionListResponse, SpecVersionResponse } from "@scio/shared";
+import type { ApproveSpecResponse, SpecVersionListResponse } from "@scio/shared";
+import { CurrentWorkspace } from "../../auth/auth-context";
 import { SpecService } from "./spec.service";
 
 @ApiTags("spec")
-@Controller("projects/:projectId/spec-versions")
+@Controller("projects/:projectId/spec")
 export class SpecController {
   constructor(private readonly specs: SpecService) {}
 
-  @Get()
-  @ApiOperation({ summary: "List frozen spec versions (stub)" })
-  list(@CurrentWorkspace() workspaceId: string, @Param("projectId") projectId: string): Promise<SpecVersionListResponse> {
+  @Get("versions")
+  @ApiOperation({ summary: "List frozen spec versions, newest first" })
+  list(
+    @CurrentWorkspace() workspaceId: string,
+    @Param("projectId") projectId: string,
+  ): Promise<SpecVersionListResponse> {
     return this.specs.list(workspaceId, projectId);
   }
 
-  @Post()
-  @ApiOperation({ summary: "Freeze the approved spec/whole as a new version (stub)" })
-  freeze(
+  @Post("approve")
+  @ApiOperation({ summary: "Freeze the working spec as the current spec version" })
+  approve(
     @CurrentWorkspace() workspaceId: string,
     @Param("projectId") projectId: string,
-    @Body() body: FreezeSpecRequest,
-  ): Promise<SpecVersionResponse> {
-    return this.specs.freeze(workspaceId, projectId, body);
+  ): Promise<ApproveSpecResponse> {
+    return this.specs.approve(workspaceId, projectId);
   }
 }

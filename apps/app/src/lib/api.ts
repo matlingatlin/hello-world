@@ -1,4 +1,10 @@
-import type { CreateProjectRequest, ProjectListResponse, ProjectResponse } from "@scio/shared";
+import type {
+  ApproveSpecResponse,
+  CreateProjectRequest,
+  IntakeStepResponse,
+  ProjectListResponse,
+  ProjectResponse,
+} from "@scio/shared";
 
 export class ApiError extends Error {
   constructor(
@@ -53,8 +59,19 @@ export function createApi(getToken: GetToken, baseUrl?: string) {
 
   return {
     listProjects: () => request<ProjectListResponse>("/projects"),
+    getProject: (id: string) => request<ProjectResponse>(`/projects/${id}`),
     createProject: (body: CreateProjectRequest) =>
       request<ProjectResponse>("/projects", { method: "POST", body: JSON.stringify(body) }),
+
+    // --- gate 1 ---
+    getIntake: (projectId: string) => request<IntakeStepResponse>(`/projects/${projectId}/intake`),
+    sendIntakeMessage: (projectId: string, text: string) =>
+      request<IntakeStepResponse>(`/projects/${projectId}/intake/message`, {
+        method: "POST",
+        body: JSON.stringify({ text }),
+      }),
+    approveSpec: (projectId: string) =>
+      request<ApproveSpecResponse>(`/projects/${projectId}/spec/approve`, { method: "POST" }),
   };
 }
 

@@ -6,7 +6,7 @@
 export type Plan = "starter" | "builder" | "team";
 export type UserRole = "owner" | "member";
 export type ProjectType = "app" | "website" | "automation";
-export type ProjectStatus = "draft" | "building" | "ready" | "error";
+export type ProjectStatus = "draft" | "spec_locked" | "building" | "ready" | "error";
 export type MessageRole = "user" | "scio";
 export type DeploymentTarget = "scio_url" | "own_infra";
 export type DeploymentStatus = "pending" | "live" | "failed";
