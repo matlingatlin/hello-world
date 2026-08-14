@@ -5,6 +5,22 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — **Spike (spikes/local-data): a generated app CAN persist data in this sandbox, with
+  no Docker.** Verdict: yes, via approach A — `@electric-sql/pglite` (PostgreSQL 18.3 as in-process
+  WASM) behind a swapped `lib/supabase.ts` that answers with supabase-js's `{data, error}` shape.
+  The fixture is the booking blueprint's real code, emitted by the engine's own adapter; nothing was
+  seeded and nothing in the app was changed. Playwright filled the real form, submitted it through
+  the app's own server action, and the booking was still there after a page reload **and after a
+  full process restart** — verified in the UI and by reading the database directly. The fidelity
+  gaps are written down honestly: RLS is bypassed by default (pglite connects as superuser) but **is
+  enforceable** by doing what PostgREST does — `begin; set local role authenticated; set local
+  request.jwt.claim.sub = …` — measured working, which would turn "a guest cannot read another
+  guest's booking" from an unobservable criterion into a testable one; there is no GoTrue/`auth`
+  schema, so `auth.uid()` policies need a small shim; the client shim covers only the calls the
+  blueprint makes (PostgREST-the-binary is the escape hatch); and pglite is single-writer, so
+  verification must own the database lifecycle — a lesson learned the hard way when clearing the
+  data directory under a running server left it serving stale rows while new writes vanished.
+  Recommendation for B060 in `spikes/local-data/FINDINGS.md`. Fixture only, not wired into apps/.
 - 2026-08-12 — B046: **a deterministic cost + time estimate at the spec gate** (`engine/estimate.py`).
   Pricing a build never calls a model — a spec is priced every time someone finishes the wizard, and
   most specs are priced far more often than they are built, so an LLM price tag would eat the margin

@@ -1,0 +1,9 @@
+{
+  "name": "scio-spike-local-data",
+  "private": true,
+  "version": "0.0.0",
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.5",
+    "playwright": "^1.62.1"
+  }
+}

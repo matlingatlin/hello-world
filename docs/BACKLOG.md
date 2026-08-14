@@ -60,7 +60,7 @@
 | B057 | Evaluate Advisor tool vs our multi-pass relay (spike)             | post-MVP | P2 | todo |
 | B058 | Evaluate memory tool / stores vs our own persistence             | post-MVP | P2 | todo |
 | B059 | Harden the second real run (server actions + validation in the file plan, third-party console noise) | PP5 | P0 | done |
-| B060 | Vision loop drives interactions (fill a form, submit, reload) so end-to-end criteria become observable | PP7 | P1 | todo |
+| B060 | Vision loop drives interactions (fill a form, submit, reload) so end-to-end criteria become observable | PP7 | P1 | todo — path proven: in-process Postgres (pglite), see spikes/local-data/FINDINGS.md |
 | B061 | Grow the library (more entries; the token/pattern/integration layers) | PP4 | P0 | todo |
 | B062 | Wire the cost estimate from the assemble-vs-generate plan       | PP4 | P0 | done |
 | B063 | Decide customer-facing pricing (markup + currency) — the estimate shows build cost, not a price | PP4 | P0 | todo |
