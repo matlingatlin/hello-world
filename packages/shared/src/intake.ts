@@ -93,16 +93,40 @@ export interface WizardTurn {
 
 export type MessageRoleName = "user" | "scio";
 
+/** A low-high band. Never collapsed to one number: see BuildEstimate. */
+export interface EstimateRange {
+  low: number;
+  high: number;
+}
+
+/** Where the app comes from — how much was reused rather than built. */
+export interface EstimateComposition {
+  parts_total: number;
+  assembled: number;
+  generated: number;
+}
+
 /**
- * The rough signal shown at the review screen. Deliberately a part count, not a
- * price: the real cost formula is a later step (docs/STRATEGY.md, section B), and
- * showing a number we cannot stand behind would be worse than showing none.
+ * What the build will cost and take, shown at the review screen.
+ *
+ * `cost_usd`/`minutes`/`composition` are present when the engine could price the
+ * plan; when it could not, only `parts` and `packages` are, and the UI falls
+ * back to the part count rather than inventing a figure.
+ *
+ * Always a RANGE and always for the base build: a package that needs a repair
+ * round costs about twice one that passes first time, and which will is not
+ * knowable in advance. `basis` carries that caveat from the engine so the UI
+ * cannot quietly drop it.
  */
-export interface RoughEstimate {
+export interface BuildEstimate {
   parts: number;
-  /** Always true here — kept explicit so the UI can never quietly drop the caveat. */
-  rough: true;
   packages: string[];
+  cost_usd?: EstimateRange | null;
+  minutes?: EstimateRange | null;
+  composition?: EstimateComposition | null;
+  model?: string;
+  passes?: number;
+  basis?: string;
 }
 
 export interface IntakeStepResponse {
@@ -114,7 +138,7 @@ export interface IntakeStepResponse {
   messages: WizardTurn[];
   /** The confirmation narrative, once the spec is buildable and Layer B could run. */
   whole?: string | null;
-  estimate?: RoughEstimate | null;
+  estimate?: BuildEstimate | null;
   /** What the engine could and couldn't do for this turn — never hidden. */
   engine: EngineStatus;
 }

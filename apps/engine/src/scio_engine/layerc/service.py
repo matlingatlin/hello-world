@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from ..estimate import BuildEstimate, estimate_plan
 from ..execution.provider import ProviderRegistry
 from ..layerb.architecture import Architecture
 from ..layerb.playbook import Playbook, default_playbook
@@ -31,6 +32,10 @@ class LayerCResult(BaseModel):
     library: MatchReport = Field(
         default_factory=MatchReport,
         description="Which packages the library covers (assemble) and which must be generated",
+    )
+    estimate: BuildEstimate | None = Field(
+        default=None,
+        description="What the base build will cost and take — deterministic, no model call",
     )
 
 
@@ -74,4 +79,7 @@ async def run_layer_c(
         grouping_advice=advice,
         prompts=prompts,
         library=library,
+        # Priced here because this is the moment the plan is complete AND the
+        # assemble-vs-generate decision is known — the two things a price needs.
+        estimate=estimate_plan(plan),
     )

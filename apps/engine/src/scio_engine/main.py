@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from .builder.pipeline import stream_full_build
 from .builder.workspace import WorkspaceUnavailable
 from .config import build_registry, use_fake_providers
+from .estimate import BuildEstimate, estimate_plan
 from .execution.matrix import UnknownTaskError, default_matrix
 from .execution.narration import narrate
 from .execution.profile import run_profile
@@ -171,6 +172,30 @@ class PlanRequest(BaseModel):
         default=True,
         description="Consult the relay for genuinely ambiguous grouping; false stays deterministic",
     )
+
+
+class EstimateRequest(BaseModel):
+    architecture: Architecture
+    use_judgment: bool = Field(
+        default=False,
+        description="Estimating never needs judgment; kept so a caller can match /plan exactly",
+    )
+
+
+@app.post("/estimate", response_model=BuildEstimate)
+async def estimate(req: EstimateRequest) -> BuildEstimate:
+    """What the base build would cost and take. Deterministic and free.
+
+    Pricing must never cost a model call: a spec is priced every time someone
+    finishes the wizard or revisits the review screen, and most specs are priced
+    far more often than they are built.
+    """
+    result = await run_layer_c(
+        req.architecture,
+        registry=build_registry(),
+        use_judgment=req.use_judgment,
+    )
+    return result.estimate or estimate_plan(result.plan)
 
 
 @app.post("/plan", response_model=LayerCResult)

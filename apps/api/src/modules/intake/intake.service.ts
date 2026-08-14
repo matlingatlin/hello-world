@@ -3,7 +3,7 @@ import type {
   EngineStatus,
   IntakeSpec,
   IntakeStepResponse,
-  RoughEstimate,
+  BuildEstimate,
   WizardTurn,
 } from "@scio/shared";
 import { WorkspaceScope } from "../../auth/workspace-scope";
@@ -113,7 +113,7 @@ export class IntakeService {
 
     const engine: EngineStatus = { reachable: true };
     let whole: string | null = null;
-    let estimate: RoughEstimate | null = null;
+    let estimate: BuildEstimate | null = null;
 
     if (step.buildable) {
       ({ whole, estimate } = await this.confirmation(step.updated_spec, engine));
@@ -152,7 +152,7 @@ export class IntakeService {
   private async confirmation(
     spec: IntakeSpec,
     engine: EngineStatus,
-  ): Promise<{ whole: string | null; estimate: RoughEstimate | null }> {
+  ): Promise<{ whole: string | null; estimate: BuildEstimate | null }> {
     const architecture = await this.engine.architecture(spec);
     if (!architecture) {
       engine.degraded = [...(engine.degraded ?? []), "architecture"];
@@ -174,9 +174,22 @@ export class IntakeService {
       return { whole: narrative, estimate: null };
     }
     const packages = planned.plan?.packages?.map((p) => p.id) ?? [];
+    // The engine prices the plan deterministically as part of planning it. When
+    // it could not, the review screen falls back to the part count rather than
+    // inventing a figure — an estimate we cannot stand behind is worse than none.
+    const priced = planned.estimate;
     return {
       whole: narrative,
-      estimate: { parts: packages.length, rough: true, packages },
+      estimate: {
+        parts: packages.length,
+        packages,
+        cost_usd: priced?.cost_usd ?? null,
+        minutes: priced?.minutes ?? null,
+        composition: priced?.composition ?? null,
+        model: priced?.model,
+        passes: priced?.passes,
+        basis: priced?.basis,
+      },
     };
   }
 }

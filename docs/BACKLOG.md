@@ -46,7 +46,7 @@
 | B043 | Wire the gates: engine <-> api <-> app + the real design window | PP6 | P0 | in progress |
 | B044 | Strategy & moat doc (docs/STRATEGY.md)                         | PP4      | P0 | done |
 | B045 | Component library — first slice (catalog, matcher, assembler, gate) | PP4  | P0 | done |
-| B046 | Cost estimate (deterministic, from plan + library hits)        | PP4      | P0 | todo |
+| B046 | Cost estimate (deterministic, from plan + library hits)        | PP4      | P0 | done |
 | B047 | Fleet learning (capture fixes/patterns -> playbook + library)  | post-MVP | P1 | todo |
 | B048 | Quality gate at reveal (Lighthouse + security + lint scores)   | PP9      | P1 | todo |
 | B049 | Model-passes control in Settings (1 = same model x2; more = best->review->best) | PP4 | P0 | todo |
@@ -62,7 +62,8 @@
 | B059 | Harden the second real run (server actions + validation in the file plan, third-party console noise) | PP5 | P0 | done |
 | B060 | Vision loop drives interactions (fill a form, submit, reload) so end-to-end criteria become observable | PP7 | P1 | todo |
 | B061 | Grow the library (more entries; the token/pattern/integration layers) | PP4 | P0 | todo |
-| B062 | Wire the cost estimate from the assemble-vs-generate plan       | PP4 | P0 | todo |
+| B062 | Wire the cost estimate from the assemble-vs-generate plan       | PP4 | P0 | done |
+| B063 | Decide customer-facing pricing (markup + currency) — the estimate shows build cost, not a price | PP4 | P0 | todo |
 
 **B053 is prep, not the run.** The engine, the config and the runbook are done and
 tested here; the run itself is operator-driven — it needs an Anthropic key and an

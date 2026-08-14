@@ -5,6 +5,25 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — B046: **a deterministic cost + time estimate at the spec gate** (`engine/estimate.py`).
+  Pricing a build never calls a model — a spec is priced every time someone finishes the wizard, and
+  most specs are priced far more often than they are built, so an LLM price tag would eat the margin
+  on projects that never build. The estimator reads the plan's assemble-vs-generate decision, the
+  chosen model's price from matrix.yaml, and the pass-count from the run profile: an **assembled part
+  is priced at zero**, a generated one at a documented token heuristic keyed on package kind plus its
+  architecture slice (operations, screens, tables). **The heuristic is calibrated against the real
+  runs and lives in one commented place** — the observed per-package costs are tabled in the module,
+  and a test asserts the range still contains the $1.42 the third real run actually cost, so drifting
+  away from the one real invoice we have fails the suite. Output is always a **range**, never a
+  false-exact figure (low = everything passes first time, high = about half the packages need a
+  repair round), plus the **composition** — "5 parts · 1 reused · 4 built" — which is where the
+  library's saving becomes visible to the person deciding whether to press build. Exposed as POST
+  /estimate and on the /plan response; the api passes it to the review screen and **degrades to the
+  part count** when the engine could not price the plan. The app's "rough parts" placeholder is
+  replaced by the real range, the composition, and the explicit framing: "For the base build. Every
+  change you make afterwards adds — and you only pay once you approve." **Measured**: the booking
+  spec with the blueprint reused estimates $0.43–$1.04 on Sonnet at two passes, against the $1.42
+  that same plan cost fully generated. 405 engine + 47 api + 38 app tests green.
 - 2026-08-12 — B045: **the component library, first slice — match → fetch → adapt → assemble**
   (docs/LIBRARY.md, ADR-0014). Between Layer B and Layer C the engine now asks the catalog whether
   it already knows how to build each package; a match is *assembled* (no relay call at all), and

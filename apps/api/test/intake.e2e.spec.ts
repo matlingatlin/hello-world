@@ -293,8 +293,19 @@ describe("Gate 1 (e2e): wizard turn + spec freeze", () => {
     expect(res.body.buildable).toBe(false);
   });
 
-  it("fetches the confirmation and a rough part count once buildable", async () => {
+  it("fetches the confirmation and the priced plan once buildable", async () => {
     engine.steps = [buildableStep()];
+    engine.planReply = {
+      plan: { packages: [{ id: "pkg_foundation" }, { id: "pkg_feature_booking" }] },
+      estimate: {
+        cost_usd: { low: 0.78, high: 1.87 },
+        minutes: { low: 6.1, high: 14.6 },
+        composition: { parts_total: 2, assembled: 1, generated: 1 },
+        model: "claude-sonnet-5",
+        passes: 2,
+        basis: "the base build, without changes",
+      },
+    };
 
     const res = await request(http)
       .post(`/projects/${projectId}/intake/message`)
@@ -305,8 +316,34 @@ describe("Gate 1 (e2e): wizard turn + spec freeze", () => {
     expect(res.body.buildable).toBe(true);
     expect(res.body.next_question).toBeNull();
     expect(res.body.whole).toContain("table-booking app");
-    expect(res.body.estimate).toEqual({ parts: 2, rough: true, packages: ["pkg_foundation", "pkg_schema"] });
+    expect(res.body.estimate.cost_usd).toEqual({ low: 0.78, high: 1.87 });
+    expect(res.body.estimate.composition).toEqual({
+      parts_total: 2,
+      assembled: 1,
+      generated: 1,
+    });
+    expect(res.body.estimate.basis).toBe("the base build, without changes");
     expect(res.body.engine.degraded).toBeUndefined();
+  });
+
+  it("falls back to the part count when the engine could not price the plan", async () => {
+    // An unpriced plan must not take the review screen down with it: the user
+    // can still read their spec and see how many parts it is.
+    engine.steps = [buildableStep()];
+    engine.planReply = {
+      plan: { packages: [{ id: "pkg_foundation" }, { id: "pkg_schema" }] },
+    };
+
+    const res = await request(http)
+      .post(`/projects/${projectId}/intake/message`)
+      .set(w1)
+      .send({ text: "that's everything" })
+      .expect(201);
+
+    expect(res.body.estimate.parts).toBe(2);
+    expect(res.body.estimate.packages).toEqual(["pkg_foundation", "pkg_schema"]);
+    expect(res.body.estimate.cost_usd).toBeNull();
+    expect(res.body.estimate.minutes).toBeNull();
   });
 
   it("still returns the spec when Layer B is unavailable", async () => {

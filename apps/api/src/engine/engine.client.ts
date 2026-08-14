@@ -87,6 +87,15 @@ function parseFrame(frame: string): { event: string; data: Record<string, unknow
 
 export interface EnginePlanResponse {
   plan?: { packages?: Array<{ id: string }>; order?: string[] };
+  /** Deterministic, computed by the engine alongside the plan — no model call. */
+  estimate?: {
+    cost_usd?: { low: number; high: number };
+    minutes?: { low: number; high: number };
+    composition?: { parts_total: number; assembled: number; generated: number };
+    model?: string;
+    passes?: number;
+    basis?: string;
+  } | null;
   [key: string]: unknown;
 }
 

@@ -1,4 +1,4 @@
-import type { IntakeStepResponse } from "@scio/shared";
+import type { BuildEstimate, IntakeStepResponse } from "@scio/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button, Eyebrow, Lede, PageTitle, StateCard } from "../components/ui";
@@ -11,9 +11,9 @@ import { useApi } from "../lib/useApi";
  *
  * Two things are load-bearing. The assumptions are shown as assumptions — the
  * user should never discover later that Scio decided something quietly. And the
- * size signal is labelled rough, because it is a part count, not a price: the
- * real cost formula is a later step, and a number the product cannot stand
- * behind would be worse than no number.
+ * estimate is shown as a RANGE for the base build, with what it excludes said
+ * out loud: this is the answer to credit-anxiety, and a false-exact figure the
+ * build then exceeds would do more damage than no figure at all.
  */
 export function SpecPage() {
   const { projectId = "" } = useParams();
@@ -111,12 +111,7 @@ export function SpecPage() {
         )}
       </div>
 
-      {step?.estimate && (
-        <p className="font-mono text-xs text-muted mt-3.5">
-          Roughly {step.estimate.parts} parts to build — a rough signal, not a price. The real
-          estimate comes later.
-        </p>
-      )}
+      {step?.estimate && <Estimate estimate={step.estimate} />}
       {step?.engine.degraded?.length ? (
         <p className="font-mono text-xs text-muted mt-1.5">
           Showing your spec directly — the written summary wasn't available for this run.
@@ -135,5 +130,52 @@ export function SpecPage() {
         </Button>
       </div>
     </section>
+  );
+}
+
+
+function money(value: number): string {
+  return value < 10 ? `$${value.toFixed(2)}` : `$${Math.round(value)}`;
+}
+
+function composition(estimate: BuildEstimate): string {
+  const parts = estimate.composition;
+  if (!parts) return `${estimate.parts} parts`;
+  if (!parts.assembled) return `${parts.parts_total} parts · all built`;
+  return `${parts.parts_total} parts · ${parts.assembled} reused · ${parts.generated} built`;
+}
+
+/**
+ * What the build costs, before it runs.
+ *
+ * Always a range and always "for the base build" — a package that needs a repair
+ * round costs about twice one that passes first time, and which will is not
+ * knowable in advance. When the engine could not price the plan we show the part
+ * count alone rather than guessing.
+ */
+function Estimate({ estimate }: { estimate: BuildEstimate }) {
+  const cost = estimate.cost_usd;
+  const minutes = estimate.minutes;
+
+  if (!cost || !minutes) {
+    return (
+      <p className="font-mono text-xs text-muted mt-3.5" data-testid="estimate">
+        {composition(estimate)} — we couldn't price this build just now.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3.5 border border-line rounded-card p-3.5" data-testid="estimate">
+      <p className="font-mono text-[13px]">
+        ~{money(cost.low)}–{money(cost.high)} · ~{Math.round(minutes.low)}–
+        {Math.round(minutes.high)} min
+      </p>
+      <p className="font-mono text-[11px] text-muted mt-1.5">{composition(estimate)}</p>
+      <p className="text-[12px] text-muted mt-2 leading-relaxed">
+        For the base build. Every change you make afterwards adds — and you only pay once you
+        approve.
+      </p>
+    </div>
   );
 }

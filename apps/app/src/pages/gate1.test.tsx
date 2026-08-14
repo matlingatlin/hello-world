@@ -224,19 +224,92 @@ describe("Review (spec gate)", () => {
     expect(screen.getByText(/Look: Scio default/)).toBeDefined();
   });
 
-  it("marks the part count as rough, never as a price", async () => {
+  it("shows the estimate as a range, never as an exact figure", async () => {
     mockApi({
       getIntake: vi.fn().mockResolvedValue(
         step({
           buildable: true,
-          estimate: { parts: 5, rough: true, packages: ["pkg_foundation"] },
+          estimate: {
+            parts: 5,
+            packages: ["pkg_foundation"],
+            cost_usd: { low: 0.78, high: 1.87 },
+            minutes: { low: 6.1, high: 14.6 },
+            composition: { parts_total: 5, assembled: 1, generated: 4 },
+            model: "claude-sonnet-5",
+            basis: "the base build, without changes",
+          },
         }),
       ),
     });
     renderAt("/projects/p1/spec", <SpecPage />);
 
-    const line = await screen.findByText(/Roughly 5 parts to build/);
-    expect(line.textContent).toContain("not a price");
+    const panel = await screen.findByTestId("estimate");
+    expect(panel.textContent).toContain("$0.78");
+    expect(panel.textContent).toContain("$1.87");
+    expect(panel.textContent).toContain("min");
+  });
+
+  it("shows what was reused, so the library's saving is visible", async () => {
+    mockApi({
+      getIntake: vi.fn().mockResolvedValue(
+        step({
+          buildable: true,
+          estimate: {
+            parts: 6,
+            packages: [],
+            cost_usd: { low: 1, high: 2 },
+            minutes: { low: 5, high: 9 },
+            composition: { parts_total: 6, assembled: 4, generated: 2 },
+          },
+        }),
+      ),
+    });
+    renderAt("/projects/p1/spec", <SpecPage />);
+
+    const panel = await screen.findByTestId("estimate");
+    expect(panel.textContent).toContain("6 parts");
+    expect(panel.textContent).toContain("4 reused");
+    expect(panel.textContent).toContain("2 built");
+  });
+
+  it("says the estimate is for the base build only", async () => {
+    mockApi({
+      getIntake: vi.fn().mockResolvedValue(
+        step({
+          buildable: true,
+          estimate: {
+            parts: 5,
+            packages: [],
+            cost_usd: { low: 1, high: 2 },
+            minutes: { low: 5, high: 9 },
+            composition: { parts_total: 5, assembled: 0, generated: 5 },
+          },
+        }),
+      ),
+    });
+    renderAt("/projects/p1/spec", <SpecPage />);
+
+    const panel = await screen.findByTestId("estimate");
+    expect(panel.textContent).toContain("For the base build");
+    expect(panel.textContent).toContain("Every change you make afterwards adds");
+    expect(panel.textContent).toContain("only pay once you approve");
+  });
+
+  it("falls back to the part count when the engine could not price the plan", async () => {
+    mockApi({
+      getIntake: vi.fn().mockResolvedValue(
+        step({
+          buildable: true,
+          estimate: { parts: 5, packages: [], cost_usd: null, minutes: null },
+        }),
+      ),
+    });
+    renderAt("/projects/p1/spec", <SpecPage />);
+
+    const panel = await screen.findByTestId("estimate");
+    expect(panel.textContent).toContain("5 parts");
+    expect(panel.textContent).toContain("couldn't price this build");
+    expect(panel.textContent).not.toContain("$");
   });
 
   it("freezes the spec with the whole and goes straight to the build (Level 1)", async () => {
