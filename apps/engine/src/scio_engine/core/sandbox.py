@@ -43,8 +43,14 @@ class SandboxProvider(ABC):
     name: str
 
     @abstractmethod
-    def start(self, app_dir: Path, *, port: int = 0) -> SandboxHandle:
-        """Boot the app and return a URL serving it. Blocks until ready."""
+    def start(
+        self, app_dir: Path, *, port: int = 0, env: dict[str, str] | None = None
+    ) -> SandboxHandle:
+        """Boot the app and return a URL serving it. Blocks until ready.
+
+        `env` carries per-run configuration the app process needs — the
+        verification data layer's database, for instance (library/verification).
+        """
 
     @abstractmethod
     def apply_change(self, handle: SandboxHandle, files: dict[str, str]) -> None:
@@ -102,7 +108,9 @@ class LocalProcessSandbox(SandboxProvider):
     def isolated(self) -> bool:
         return False
 
-    def start(self, app_dir: Path, *, port: int = 0) -> SandboxHandle:
+    def start(
+        self, app_dir: Path, *, port: int = 0, env: dict[str, str] | None = None
+    ) -> SandboxHandle:
         app_dir = app_dir.resolve()
         if not (app_dir / "node_modules").exists():
             raise SandboxError(
@@ -116,7 +124,12 @@ class LocalProcessSandbox(SandboxProvider):
         process = subprocess.Popen(
             ["npm", "run", "dev", "--", "--port", str(port), "--hostname", "127.0.0.1"],
             cwd=app_dir,
-            env={**os.environ, "PORT": str(port), "NEXT_TELEMETRY_DISABLED": "1"},
+            env={
+                **os.environ,
+                "PORT": str(port),
+                "NEXT_TELEMETRY_DISABLED": "1",
+                **(env or {}),
+            },
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -136,6 +149,13 @@ class LocalProcessSandbox(SandboxProvider):
                 with urllib.request.urlopen(handle.url, timeout=2) as response:
                     if response.status < 500:
                         return
+            except urllib.error.HTTPError:
+                # The server ANSWERED — a 404 on `/` just means this app has no
+                # root route, which is true of any app whose pages all live under
+                # a prefix. HTTPError subclasses URLError, so without this branch
+                # it lands in "not up yet" and the sandbox waits out the full
+                # timeout on an app that started in two seconds.
+                return
             except (urllib.error.URLError, TimeoutError, ConnectionError):
                 time.sleep(0.5)
         raise SandboxError(f"dev server not ready within {self.ready_timeout_s}s")
@@ -189,7 +209,9 @@ class LocalDockerSandbox(SandboxProvider):
         )
         return probe.returncode == 0
 
-    def start(self, app_dir: Path, *, port: int = 0) -> SandboxHandle:
+    def start(
+        self, app_dir: Path, *, port: int = 0, env: dict[str, str] | None = None
+    ) -> SandboxHandle:
         if not self.is_available():
             raise SandboxError("Docker daemon is not reachable")
         app_dir = app_dir.resolve()

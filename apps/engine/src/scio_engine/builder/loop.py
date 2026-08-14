@@ -114,15 +114,19 @@ class SandboxPreview(BuildPreview):
         *,
         route: str = "/",
         screenshot_dir: Path | None = None,
+        env: dict[str, str] | None = None,
     ) -> None:
         self.sandbox = sandbox
         self.route = route
         self.screenshot_dir = screenshot_dir
+        # Per-run configuration for the app process — the verification database
+        # lives here when a build is being verified (library/verification).
+        self.env = env or {}
         self._handle: SandboxHandle | None = None
 
     def _ensure_started(self, app_dir: Path) -> SandboxHandle:
         if self._handle is None:
-            self._handle = self.sandbox.start(app_dir)
+            self._handle = self.sandbox.start(app_dir, env=self.env)
         return self._handle
 
     @property

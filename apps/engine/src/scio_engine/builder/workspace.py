@@ -36,6 +36,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..library.verification import PGLITE_PACKAGE, PGLITE_VERSION, next_config
+
 SCAFFOLD_FILES = ("package.json", "next.config.js", "tsconfig.json", "next-env.d.ts")
 
 ENGINE_ROOT = Path(__file__).resolve().parents[3]
@@ -65,6 +67,9 @@ DEV_DEPENDENCIES = {
     "@types/node": "22.9.0",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
+    # Verification only — the in-process Postgres the data layer runs against
+    # (library/verification). A devDependency because it never ships in a build.
+    PGLITE_PACKAGE: PGLITE_VERSION,
     "tailwindcss": "3.4.14",
     "postcss": "8.4.47",
     "autoprefixer": "10.4.20",
@@ -132,10 +137,9 @@ def stack_files(project_id: str) -> dict[str, str]:
     """
     return {
         "package.json": package_json(project_id),
-        "next.config.js": (
-            "/** @type {import('next').NextConfig} */\n"
-            "module.exports = { reactStrictMode: true };\n"
-        ),
+        # Carries the verification alias, which does nothing unless
+        # SCIO_VERIFY_DATA is set (library/verification).
+        "next.config.js": next_config(),
         "tsconfig.json": json.dumps(
             {
                 "compilerOptions": {
@@ -181,7 +185,7 @@ def stack_files(project_id: str) -> dict[str, str]:
             "};\n\nexport default config;\n"
         ),
         "app/globals.css": "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n",
-        ".gitignore": "node_modules\n.next\n.env.local\n",
+        ".gitignore": "node_modules\n.next\n.env.local\n.scio\n",
     }
 
 

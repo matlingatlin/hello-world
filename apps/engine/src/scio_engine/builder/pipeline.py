@@ -26,6 +26,8 @@ from ..execution.provider import ProviderRegistry
 from ..intake.schema import AppSpec
 from ..layerb.service import run_layer_b
 from ..layerc.service import run_layer_c
+from ..library.verification import VerificationDatabase, verification_enabled
+from ..library.verification import prepare as prepare_verification
 from .loop import BuildOptions, BuildPreview, SandboxPreview
 from .orchestrate import AppBuildOptions, AppBuildResult, stream_build_plan
 from .result import PackageBuildResult
@@ -146,9 +148,21 @@ async def stream_full_build(
     plan = layer_c.plan
 
     workspace = Path(app_dir) if app_dir else prepare_workspace(project_id)
+
+    # With data, a build can check that saving actually saves — the criteria
+    # B054 had to scope out as unobservable (library/verification). Off unless
+    # the flag is set, and then it is one fresh database for this build, owned
+    # and discarded here.
+    database: VerificationDatabase | None = None
+    verify_env: dict[str, str] = {}
+    if verification_enabled():
+        database = prepare_verification(workspace)
+        verify_env = database.env
+
     running = preview or SandboxPreview(
         sandbox or choose_sandbox(),
         screenshot_dir=workspace.parent / f"{project_id}-shots",
+        env=verify_env,
     )
 
     yield (
@@ -189,6 +203,13 @@ async def stream_full_build(
             yield event, payload
 
     assert result is not None  # stream_build_plan always ends with a result
+
+    # ~39MB per database (measured in the spike). It is build output, and the
+    # next build gets a fresh one, so it goes when the build does — but only
+    # after the sandbox has stopped reading it.
+    if database is not None and close_preview:
+        database.discard()
+
     yield (
         "finished",
         BuildFinished.of(result, project_id=project_id, whole=whole, standin=using_standin),

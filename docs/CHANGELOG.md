@@ -5,6 +5,28 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — B060a: **the verification data layer — generated apps now run WITH data**
+  (`library/verification/`). Built on the spike's approach A. A build in verification mode runs
+  against a real in-process PostgreSQL (pglite), so "the booking actually saves" and "a guest
+  cannot read another guest's booking" stop being criteria Layer C has to scope out as
+  unobservable (B054) and become things a build can check. **What ships is unchanged**: the app's
+  own `lib/supabase.ts` still imports real `@supabase/supabase-js` and is never rewritten — a
+  second client is written into a gitignored `.scio/verification/` and swapped in by next.config.js
+  *only* when `SCIO_VERIFY_DATA=1`; pglite is a devDependency so it cannot ship. **RLS is really
+  enforced**: every app query runs inside a transaction as the non-superuser `authenticated`/`anon`
+  role with the JWT claim GUCs set, exactly as PostgREST does, plus an `auth.uid()/role()/email()`
+  shim so generated Supabase-idiom policies resolve. Both roles get full table grants on purpose —
+  the POLICY decides, not the grant, which is how Supabase itself is set up. **Lifecycle is owned**:
+  one fresh database per build, the app's own migrations applied verbatim, and the ~40 MB discarded
+  when the build ends. **Proven live**: the assembled booking blueprint, driven through its real
+  form in a browser, inserted a booking that was still there after a reload — `persisted: true` —
+  then the dev server stopped and the database was freed. Three real defects found on the way and
+  fixed: the sandbox never considered an app "ready" if its root route 404s (`HTTPError` subclasses
+  `URLError`, so a serving app waited out the full 180s timeout); Next bundles server components
+  and server actions separately, so a module-level singleton gave each its own pglite on one
+  directory (now keyed on `globalThis` — one process, one database); and a `resolve.alias` is
+  silently beaten by Next's tsconfig-paths resolver, so the swap uses
+  `NormalModuleReplacementPlugin`. 425 engine tests green (+20).
 - 2026-08-12 — **Spike (spikes/local-data): a generated app CAN persist data in this sandbox, with
   no Docker.** Verdict: yes, via approach A — `@electric-sql/pglite` (PostgreSQL 18.3 as in-process
   WASM) behind a swapped `lib/supabase.ts` that answers with supabase-js's `{data, error}` shape.
