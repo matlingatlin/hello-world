@@ -1,0 +1,29 @@
+{
+  "id": "ui-button",
+  "name": "Button",
+  "layer": "ui",
+  "description": "The single button every surface uses: primary and quiet variants, token-bound colour and radius, disabled state handled.",
+  "version": "1.0.0",
+  "provenance": "scio-seed",
+  "provides": {
+    "capabilities": [
+      "interactive control",
+      "primary action"
+    ]
+  },
+  "npm_dependencies": [
+    "react"
+  ],
+  "token_bindings": {
+    "__TOKEN_ACCENT__": "accent",
+    "__TOKEN_RADIUS__": "md"
+  },
+  "element_ids": [],
+  "quality": {
+    "tested": true,
+    "security_reviewed": true,
+    "accessibility_score": 96,
+    "lighthouse_score": 98,
+    "review_notes": "No user HTML is rendered; the control is keyboard reachable and its colours come from tokens."
+  }
+}

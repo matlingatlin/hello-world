@@ -177,6 +177,8 @@ async def stream_full_build(
                 critique_passes=1,
             ),
             build_version=build_version,
+            # Assembled parts take their look from the project's tokens.
+            tokens=layer_b.architecture.design_tokens,
             # The reveal embeds the running app, so the sandbox outlives the build.
             close_preview=close_preview,
         ),

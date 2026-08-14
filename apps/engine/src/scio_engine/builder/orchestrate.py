@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field
 from ..core.instrumentation import Manifest
 from ..core.manifest_builder import build_manifest
 from ..execution.provider import ProviderRegistry
+from ..layerb.architecture import DesignTokens
 from ..layerc.plan import BuildPackage, BuildPlan
 from .file_plan import file_plan, planned_files
 from .loop import GATES, BuildOptions, BuildPreview, build_package
@@ -125,6 +126,7 @@ class AppBuildOptions:
     build_version: int = 1
     persist: bool = True
     close_preview: bool = True  # B043 (the live design window) will keep it open
+    tokens: DesignTokens | None = None  # the project's look, for assembled parts
 
 
 ASSEMBLY_HEADER = "## Already in this app (built before you — integrate, do not rewrite)"
@@ -257,24 +259,46 @@ async def stream_build_plan(
                 ),
             )
 
-            contract = contracts.get(package.id, f"# Build package: {package.id}\n{package.goal}")
-            context = assembly_context(results, manifest)
-            if context:
-                contract = f"{contract}\n\n{context}\n"
+            if package.assembled:
+                # Imported here, not at module scope: the library reads the file
+                # plan, which lives in this package — importing it eagerly makes
+                # a cycle that only shows up depending on who imports first.
+                from ..library.assembler import assemble_package
+                from ..library.matcher import package_entity
 
-            result = await build_package(
-                package,
-                contract,
-                app_dir,
-                registry=registry,
-                preview=preview,
-                options=replace(
-                    opts.package,
+                # The library covers this one: no relay, no repair loop. The
+                # instrumentation verifier still runs inside assemble_package —
+                # curation settles whether the part is good, never whether it
+                # fits THIS app's ids.
+                result = assemble_package(
+                    package,
+                    app_dir,
+                    entity=package_entity(package),
+                    tokens=opts.tokens,
                     package_files=plan_files,
                     build_version=index,
-                ),
-                close_preview=False,  # one app, one sandbox — it outlives this package
-            )
+                )
+            else:
+                contract = contracts.get(
+                    package.id, f"# Build package: {package.id}\n{package.goal}"
+                )
+                context = assembly_context(results, manifest)
+                if context:
+                    contract = f"{contract}\n\n{context}\n"
+
+                result = await build_package(
+                    package,
+                    contract,
+                    app_dir,
+                    registry=registry,
+                    preview=preview,
+                    options=replace(
+                        opts.package,
+                        package_files=plan_files,
+                        build_version=index,
+                    ),
+                    close_preview=False,  # one app, one sandbox — it outlives this package
+                )
 
             results.append(result)
             done += 1

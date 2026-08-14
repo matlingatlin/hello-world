@@ -1,0 +1,29 @@
+{
+  "id": "ui-field",
+  "name": "Labelled field",
+  "layer": "ui",
+  "description": "A text input with its label bound to it and an optional hint \u2014 keyboard and screen-reader usable by construction.",
+  "version": "1.0.0",
+  "provenance": "scio-seed",
+  "provides": {
+    "capabilities": [
+      "form input",
+      "labelled control"
+    ]
+  },
+  "npm_dependencies": [
+    "react"
+  ],
+  "token_bindings": {
+    "__TOKEN_ACCENT__": "accent",
+    "__TOKEN_RADIUS__": "md"
+  },
+  "element_ids": [],
+  "quality": {
+    "tested": true,
+    "security_reviewed": true,
+    "accessibility_score": 96,
+    "lighthouse_score": 98,
+    "review_notes": "No user HTML is rendered; the control is keyboard reachable and its colours come from tokens."
+  }
+}

@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from ..execution.provider import ProviderRegistry
 from ..layerb.architecture import Architecture
 from ..layerb.playbook import Playbook, default_playbook
+from ..library.matcher import MatchReport, apply_matches, match_plan
 from .contract import assemble_contract, contract_prompt
 from .decompose import build_plan, topological_order
 from .judgment import GroupingAdvice, advise_grouping, apply_advice
@@ -26,6 +27,10 @@ class LayerCResult(BaseModel):
     prompts: dict[str, str] = Field(
         default_factory=dict,
         description="package id -> the assembled contract prompt the builder will run",
+    )
+    library: MatchReport = Field(
+        default_factory=MatchReport,
+        description="Which packages the library covers (assemble) and which must be generated",
     )
 
 
@@ -52,6 +57,14 @@ async def run_layer_c(
     for package in plan.packages:
         assemble_contract(package, plan, arch, whole=whole, playbook=book)
 
+    # The library is asked before the build, not during it: knowing which parts
+    # are assembled is what makes a build's cost and quality predictable rather
+    # than discovered (docs/LIBRARY.md, ADR-0014).
+    library = await match_plan(
+        plan, registry=registry, use_judgment=use_judgment and not registry.is_fake
+    )
+    apply_matches(plan, library)
+
     validation = validate_plan(plan, arch)
     prompts = {p.id: contract_prompt(p, plan, arch) for p in plan.ordered()}
 
@@ -60,4 +73,5 @@ async def run_layer_c(
         validation=validation,
         grouping_advice=advice,
         prompts=prompts,
+        library=library,
     )

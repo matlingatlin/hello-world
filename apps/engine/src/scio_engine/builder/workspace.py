@@ -53,6 +53,11 @@ DEPENDENCIES = {
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "@supabase/supabase-js": "2.45.4",
+    # Server-side input validation. Part of the stack because both the library's
+    # blueprints and real generated code reach for it unprompted — the second
+    # real run imported it into lib/auth.ts while it was not installed, which
+    # only stayed invisible because no rendered route imported that module.
+    "zod": "3.23.8",
 }
 
 DEV_DEPENDENCIES = {

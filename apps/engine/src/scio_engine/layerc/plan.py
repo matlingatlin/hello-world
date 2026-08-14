@@ -86,6 +86,18 @@ class BuildPackage(BaseModel):
     acceptance_criteria: list[Criterion] = Field(default_factory=list)
     parallelizable: bool = False
 
+    source: str = Field(
+        default="generate",
+        description="'assemble' when the library covers this package, else 'generate'",
+    )
+    catalog_entry: str = Field(
+        default="", description="The catalog entry id, when this package is assembled"
+    )
+
+    @property
+    def assembled(self) -> bool:
+        return self.source == "assemble" and bool(self.catalog_entry)
+
     @field_validator("acceptance_criteria", mode="before")
     @classmethod
     def _read_criteria(cls, value: object) -> object:

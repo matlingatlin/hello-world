@@ -5,6 +5,33 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — B045: **the component library, first slice — match → fetch → adapt → assemble**
+  (docs/LIBRARY.md, ADR-0014). Between Layer B and Layer C the engine now asks the catalog whether
+  it already knows how to build each package; a match is *assembled* (no relay call at all), and
+  anything else generates exactly as before. **A catalog entry is a contract with files attached**
+  (`library/entry.py`): what it provides in canonical vocabulary, the exact files it writes, its
+  token bindings, its `data-scio-id`s, and quality metadata — an entry that is not tested AND
+  security-reviewed is never offered. Entries are written against an `__ENTITY__` placeholder, so
+  adapting to a project is a deterministic substitution rather than a model call. **Seeded**: three
+  UI entries (button, field, empty state) and one full booking blueprint that carries its own
+  correct imports — including `app/actions/` and `lib/validation/` per the file-plan rule — and an
+  id on every element. **The matcher is strict** (`library/matcher.py`): vetted entry, same
+  canonical entity, every owned operation covered, and files exactly equal to the package's file
+  plan; the relay is asked only to break a genuine tie between two entries that pass all four, and
+  a tie it cannot break generates rather than guesses. **Assembly is verified like generation**
+  (`library/assembler.py`): the instrumentation verifier and the app-wide manifest still run, and
+  `data-scio-package` is stamped by the builder because that is per-project; only the relay and the
+  repair loop are skipped. Layer C marks every package assemble-vs-generate and reports "1 of 5
+  parts from the library". **The contribute-back gate is built and tested** (`library/gate.py`) —
+  it rejects untested, unreviewed, low-scoring, ungeneralized or leaky candidates (a customer's
+  name, a URL, a key); the contribution itself is deliberately stubbed, because a catalog that
+  fills up automatically fills up with things nobody chose. **Proven live**: a booking spec built
+  5 of 5 packages with the blueprint assembled and *no model asked anything about it*, then served
+  `/booking` and `/booking/new` at HTTP 200 with the full instrumentation intact. Also fixed while
+  there: a circular import between `builder` and `library` that only passed by import-order luck,
+  and `zod` added to the locked stack — the second real run's generated `lib/auth.ts` imported it
+  while it was not installed, which stayed invisible only because no rendered route imported that
+  module. 382 engine tests green (+39), ruff clean, all three TS workspaces typecheck.
 - 2026-08-12 — B059: **hardened what the SECOND real run surfaced**. That run went 4 of 5 parts
   working (from 0 of 5), with nothing blocked and nothing failed; two things it exposed are now
   fixed. (1) **The file plan was narrower than the stack's idiom.** The booking feature imported

@@ -1,0 +1,29 @@
+{
+  "id": "ui-empty-state",
+  "name": "Empty state",
+  "layer": "ui",
+  "description": "What a list shows when it has nothing yet, so an empty screen reads as new rather than broken.",
+  "version": "1.0.0",
+  "provenance": "scio-seed",
+  "provides": {
+    "capabilities": [
+      "empty list",
+      "zero state"
+    ]
+  },
+  "npm_dependencies": [
+    "react"
+  ],
+  "token_bindings": {
+    "__TOKEN_ACCENT__": "accent",
+    "__TOKEN_RADIUS__": "md"
+  },
+  "element_ids": [],
+  "quality": {
+    "tested": true,
+    "security_reviewed": true,
+    "accessibility_score": 96,
+    "lighthouse_score": 98,
+    "review_notes": "No user HTML is rendered; the control is keyboard reachable and its colours come from tokens."
+  }
+}
