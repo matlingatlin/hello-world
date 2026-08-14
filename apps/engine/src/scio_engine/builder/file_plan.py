@@ -5,6 +5,22 @@ paths those become. That decision is deterministic and lives here, following the
 playbook's folder structure — not left to the model, because the manifest's
 package→file map depends on it and a model that renames a folder would silently
 break the marking→code coupling.
+
+A file plan that omits a file the stack genuinely needs does not prevent the code
+from being written — it makes the model invent a path. The second real run wrote
+two such imports into the booking feature:
+
+    import { createBookingAction } from '@/app/actions/booking';   // in the form
+    import { bookingSchema } from '@/lib/validation/booking';      // in lib/db
+
+Neither was carelessness. A form that mutates data IS a server action in the App
+Router, and "inputs are validated server-side" is a criterion this package is
+held to — the plan simply gave both nowhere to live. The import boundary caught
+them and the app broke on the dangling modules.
+
+The rule that follows: **every file the contract's own criteria imply gets a
+home here.** Anything the stack's idiom or a "done when" requires must have a
+legal path, or the model will invent one.
 """
 
 from __future__ import annotations
@@ -50,9 +66,11 @@ def planned_files(package: BuildPackage) -> list[str]:
     # feature
     entity = entity_of(package) or "feature"
     files = [
+        f"app/actions/{entity}.ts",
         f"components/{entity}-form.tsx",
         f"components/{entity}-list.tsx",
         f"lib/db/{entity}.ts",
+        f"lib/validation/{entity}.ts",
         f"tests/{entity}.test.ts",
     ]
     files += [

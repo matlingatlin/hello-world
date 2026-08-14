@@ -5,6 +5,22 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — B059: **hardened what the SECOND real run surfaced**. That run went 4 of 5 parts
+  working (from 0 of 5), with nothing blocked and nothing failed; two things it exposed are now
+  fixed. (1) **The file plan was narrower than the stack's idiom.** The booking feature imported
+  `@/app/actions/booking` and `@/lib/validation/booking` — a server action for the form that
+  mutates data, and the validation schema its own "inputs are validated server-side" criterion
+  demands. Neither had a legal path, so the model invented both, the import boundary caught them
+  (correctly) and the app broke on dangling modules. `app/actions/<entity>.ts` and
+  `lib/validation/<entity>.ts` are now part of a feature package, and the rule is written down in
+  file_plan.py: every file the contract's own criteria imply gets a home here, or the model will
+  invent one. (2) **A third-party host's failure is no longer the app's failure.** The design
+  tokens package burned a whole repair round because the sandbox blocks fonts.googleapis.com and
+  `ERR_CONNECTION_RESET` was classified as "an error from the app's own code". The console
+  classifier now has a `third_party` origin, decided by host rather than by a list of URLs — it
+  never fails a build and still shows up in `suppressed`, so the filter stays auditable.
+  **Verified against the real run's own output**: both invented imports are now in bounds (0
+  findings), and the real console error classifies as `third_party`. 343 engine tests green (+7).
 - 2026-08-12 — B054: **hardened what the first real run surfaced** — three defects a real model
   exposed that every existing test had passed. (1) **"Done when" is now a contract, not a wish
   list** (`layerc/criteria.py`): a criterion declares which planned files would produce it and

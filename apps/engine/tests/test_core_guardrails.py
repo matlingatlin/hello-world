@@ -234,6 +234,45 @@ class TestConsoleClassifier:
         assert result.origin is Origin.app
         assert result.fails_build
 
+    def test_a_font_cdn_the_sandbox_cannot_reach_is_not_the_apps_fault(self):
+        """From the second real run: the generated app linked Google Fonts, the
+        sandbox blocks outbound requests, and a correct package was failed for it.
+        A build must not turn on whether this machine can reach a CDN."""
+        entry = ConsoleEntry(
+            type="error",
+            text="Failed to load resource: net::ERR_CONNECTION_RESET",
+            url="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500",
+        )
+        result = classify(entry)
+
+        assert result.origin is Origin.third_party
+        assert result.fails_build is False
+        assert "someone else's host" in result.reason
+
+    def test_a_third_party_failure_is_still_reported_not_hidden(self):
+        report = classify_console(
+            [
+                ConsoleEntry(
+                    type="error",
+                    text="Failed to load resource: net::ERR_CONNECTION_RESET",
+                    url="https://fonts.googleapis.com/css2?family=Inter",
+                )
+            ]
+        )
+
+        assert report.clean
+        assert report.suppressed  # visible, so the filter stays auditable
+
+    def test_the_apps_own_host_is_never_third_party(self):
+        """The app is served on a random port; only the host decides."""
+        for url in (
+            "http://127.0.0.1:51637/api/bookings",
+            "http://localhost:3000/api/bookings",
+            "/api/bookings",
+        ):
+            entry = ConsoleEntry(type="error", text="500 Internal Server Error", url=url)
+            assert classify(entry).fails_build is True, url
+
     def test_framework_chatter_is_not_a_failure(self):
         for text in ("Download the React DevTools", "[Fast Refresh] rebuilding"):
             assert not classify(ConsoleEntry(type="info", text=text)).fails_build

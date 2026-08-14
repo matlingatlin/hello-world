@@ -16,6 +16,7 @@ failure through unseen, so additions belong in review, not in a hotfix.
 from __future__ import annotations
 
 from enum import StrEnum
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field
 
@@ -30,6 +31,7 @@ class Origin(StrEnum):
     app = "app"  # the generated app — the vision loop's business
     framework = "framework"  # Next/React dev-time chatter
     browser = "browser"  # the browser asking for things nobody wrote
+    third_party = "third_party"  # a resource on someone else's host
     unknown = "unknown"
 
 
@@ -66,12 +68,34 @@ FRAMEWORK_NOISE = (
 )
 
 
+LOCAL_HOSTS = ("127.0.0.1", "localhost", "0.0.0.0", "::1")
+"""Where the sandbox serves the generated app. Anything else is someone else's
+host, and whether it answers is not a fact about the code we just wrote."""
+
+
+def _is_third_party(url: str) -> bool:
+    """A resource on a host that is not the app's own.
+
+    The second real run failed a package because fonts.googleapis.com was
+    unreachable from the sandbox — ERR_CONNECTION_RESET, classified as an error
+    from "the app's own code or resources". A build must not turn on whether the
+    machine running it can reach a CDN. It stays visible in `suppressed`, like
+    every other thing this filter lets past.
+    """
+    if not url.startswith(("http://", "https://")):
+        return False
+    host = urlparse(url).hostname or ""
+    return host not in LOCAL_HOSTS
+
+
 def _origin_of(entry: ConsoleEntry) -> Origin:
     haystack = entry.full
     if any(path in haystack for path in BROWSER_NOISE_URLS):
         return Origin.browser
     if any(marker in haystack for marker in FRAMEWORK_NOISE):
         return Origin.framework
+    if _is_third_party(entry.url):
+        return Origin.third_party
     if entry.url:
         return Origin.app
     return Origin.unknown
@@ -105,6 +129,18 @@ def classify(entry: ConsoleEntry) -> Classification:
             severity=Severity.info,
             fails_build=False,
             reason="Dev-server chatter; appears whether or not the app is correct.",
+        )
+
+    if origin is Origin.third_party:
+        return Classification(
+            entry=entry,
+            origin=origin,
+            severity=severity,
+            fails_build=False,
+            reason=(
+                "A resource on someone else's host did not load. That is the network "
+                "or that host, not the generated code — reported, never a failed build."
+            ),
         )
 
     fails = severity is Severity.error

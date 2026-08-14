@@ -268,7 +268,7 @@ def _feature_packages(arch: Architecture) -> list[BuildPackage]:
                     ),
                     checked(
                         "Inputs are validated server-side and invalid input is rejected clearly.",
-                        "lib/db/",
+                        "lib/validation/",
                     ),
                     checked(
                         "Each operation has a test for its happy path and its main failure.",

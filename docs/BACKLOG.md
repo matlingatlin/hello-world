@@ -59,6 +59,8 @@
 | B056 | Adopt Batch API for parallelizable build packages (cost)          | PP4      | P1 | todo |
 | B057 | Evaluate Advisor tool vs our multi-pass relay (spike)             | post-MVP | P2 | todo |
 | B058 | Evaluate memory tool / stores vs our own persistence             | post-MVP | P2 | todo |
+| B059 | Harden the second real run (server actions + validation in the file plan, third-party console noise) | PP5 | P0 | done |
+| B060 | Vision loop drives interactions (fill a form, submit, reload) so end-to-end criteria become observable | PP7 | P1 | todo |
 
 **B053 is prep, not the run.** The engine, the config and the runbook are done and
 tested here; the run itself is operator-driven — it needs an Anthropic key and an

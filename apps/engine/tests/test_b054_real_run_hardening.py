@@ -629,3 +629,74 @@ class TestVerifierRequiresBothAttributes:
         assert manifest.elements
         assert all(loc.package == "pkg_feature_booking" for loc in manifest.elements.values())
         assert verify_instrumentation(tmp_path, manifest).valid
+
+
+# --------------------------------------------------------------------------
+# 4. What the SECOND real run surfaced
+# --------------------------------------------------------------------------
+
+
+class TestServerActionsHaveAHome:
+    """The second run's one remaining failure.
+
+    `components/booking-form.tsx` did:
+
+        import { createBookingAction } from '@/app/actions/booking';
+
+    which is the App Router idiom for a form that mutates data — and a file the
+    plan gave it nowhere to write. The import boundary caught it (correctly) and
+    the app broke on a dangling module. The model was not being careless; the
+    contract was incomplete.
+    """
+
+    def test_a_feature_package_owns_its_server_actions_and_validation(self):
+        """Both files the second run invented now have a legal home."""
+        planned = planned_files(booking_package())
+        assert "app/actions/booking.ts" in planned
+        assert "lib/validation/booking.ts" in planned
+
+    def test_the_import_that_broke_the_second_run_is_now_in_bounds(self):
+        package = booking_package()
+        files = {
+            "components/booking-form.tsx": (
+                "import { createBookingAction } from '@/app/actions/booking';\n"
+                "export function BookingForm() { return null; }\n"
+            ),
+            "lib/db/booking.ts": (
+                "import { bookingSchema } from '@/lib/validation/booking';\n"
+                "export const create = (i: unknown) => bookingSchema;\n"
+            ),
+        }
+        findings = validate_package(
+            package,
+            files,
+            package_files={package.id: planned_files(package)},
+        ).findings
+
+        assert [f for f in findings if f.agent is Agent.import_boundary] == []
+
+    def test_another_packages_actions_are_still_out_of_bounds(self):
+        """Owning your own actions is not permission to reach into someone else's."""
+        package = booking_package()
+        findings = validate_package(
+            package,
+            {"components/booking-form.tsx": "import { x } from '@/app/actions/payment';\n"},
+            package_files={
+                package.id: planned_files(package),
+                "pkg_feature_payment": ["app/actions/payment.ts"],
+            },
+        ).errors
+
+        assert any("pkg_feature_payment" in f.message for f in findings)
+
+    def test_the_actions_file_is_not_claimed_by_two_packages(self):
+        """Every feature gets its own entity-named file — the manifest's package
+        map cannot have two owners for one path."""
+        booking = planned_files(booking_package())
+        menu_package = BuildPackage(
+            id="pkg_feature_menu",
+            kind=PackageKind.feature,
+            goal="Read the menu.",
+            architecture_slice=[NodeRef(kind="operation", name="list_menu")],
+        )
+        assert set(booking) & set(planned_files(menu_package)) == set()

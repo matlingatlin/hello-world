@@ -96,6 +96,22 @@ export async function create_booking(input) {
 }
 ```
 
+FILE: lib/validation/booking.ts
+```ts
+export const bookingSchema = { name: "string" };
+```
+
+FILE: app/actions/booking.ts
+```ts
+"use server";
+
+import { create_booking } from "@/lib/db/booking";
+
+export async function createBookingAction(formData: FormData) {
+  return create_booking({ name: String(formData.get("name")) });
+}
+```
+
 FILE: tests/booking.test.ts
 ```ts
 test("create_booking stores a booking", async () => {
