@@ -42,6 +42,18 @@ export interface EngineIntakeStepResponse {
   extraction: Record<string, unknown>;
 }
 
+/** The gate verdict on its own, for a spec that is already stored. */
+export interface EngineValidateResponse {
+  result: {
+    buildable: boolean;
+    missing_core: string[];
+    unresolved_conditionals: string[];
+    contradictions: Array<{ fields: string[]; description: string; resolved: boolean }>;
+  };
+  triggered: string[];
+  still_needed: string[];
+}
+
 /**
  * Layer B's "whole" is an object, not a string: the narrative plus the honest
  * bookkeeping around it. `generated` is false when the engine had no real model
@@ -142,6 +154,22 @@ export class EngineClient {
   /** One wizard turn. Throws when the engine cannot answer — there is no turn without it. */
   intakeStep(body: EngineIntakeStepRequest): Promise<EngineIntakeStepResponse> {
     return this.post<EngineIntakeStepResponse>("/intake/step", body, 120_000);
+  }
+
+  /**
+   * The gate verdict for a spec, with no conversation turn attached.
+   *
+   * Deterministic and free — no model runs — which is what lets a plain GET of
+   * the wizard answer "how far along am I" instead of guessing. Null rather
+   * than throwing: a reload that cannot reach the engine still shows the spec.
+   */
+  async validate(spec: IntakeSpec): Promise<EngineValidateResponse | null> {
+    try {
+      return await this.post<EngineValidateResponse>("/intake/validate", spec, 30_000);
+    } catch (err) {
+      this.logger.warn(`validate unavailable: ${(err as Error).message}`);
+      return null;
+    }
   }
 
   /** Layer B, for the review screen's confirmation. Null rather than throwing. */

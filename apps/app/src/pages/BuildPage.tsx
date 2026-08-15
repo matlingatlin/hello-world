@@ -53,16 +53,30 @@ export function BuildPage() {
   const [done, setDone] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const running = useRef(false);
+  // Whether this component is still on screen. A ref, not a local, because
+  // StrictMode unmounts and remounts: a local would be captured by the dead
+  // first effect and never turned back on.
+  const showing = useRef(true);
 
   useEffect(() => {
+    showing.current = true;
     if (running.current) return; // StrictMode mounts twice; a build must not.
     running.current = true;
 
-    const controller = new AbortController();
+    // The stream is deliberately NOT aborted when this page goes away.
+    //
+    // It used to be, and in dev that killed every build instantly: StrictMode
+    // mounts, unmounts and remounts, the cleanup aborted the one stream that
+    // had started, the guard above stopped a second one, and the AbortError
+    // surfaced as "Can't reach the Scio API — is the backend running?" on a
+    // perfectly healthy backend. It also contradicted this screen's own promise
+    // that you can leave and the build keeps running. So updates are gated on
+    // whether anyone is looking, and the build is left to finish.
     api
       .streamBuild(
         projectId,
         (event, data) => {
+          if (!showing.current) return;
           if (event === "started") {
             const payload = data as unknown as BuildStarted;
             setStarted(payload);
@@ -87,11 +101,15 @@ export function BuildPage() {
             setError(String((data as { message?: string }).message ?? "The build failed."));
           }
         },
-        controller.signal,
       )
-      .catch((err) => setError(err instanceof Error ? err.message : "The build failed."));
+      .catch((err) => {
+        if (!showing.current) return;
+        setError(err instanceof Error ? err.message : "The build failed.");
+      });
 
-    return () => controller.abort();
+    return () => {
+      showing.current = false;
+    };
   }, [api, projectId, navigate]);
 
   const total = started?.total ?? 0;

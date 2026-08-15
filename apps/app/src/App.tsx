@@ -1,6 +1,6 @@
-import { RedirectToSignIn, SignedIn, SignedOut, SignIn } from "@clerk/clerk-react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
+import { AuthGate, SignInScreen } from "./lib/auth";
 import { CreatePage } from "./pages/CreatePage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { BuildPage } from "./pages/BuildPage";
@@ -27,20 +27,15 @@ export function App() {
         path="/sign-in/*"
         element={
           <div className="min-h-screen flex items-center justify-center">
-            <SignIn routing="path" path="/sign-in" />
+            <SignInScreen />
           </div>
         }
       />
       <Route
         element={
-          <>
-            <SignedIn>
-              <AppShell />
-            </SignedIn>
-            <SignedOut>
-              <RedirectToSignIn />
-            </SignedOut>
-          </>
+          <AuthGate>
+            <AppShell />
+          </AuthGate>
         }
       >
         <Route path="/" element={<Navigate to="/projects" replace />} />

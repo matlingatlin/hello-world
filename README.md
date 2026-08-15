@@ -13,5 +13,19 @@ Start here:
 - `docs/ARCHITECTURE.md` — how it's built (filled in Phase 2).
 - `CLAUDE.md` — working rules for this repo.
 
+## Run it locally
+
+The whole product — engine, api, app and a real Postgres — comes up in one
+command, with no Clerk, no hosted database, no Docker and no API key:
+
+```bash
+scripts/dev-up.sh     # then open http://127.0.0.1:5173 and sign in with any email
+scripts/dev-down.sh
+```
+
+See `docs/RUNBOOK-LOCAL.md` for what it starts, how dev auth works, and what
+differs on the free path. `docs/RUNBOOK-FIRST-RUN.md` covers running it against
+a real model.
+
 ## Status
 Phase 0 complete: repository and document skeleton in place. Next: Phase 1.

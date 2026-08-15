@@ -31,3 +31,6 @@ workspace/
 
 # Engine run artifacts
 apps/engine/out/
+
+# Local dev run (scripts/dev-up.sh): pids + logs
+.local/

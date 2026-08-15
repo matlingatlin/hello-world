@@ -62,9 +62,20 @@
 | B059 | Harden the second real run (server actions + validation in the file plan, third-party console noise) | PP5 | P0 | done |
 | B060a | Verification data layer (env-gated pglite client, enforced RLS, per-build lifecycle) | PP7 | P0 | done |
 | B060b | Vision-loop interaction channel: drive fill/submit/reload via data-scio-id, verify outcome + persistence, make 'persists' and guest-isolation observable | PP7 | P0 | done |
+| B064 | Local dev run mode: whole stack in-sandbox (dev auth, local Postgres, one script) | PP5 | P0 | done |
+| B065 | Wizard UX on the free path: one field per answer is slow; the stand-in cannot read a paragraph | PP5 | P1 | todo |
+| B066 | Spec review: let the user edit a field the wizard filed wrongly, without restarting the wizard | PP5 | P1 | todo |
 | B061 | Grow the library (more entries; the token/pattern/integration layers) | PP4 | P0 | todo |
 | B062 | Wire the cost estimate from the assemble-vs-generate plan       | PP4 | P0 | done |
 | B063 | Decide customer-facing pricing (markup + currency) — the estimate shows build cost, not a price | PP4 | P0 | todo |
+
+**B064 — the product has now been used, not just tested.** One script brings the whole
+stack up in the sandbox with dev auth and a local Postgres, and the first click-through
+went new project → wizard → review → build → reveal in a browser. It found four real
+bugs that every test suite had missed, because tests call the api in-process and render
+components without StrictMode: no CORS, a wizard that looped forever on the free path,
+a GET that faked its own gate, and a build stream aborted by StrictMode. All four are
+fixed. See `docs/RUNBOOK-LOCAL.md`.
 
 **B060 is complete.** With B060a (a build runs with data) and B060b (a build drives
 the app), the two criteria B054 had to scope out as unobservable — "works end to end

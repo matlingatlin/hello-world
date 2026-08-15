@@ -44,23 +44,53 @@ export class IntakeService {
     return row;
   }
 
+  /**
+   * The wizard as it stands, without taking a turn.
+   *
+   * This used to answer `buildable: false` with an empty gate, always — which
+   * meant a reload of the wizard showed "0 of 6" however far along you were,
+   * and the review screen, which loads through here, could never show the
+   * whole or the cost estimate. Both only ever existed in the reply to a
+   * message, so they vanished the moment the page was fetched again.
+   *
+   * The gate is deterministic and free, so it is recomputed here rather than
+   * remembered. The confirmation costs a Layer B call, so it is fetched only
+   * once the spec is actually buildable — which is exactly when the review
+   * screen asks for it.
+   */
   async history(workspaceId: string, projectId: string): Promise<IntakeStepResponse> {
     const project = await this.project(workspaceId, projectId);
     const messages = await this.messages(workspaceId, projectId);
     const spec = (project.draftSpec ?? null) as IntakeSpec | null;
+    const engine: EngineStatus = { reachable: true };
+
+    const verdict = spec ? await this.engine.validate(spec) : null;
+    if (spec && !verdict) {
+      engine.degraded = [...(engine.degraded ?? []), "validate"];
+    }
+    const gate = verdict?.result ?? {
+      buildable: false,
+      missing_core: [],
+      unresolved_conditionals: [],
+      contradictions: [],
+    };
+
+    let whole: string | null = null;
+    let estimate: BuildEstimate | null = null;
+    if (gate.buildable && spec) {
+      ({ whole, estimate } = await this.confirmation(spec, engine));
+    }
+
     return {
       updated_spec: spec ?? {},
-      buildable: false,
+      buildable: gate.buildable,
       next_question: null,
       contradictions: (spec?.contradictions ?? []).filter((c) => !c.resolved),
-      gate: {
-        buildable: false,
-        missing_core: [],
-        unresolved_conditionals: [],
-        contradictions: [],
-      },
+      gate,
       messages,
-      engine: { reachable: true },
+      whole,
+      estimate,
+      engine,
     };
   }
 

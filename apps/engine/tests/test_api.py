@@ -155,8 +155,42 @@ def test_intake_step_carries_a_spec_forward():
     )
     assert res.status_code == 200
     body = res.json()
-    # The fake provider returns a digest, not JSON, so nothing new is extracted —
-    # and the spec that came in is still intact.
+    # The spec that came in is still intact, and the turn moved the wizard on.
+    #
+    # This used to assert `parsed is False`: without keys the FakeProvider
+    # returned a digest, extraction could not read it, and NOTHING was ever
+    # recorded — which meant the wizard asked the same question forever and the
+    # free path could not reach a build at all. The first local click-through
+    # found it (B064); intake now has a stand-in, like the builder always did.
     assert body["updated_spec"]["purpose"]["value"] == "Guests book a table."
-    assert body["extraction"]["parsed"] is False
-    assert body["next_question"]["field"] == "users_and_roles"
+    assert body["extraction"]["parsed"] is True
+    # It moved on rather than asking about purpose again.
+    assert body["next_question"]["field"] != "purpose"
+    assert "purpose" not in body["gate"]["missing_core"]
+
+
+def test_the_keyless_wizard_actually_records_what_was_said():
+    """The free path has to be able to finish, or it is a demo that cannot demo."""
+    res = client.post(
+        "/intake/step",
+        json={
+            "messages": [
+                {"id": "m1", "role": "user", "text": "Guests book a table."},
+                {
+                    "id": "m2",
+                    "role": "assistant",
+                    "text": "Who uses it — and is there more than one kind of user?",
+                },
+                {"id": "m3", "role": "user", "text": "Guests, and staff."},
+            ],
+            "spec": {"purpose": {"value": "Guests book a table."}},
+        },
+    )
+
+    body = res.json()
+    recorded = body["updated_spec"]["users_and_roles"]
+    # Filed under the question that was asked, in the person's own words, cited
+    # to the message they said it in. Never invented.
+    assert recorded["value"] == ["Guests", "staff"]
+    assert recorded["provenance"] == ["m3"]
+    assert "users_and_roles" not in body["gate"]["missing_core"]

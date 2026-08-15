@@ -1,6 +1,6 @@
-import { UserButton } from "@clerk/clerk-react";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { UserBadge } from "../lib/auth";
 import { currentTheme, setTheme } from "../lib/theme";
 import { Button, LogoTile } from "./ui";
 
@@ -76,7 +76,7 @@ export function AppShell() {
           />
         </nav>
         <div className="mt-auto border-t border-line pt-3 pl-2 flex items-center gap-2.5">
-          <UserButton afterSignOutUrl="/sign-in" />
+          <UserBadge />
           <div className="text-xs max-md:hidden">
             <b className="block font-medium">Your workspace</b>
             <span className="text-muted">Starter plan</span>

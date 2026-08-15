@@ -5,6 +5,38 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — B064: **the product can be run and clicked through locally — and doing it for the
+  first time found four real bugs** (`scripts/dev-up.sh`, `docs/RUNBOOK-LOCAL.md`). One command
+  brings up engine + api + app + a real PostgreSQL 16 **process** (no Docker; pgvector is the one
+  package that must be installed, and the script says so by name rather than letting migration 0001
+  fail on its second line). Auth is swappable on both sides now, not just the backend: `SCIO_DEV_AUTH`
+  binds a `DevIdentityVerifier` behind ADR-0008's existing interface, `VITE_DEV_AUTH` swaps Clerk's
+  provider/gate/sign-in/badge for local equivalents (`app/src/lib/auth.tsx`), and the bearer token
+  *is* the identity — so a different email is a different workspace, and tenant scoping can be
+  exercised by hand. Production is untouched: Clerk unless the flag is set, and `SCIO_DEV_AUTH` with
+  `NODE_ENV=production` is refused at boot rather than honoured.
+  **The click-through is the point, and it worked**: new project → wizard (12 answers, one
+  contradiction caught and settled) → review (the whole in prose, the spec field by field, the
+  assumptions, and the estimate — `~$2.48–$5.94 · ~21–51 min · 7 parts · 1 reused`) → build (7/7
+  parts, streamed) → reveal, with the built app running in the iframe. **Four bugs no test could
+  have caught**, because tests call the api in-process and render components without StrictMode:
+  (1) **no CORS** — the api had never been called from a browser, so nothing loaded at all;
+  (2) **the wizard looped forever without keys** — `FakeProvider` returns a digest, extraction
+  cannot parse a digest, nothing was ever recorded, and gate 1 could never close, so the free path
+  could not reach a build. Fixed with `StandInIntakeProvider`, which files each answer under the
+  question that was asked — one field per turn, every value the person's own words with real
+  provenance, never invented; (3) **a contradiction could never be resolved** — the question
+  described the clash without naming which answer to revise, so the reply landed nowhere and the
+  gate stayed shut; it now restates the field's own question; (4) **StrictMode killed every build** —
+  the page's cleanup aborted the SSE stream, the double-mount guard stopped it restarting, and the
+  AbortError was displayed as "Can't reach the Scio API" on a healthy backend, which also
+  contradicted the screen's own promise that you can leave and the build keeps running.
+  Two smaller ones fixed on the way: the api's GET `/intake` returned a hard-coded empty gate, so a
+  reload showed "0 of 6" however far along you were and the review screen could never show the whole
+  or the estimate (it now recomputes the gate — deterministic and free — and fetches the
+  confirmation once buildable); and `dev-down` missed `nest start`'s child process and the engine's
+  leaked `next dev` sandboxes, which is how a "restarted" service went on serving old code.
+  463 engine tests (+1), api 53 (+6), app 38, typecheck clean.
 - 2026-08-12 — B060b: **"it works, and it is private" is now a criterion a build passes or fails**
   (`core/interaction.py`, `core/interaction_runner.py`, `layerc/scripts.py`). B060 is complete.
   The vision loop could see that a page rendered; it could not see that pressing the button did

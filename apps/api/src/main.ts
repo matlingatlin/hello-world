@@ -3,9 +3,30 @@ import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
 
+/**
+ * Which browser origins may call this API.
+ *
+ * An allow list, never a wildcard, and empty by default: the api is only ever
+ * reached cross-origin by the app, so naming that origin is one line of config
+ * rather than a hole left open. Found by the first local click-through — every
+ * test until then called the api in-process, where CORS does not exist, so the
+ * product could not load a single project in a real browser.
+ */
+function corsOrigins(): string[] {
+  return (process.env.CORS_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+
+  const origins = corsOrigins();
+  if (origins.length > 0) {
+    app.enableCors({ origin: origins, credentials: true });
+  }
 
   const config = new DocumentBuilder()
     .setTitle("Scio API")

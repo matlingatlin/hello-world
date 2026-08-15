@@ -31,6 +31,7 @@ from .intake.conversation import IntakeMessage
 from .intake.gate import BuildableResult, is_buildable, triggered_conditionals
 from .intake.schema import AppSpec
 from .intake.service import IntakeStep, run_intake_step
+from .intake.standin import intake_standin_registry
 from .layerb.architecture import Architecture
 from .layerb.service import LayerBResult, NotBuildableError, run_layer_b
 from .layerc.service import LayerCResult, run_layer_c
@@ -131,7 +132,11 @@ async def intake_step(req: IntakeStepRequest) -> IntakeStep:
     return await run_intake_step(
         req.messages,
         req.spec,
-        registry=build_registry(),
+        # Without keys the extractor gets a digest back and records nothing, so
+        # the wizard asks the same question forever and gate 1 never closes —
+        # found by the first local click-through. The stand-in files each answer
+        # under the question that was asked, which is enough to finish.
+        registry=intake_standin_registry() if use_fake_providers() else build_registry(),
         extraction_passes=req.extraction_passes,
         question_passes=req.question_passes,
     )

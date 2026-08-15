@@ -22,7 +22,7 @@ from pydantic import BaseModel
 from ..execution.provider import ProviderRegistry
 from ..execution.relay import RelayOptions, run_relay
 from .conversation import Conversation
-from .fields import guide_for
+from .fields import GUIDES, guide_for
 from .gate import BuildableResult
 from .schema import CONDITIONAL_FIELDS, CORE_FIELDS, AppSpec, Contradiction
 
@@ -104,9 +104,19 @@ def fallback_question(field: str) -> Question:
 
 
 def fallback_contradiction_question(contradiction: Contradiction) -> Question:
+    """Name the answer to revise, not just the conflict.
+
+    A contradiction holds the gate shut until one of the two answers changes,
+    so a question that only describes the clash leaves the person with nothing
+    to act on — and their reply lands nowhere. Restating the first field's own
+    question makes the reply a new answer to that field, which is what actually
+    settles it.
+    """
+    target = contradiction.fields[0] if contradiction.fields else ""
+    restated = f" {guide_for(target).question}" if target in GUIDES else ""
     return Question(
-        field="",
-        text=f"{contradiction.description} Which should it be?",
+        field=target,
+        text=f"{contradiction.description} Which should it be?{restated}",
         example="Pick one, or tell me how the two fit together.",
         about="contradiction",
         written_by="guide",

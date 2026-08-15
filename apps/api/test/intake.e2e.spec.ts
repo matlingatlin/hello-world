@@ -133,6 +133,18 @@ class FakeEngine {
     architecture: { nodes: [] },
   };
   planReply: any = { plan: { packages: [{ id: "pkg_foundation" }, { id: "pkg_schema" }] } };
+  // The gate for a spec that is already stored — what a plain GET of the wizard
+  // asks for. Deterministic in the engine, so a fake reply is enough here.
+  validateReply: any = {
+    result: {
+      buildable: false,
+      missing_core: ["users_and_roles"],
+      unresolved_conditionals: [],
+      contradictions: [],
+    },
+    triggered: [],
+    still_needed: ["users_and_roles"],
+  };
   seen: any[] = [];
   failIntake = false;
 
@@ -156,6 +168,9 @@ class FakeEngine {
   }
   async plan() {
     return this.planReply;
+  }
+  async validate() {
+    return this.validateReply;
   }
 }
 
@@ -201,6 +216,16 @@ describe("Gate 1 (e2e): wizard turn + spec freeze", () => {
     engine.steps = [];
     engine.seen = [];
     engine.failIntake = false;
+    engine.validateReply = {
+      result: {
+        buildable: false,
+        missing_core: ["users_and_roles"],
+        unresolved_conditionals: [],
+        contradictions: [],
+      },
+      triggered: [],
+      still_needed: ["users_and_roles"],
+    };
     engine.architectureReply = {
       whole: {
         narrative: "You're building a table-booking app.",
@@ -381,6 +406,34 @@ describe("Gate 1 (e2e): wizard turn + spec freeze", () => {
     const res = await request(http).get(`/projects/${projectId}/intake`).set(w1).expect(200);
     expect(res.body.messages.map((m: any) => m.text)).toEqual(["one", expect.stringContaining(QUESTION.text)]);
     await request(http).get(`/projects/${projectId}/intake`).set(w2).expect(404);
+  });
+
+  it("recomputes the gate on a plain GET, so a reload keeps its progress", async () => {
+    // It used to answer buildable:false with an empty gate whatever the spec
+    // said, which showed "0 of 6" to anyone who refreshed the wizard.
+    await request(http).post(`/projects/${projectId}/intake/message`).set(w1).send({ text: "two" });
+
+    const res = await request(http).get(`/projects/${projectId}/intake`).set(w1).expect(200);
+
+    expect(res.body.gate.missing_core).toEqual(["users_and_roles"]);
+    expect(res.body.buildable).toBe(false);
+  });
+
+  it("a GET of a buildable spec carries the whole and the estimate", async () => {
+    // The review screen loads through here, so without this it could never show
+    // either — both existed only in the reply to a message.
+    await request(http).post(`/projects/${projectId}/intake/message`).set(w1).send({ text: "done" });
+    engine.validateReply = {
+      result: { buildable: true, missing_core: [], unresolved_conditionals: [], contradictions: [] },
+      triggered: [],
+      still_needed: [],
+    };
+
+    const res = await request(http).get(`/projects/${projectId}/intake`).set(w1).expect(200);
+
+    expect(res.body.buildable).toBe(true);
+    expect(res.body.whole).toContain("table-booking app");
+    expect(res.body.estimate.parts).toBe(2);
   });
 });
 
