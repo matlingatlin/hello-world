@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from ..core.console import ConsoleReport
 from ..execution.provider import ProviderRegistry
 from ..execution.relay import RelayOptions, run_relay
-from ..layerc.criteria import Criterion, judgeable, scoped_out
+from ..layerc.criteria import Criterion, interacting, judgeable, scoped_out
 from ..layerc.plan import BuildPackage
 from .file_plan import planned_files
 
@@ -164,6 +164,17 @@ def build_critique_prompt(package: BuildPackage, evidence: Evidence) -> str:
 def judgeable_criteria(package: BuildPackage) -> list[Criterion]:
     """The package's criteria that the vision loop's evidence can settle."""
     return judgeable(package.acceptance_criteria, planned_files(package))
+
+
+def interaction_criteria(package: BuildPackage) -> list[Criterion]:
+    """The package's criteria settled by driving the app, not by judgment.
+
+    They never reach the critique prompt: a model looking at a screenshot cannot
+    tell whether the row reached Postgres, and asking it to would manufacture
+    exactly the failure B054 exists to prevent. A script can tell, so a script
+    is what asks.
+    """
+    return interacting(package.acceptance_criteria, planned_files(package))
 
 
 def unjudged_criteria(package: BuildPackage) -> list[str]:

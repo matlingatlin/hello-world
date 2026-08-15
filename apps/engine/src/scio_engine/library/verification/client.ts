@@ -96,7 +96,19 @@ grant execute on all functions in schema auth to authenticated, anon;
  */
 const INSTANCE_KEY = Symbol.for("scio.verification.pglite");
 
-type Global = typeof globalThis & { [INSTANCE_KEY]?: Promise<PGlite> };
+/**
+ * The acting user lives beside it, and for the same reason. The harness sets it
+ * through an API route; the pages that must obey it are server components. Those
+ * are different bundles, so a module-level `let` would leave the route setting an
+ * actor nobody reads — and an isolation check that always ran as the same user
+ * would pass whether or not the policies work.
+ */
+const ACTOR_KEY = Symbol.for("scio.verification.actor");
+
+type Global = typeof globalThis & {
+  [INSTANCE_KEY]?: Promise<PGlite>;
+  [ACTOR_KEY]?: string;
+};
 
 function database(): Promise<PGlite> {
   const scope = globalThis as Global;
@@ -314,15 +326,13 @@ class Table {
   }
 }
 
-let actor = DEFAULT_ACTOR;
-
 /** Who subsequent queries act as. The harness drives this to check isolation. */
 export function setVerificationActor(id: string): void {
-  actor = id;
+  (globalThis as Global)[ACTOR_KEY] = id;
 }
 
 export function currentActor(): string {
-  return actor;
+  return (globalThis as Global)[ACTOR_KEY] ?? DEFAULT_ACTOR;
 }
 
 export function getSupabaseClient() {
@@ -334,8 +344,9 @@ export function getSupabaseClient() {
     // pretending: verification has an actor, not a session.
     auth: {
       async getUser() {
-        return actor
-          ? { data: { user: { id: actor } }, error: null }
+        const who = currentActor();
+        return who
+          ? { data: { user: { id: who } }, error: null }
           : { data: { user: null }, error: null };
       },
     },

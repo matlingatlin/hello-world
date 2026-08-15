@@ -27,6 +27,7 @@ from scio_engine.library.verification import (
     PGLITE_PACKAGE,
     VERIFICATION_DIR,
     VERIFY_FLAG,
+    VERIFY_ROUTE,
     migration_files,
     next_config,
     prepare,
@@ -96,14 +97,36 @@ class TestTheShippedAppIsUntouched:
         assert "@supabase/supabase-js" in (app / "lib" / "supabase.ts").read_text()
         assert "pglite" not in (app / "lib" / "supabase.ts").read_text()
 
-    def test_verification_writes_only_inside_its_own_directory(self, tmp_path):
+    def test_verification_adds_only_its_own_files(self, tmp_path):
+        """Everything under .scio, plus ONE route — Next serves routes only from
+        app/, so the endpoint the harness asks about the database has nowhere
+        else to live. It is namespaced, and it does not survive the build."""
         app = app_with_schema(tmp_path, "create table t (id int);")
         before = {p.relative_to(app) for p in app.rglob("*") if p.is_file()}
 
         prepare(app)
 
-        added = {p.relative_to(app) for p in app.rglob("*") if p.is_file()} - before
-        assert all(str(p).startswith(".scio") for p in added), added
+        added = {str(p.relative_to(app)) for p in app.rglob("*") if p.is_file()} - {
+            str(p) for p in before
+        }
+        assert added <= {
+            ".scio/.gitignore",
+            ".scio/verification/client.ts",
+            ".scio/verification/verify.ts",
+            VERIFY_ROUTE,
+        }, added
+
+    def test_the_verification_route_is_removed_with_the_database(self, tmp_path):
+        """It must never reach the user: a build that shipped it would expose
+        the app's own database over an unauthenticated URL."""
+        app = app_with_schema(tmp_path, "create table t (id int);")
+        db = prepare(app)
+        assert (app / VERIFY_ROUTE).exists()
+
+        db.discard()
+
+        assert not (app / VERIFY_ROUTE).exists()
+        assert not (app / VERIFY_ROUTE).parent.exists()
 
     def test_the_verification_directory_is_not_the_users_code(self):
         """It is build scaffolding — gitignored, and out of lib/."""

@@ -11,11 +11,14 @@ Order matters, and it is the cheap-and-certain checks first:
 
     generate -> write -> instrumentation (guardrail 1, rollback on failure)
              -> validation agents -> run + look (guardrail 3: classified console)
+             -> drive it (B060b: fill, submit, reload, is it really saved?)
              -> critique against "done when" -> fix -> repeat, capped
 
 The critique runs only once the deterministic gates are clean. A model asked to
 judge a page we already know is broken costs a relay and tells us what a regex
-told us for free.
+told us for free — and the same argument puts the interaction channel ahead of
+it, because a browser round trip is cheaper than a relay and answers the harder
+question.
 
 Full-plan orchestration — dependency order, packages assembled into one app,
 aggregate status — is B041b. This builds one package.
@@ -24,12 +27,15 @@ aggregate status — is B041b. This builds one package.
 from __future__ import annotations
 
 import asyncio
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..core.console import ConsoleReport
 from ..core.instrumentation import Manifest
+from ..core.interaction import Script, ScriptResult, resolve
+from ..core.interaction_runner import run_script
 from ..core.manifest_builder import build_manifest
 from ..core.preview import Observation, PreviewInspector
 from ..core.sandbox import SandboxHandle, SandboxProvider
@@ -46,13 +52,13 @@ from .codegen import (
     extract_files,
     fix_prompt,
 )
-from .critique import Evidence, critique_package
+from .critique import Evidence, critique_package, interaction_criteria
 from .file_plan import planned_files
 from .persistence import GitError, persist_package_build
 from .result import Attempt, PackageBuildResult, PackageStatus, Remainder
 from .validation import validate_package
 
-GATES = ("instrumentation", "validation", "console", "critique")
+GATES = ("instrumentation", "validation", "console", "interaction", "critique")
 """What a package must pass. `checks_passed/len(GATES)` is what the reveal shows,
 so the count is a real count and not a number chosen to look reassuring."""
 
@@ -76,6 +82,17 @@ class BuildPreview(ABC):
     def observe(self, app_dir: Path, *, attempt: int) -> Observation:
         """Load the app and report what it looks like and what it logged."""
 
+    def interact(self, script: Script) -> ScriptResult | None:
+        """Drive the app through one script, or None when this preview cannot.
+
+        None is not a pass. It means the channel did not look — no browser, no
+        running app, no verification database — and the loop records the
+        criterion as unverified rather than pretending it was met. A preview
+        that could silently return "passed" here would make the one criterion
+        the user cares about the easiest one to fake.
+        """
+        return None
+
     def close(self) -> None:  # noqa: B027 - optional: a scripted preview owns nothing
         """Tear down anything started. Must be safe to call twice."""
 
@@ -88,12 +105,31 @@ class BuildPreview(ABC):
 class ScriptedPreview(BuildPreview):
     """Canned observations, in order — for tests and dry runs."""
 
-    def __init__(self, observations: list[Observation], *, loop_last: bool = True) -> None:
+    def __init__(
+        self,
+        observations: list[Observation],
+        *,
+        loop_last: bool = True,
+        interactions: list[ScriptResult] | None = None,
+    ) -> None:
         if not observations:
             raise ValueError("ScriptedPreview needs at least one observation")
         self._observations = observations
         self._loop_last = loop_last
+        # None (the default) means this preview has no interaction channel at
+        # all — which is what a test that never asked for one should get.
+        self._interactions = interactions
+        self.driven: list[Script] = []
         self.calls = 0
+
+    def interact(self, script: Script) -> ScriptResult | None:
+        if self._interactions is None:
+            return None
+        self.driven.append(script)
+        index = len(self.driven) - 1
+        if index < len(self._interactions):
+            return self._interactions[index]
+        return self._interactions[-1]
 
     def observe(self, app_dir: Path, *, attempt: int) -> Observation:
         index = self.calls
@@ -115,6 +151,7 @@ class SandboxPreview(BuildPreview):
         route: str = "/",
         screenshot_dir: Path | None = None,
         env: dict[str, str] | None = None,
+        verify_path: str = "",
     ) -> None:
         self.sandbox = sandbox
         self.route = route
@@ -122,6 +159,10 @@ class SandboxPreview(BuildPreview):
         # Per-run configuration for the app process — the verification database
         # lives here when a build is being verified (library/verification).
         self.env = env or {}
+        # Where the app answers questions about its own database. Empty when the
+        # build is not running with data, which is what makes `interact` say "I
+        # did not look" instead of inventing a verdict.
+        self.verify_path = verify_path
         self._handle: SandboxHandle | None = None
 
     def _ensure_started(self, app_dir: Path) -> SandboxHandle:
@@ -145,6 +186,21 @@ class SandboxPreview(BuildPreview):
             self.screenshot_dir / f"attempt-{attempt}.png" if self.screenshot_dir else None
         )
         return PreviewInspector(handle.url.rstrip("/") + self.route).observe(shot)
+
+    def interact(self, script: Script) -> ScriptResult | None:
+        """Drive the running app. Only when there is a database behind it.
+
+        Without the verification data layer the app talks to a Supabase that is
+        not configured, so every insert would "fail" for a reason that has
+        nothing to do with the code being judged.
+        """
+        if self._handle is None or not self.verify_path:
+            return None
+        return run_script(
+            self._handle.url,
+            script,
+            verify_url=self._handle.url.rstrip("/") + self.verify_path,
+        )
 
     def close(self) -> None:
         if self._handle is not None:
@@ -183,6 +239,7 @@ class _Gate:
     instrumentation_ok: bool = True
     validation_ok: bool = True
     console_ok: bool = True
+    interaction_ok: bool = True
     critique_passed: bool = False
     problems: list[str] = field(default_factory=list)
     remainders: list[Remainder] = field(default_factory=list)
@@ -194,6 +251,7 @@ class _Gate:
             self.instrumentation_ok
             and self.validation_ok
             and self.console_ok
+            and self.interaction_ok
             and self.critique_passed
         )
 
@@ -204,6 +262,7 @@ class _Gate:
                 self.instrumentation_ok,
                 self.validation_ok,
                 self.console_ok,
+                self.interaction_ok,
                 self.critique_passed,
             ]
         )
@@ -287,6 +346,56 @@ def _check_instrumentation(
 def _console_problems(console: ConsoleReport) -> list[str]:
     """GUARDRAIL 3. Only failures the classifier attributes to the app itself."""
     return [f"[console] {failure}" for failure in console.failures]
+
+
+def _run_markers(attempt: int) -> dict[str, str]:
+    """The unique values one attempt fills its forms with.
+
+    Unique per attempt, not per build: the verification database survives a
+    repair, so reusing a marker would let attempt 2 pass on the row attempt 1
+    left behind — a broken fix reported as a working feature.
+    """
+    token = uuid.uuid4().hex[:8]
+    return {
+        "marker": f"scio-{attempt}-{token}",
+        "marker_a": f"scio-{attempt}a-{token}",
+        "marker_b": f"scio-{attempt}b-{token}",
+    }
+
+
+async def _drive(
+    preview: BuildPreview, package: BuildPackage, gate: _Gate, *, attempt: int
+) -> None:
+    """Run the package's interaction criteria and fold the outcome into the gate.
+
+    A script that could not be run at all (no browser, no data layer) leaves the
+    gate open and the criterion recorded as unverified. A script that ran and
+    failed closes it, and its one-line failure goes into the repair loop exactly
+    like a console error or a validation finding.
+    """
+    criteria = interaction_criteria(package)
+    if not criteria:
+        return
+
+    markers = _run_markers(attempt)
+    for criterion in criteria:
+        # Off the event loop: sync Playwright refuses to run inside one.
+        outcome = await asyncio.to_thread(
+            preview.interact, resolve(criterion.script, markers)
+        )
+        if outcome is None:
+            gate.unjudged.append(
+                f"{criterion.text} — the app was not running with data, so nobody drove it"
+            )
+            continue
+        if outcome.passed:
+            continue
+        gate.interaction_ok = False
+        problem = f"[interaction] {outcome.failure}"
+        gate.problems.append(problem)
+        gate.remainders.append(
+            Remainder(what=problem, where=package.id, source="interaction")
+        )
 
 
 async def build_package(
@@ -434,6 +543,11 @@ async def build_package(
                 ]
 
             if gate.validation_ok and gate.console_ok:
+                # Drive it before paying for a critique: it is cheaper than a
+                # relay and it answers the question the user actually asked.
+                await _drive(preview, package, gate, attempt=index)
+
+            if gate.validation_ok and gate.console_ok and gate.interaction_ok:
                 evidence = Evidence(
                     console=observation.console,
                     screenshot_path=str(observation.screenshot_path or ""),
@@ -447,7 +561,9 @@ async def build_package(
                 # A criterion nobody could observe never fails the build — but it
                 # is not silently dropped either. It rides along as a remainder so
                 # "works" still means "works, and here is what nobody checked".
-                gate.unjudged = list(critique.unjudged)
+                # Appended, not assigned: an interaction criterion nobody could
+                # drive is already recorded here and must not be overwritten.
+                gate.unjudged += list(critique.unjudged)
                 if not critique.passed:
                     gate.problems += critique.problems or [
                         f"Criterion not met: {c}" for c in critique.unmet
@@ -459,6 +575,7 @@ async def build_package(
 
             attempt.validation_ok = gate.validation_ok
             attempt.console_ok = gate.console_ok
+            attempt.interaction_ok = gate.interaction_ok
             attempt.critique_passed = gate.critique_passed
             attempt.problems = gate.problems
             result.attempts.append(attempt)

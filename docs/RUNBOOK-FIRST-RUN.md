@@ -107,6 +107,20 @@ Swap `claude-sonnet-5` for `claude-opus-5` when you want the strongest code and
 accept the price; `claude-haiku-4-5` is the cheapest way to check that the wiring
 is alive.
 
+### Optional: run the build WITH data
+
+`SCIO_VERIFY_DATA=1` gives the build an in-process PostgreSQL (B060a) and turns
+on the interaction channel (B060b): each feature package is filled in, submitted,
+reloaded and checked — on the page and in the database — and the guest-isolation
+criterion is driven as two users. Without the flag those criteria are recorded as
+"nobody drove it" rather than passed, and the build behaves exactly as before.
+
+It costs a first-request pause of a few seconds while pglite boots and applies the
+app's migrations, a browser round trip per feature, and ~40 MB of disk that is
+freed when the build ends. What ships is unchanged either way: the app's own
+`lib/supabase.ts` is never rewritten, and the verification files live in a
+gitignored `.scio/`.
+
 ## 4. Start the three services
 
 ```bash

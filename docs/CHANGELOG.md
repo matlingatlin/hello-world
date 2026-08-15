@@ -5,6 +5,37 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — B060b: **"it works, and it is private" is now a criterion a build passes or fails**
+  (`core/interaction.py`, `core/interaction_runner.py`, `layerc/scripts.py`). B060 is complete.
+  The vision loop could see that a page rendered; it could not see that pressing the button did
+  anything, so Layer C had to mark "works end to end and persists" and "a guest cannot read another
+  guest's booking" unobservable (B054) and nobody checked the two things the user actually cares
+  about. **Both now gate the build.** A criterion can carry a short declarative script — `fill` /
+  `click` / `reload` / `assert_present` / `assert_absent` / `assert_row` / `as_user` — driven by
+  Playwright against the app running with data (B060a), targeting `data-scio-id`. The `reload` is a
+  real navigation, which is the whole point: it separates "React still has it in state" from "it was
+  saved". **The scripts are derived deterministically** from the architecture graph: a create
+  operation's inputs become the fields to fill, its screens become the routes to visit, its entity
+  becomes the table to look in; an owner column plus an identity becomes the two-user isolation
+  script, in which each user must see their OWN row as well as not the other's — "nobody sees
+  anything" is a broken list, not privacy. No model is asked to invent a step. **The channel is
+  first-class evidence**: a fifth gate alongside instrumentation, validation and console; failures
+  feed the capped repair loop with one actionable line ("could not expect Ada present — 'Ada' was
+  not on the page"); a package that fails it never pays for a critique. **It refuses to bluff**:
+  where no script can be derived honestly — an operation with no screen, an app with no identity to
+  isolate by — the criterion stays exactly what B054 made it, and a preview that cannot drive
+  (no browser, no data layer) reports "nobody drove it" rather than passing. Markers are unique per
+  attempt, so a repair cannot pass on the row the previous attempt left behind. **Proven live**,
+  against a real browser and a real PostgreSQL: a correct booking feature passes persistence (row in
+  the database) and isolation (each guest sees only their own); the same app with a silently failing
+  insert fails persistence; the same schema with `using (true)` instead of `using (owner_id =
+  auth.uid())` — RLS on, a policy present, a code review passed — fails isolation. Two defects fixed
+  on the way: the acting user was a module-level `let`, which Next's split bundling would have left
+  the API route setting and the pages never reading (now on `globalThis`, like the pglite instance),
+  and the verification endpoint's logic was trapped inside a Next route where nothing could test it
+  (now `verify.ts`, with the route a four-line wrapper). The endpoint also resolves entity → relation
+  (`booking` → `bookings`) and errors by name rather than answering zero, because a count of zero
+  reads as "it was not saved". 462 engine tests green (+37), api 47, app 38, typecheck clean.
 - 2026-08-12 — B060a: **the verification data layer — generated apps now run WITH data**
   (`library/verification/`). Built on the spike's approach A. A build in verification mode runs
   against a real in-process PostgreSQL (pglite), so "the booking actually saves" and "a guest

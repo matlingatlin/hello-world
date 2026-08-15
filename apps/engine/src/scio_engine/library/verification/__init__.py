@@ -41,6 +41,13 @@ SCHEMA_ENV = "SCIO_VERIFY_SCHEMA"
 ACTOR_ENV = "SCIO_VERIFY_ACTOR"
 
 CLIENT_SOURCE = Path(__file__).resolve().parent / "client.ts"
+VERIFY_SOURCE = Path(__file__).resolve().parent / "verify.ts"
+ROUTE_SOURCE = Path(__file__).resolve().parent / "route.ts"
+
+VERIFY_ROUTE = "app/api/__scio_verify/route.ts"
+"""The one file verification puts inside the app's own tree — Next only routes
+from app/. Removed again with the database, and named so nobody mistakes it for
+something the user asked for."""
 
 VERIFICATION_DIR = ".scio/verification"
 """Inside the app, but namespaced and gitignored: it is build scaffolding, not
@@ -117,6 +124,11 @@ class VerificationDatabase:
     actor: str = ""
 
     @property
+    def verify_path(self) -> str:
+        """Where the harness asks the app about its own database."""
+        return "/api/__scio_verify"
+
+    @property
     def env(self) -> dict[str, str]:
         """What the app's process needs to run against this database."""
         return {
@@ -133,12 +145,18 @@ class VerificationDatabase:
         return sum(f.stat().st_size for f in self.data_dir.rglob("*") if f.is_file())
 
     def discard(self) -> None:
-        """Delete the database. Safe to call twice; never call it while serving.
+        """Delete the database and the route. Safe to call twice; never while serving.
 
         Build output, not user data — a fresh one per build is what makes a
-        verification result mean something.
+        verification result mean something, and the route must not survive into
+        what the user receives.
         """
         shutil.rmtree(self.data_dir, ignore_errors=True)
+        route = self.app_dir / VERIFY_ROUTE
+        route.unlink(missing_ok=True)
+        parent = route.parent
+        if parent.exists() and not any(parent.iterdir()):
+            parent.rmdir()
 
 
 def migration_files(app_dir: Path) -> list[str]:
@@ -160,7 +178,14 @@ def prepare(app_dir: Path, *, actor: str = "", fresh: bool = True) -> Verificati
     target = app_dir / VERIFICATION_DIR
     target.mkdir(parents=True, exist_ok=True)
     (target / "client.ts").write_text(CLIENT_SOURCE.read_text())
+    (target / "verify.ts").write_text(VERIFY_SOURCE.read_text())
     (app_dir / ".scio" / ".gitignore").write_text("*\n")
+
+    # Next only serves routes from app/, so this one file has to live in the
+    # app's tree. It is removed again by discard() — see VERIFY_ROUTE.
+    route = app_dir / VERIFY_ROUTE
+    route.parent.mkdir(parents=True, exist_ok=True)
+    route.write_text(ROUTE_SOURCE.read_text())
 
     data_dir = target / "pgdata"
     if fresh:

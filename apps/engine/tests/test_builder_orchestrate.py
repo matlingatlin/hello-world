@@ -570,7 +570,7 @@ class TestProgress:
 
 
 @pytest.mark.parametrize("package_id", [FOUNDATION, SCHEMA, TOKENS, BOOKING, MENU])
-async def test_every_package_reports_four_checks(tmp_path, package_id):
+async def test_every_package_reports_five_checks(tmp_path, package_id):
     result, _, _ = await run(tmp_path, ALL_GOOD)
 
-    assert result.get(package_id).checks_passed == 4
+    assert result.get(package_id).checks_passed == 5

@@ -163,6 +163,10 @@ async def stream_full_build(
         sandbox or choose_sandbox(),
         screenshot_dir=workspace.parent / f"{project_id}-shots",
         env=verify_env,
+        # Only when there IS a database: without one the interaction channel
+        # says "I did not look" rather than failing a feature for an insert
+        # that had nowhere to go.
+        verify_path=database.verify_path if database else "",
     )
 
     yield (

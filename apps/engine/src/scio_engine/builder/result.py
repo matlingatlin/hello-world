@@ -24,7 +24,7 @@ class Remainder(BaseModel):
 
     what: str
     where: str = ""
-    source: str = ""  # "critique" | "validation" | "console" | "instrumentation"
+    source: str = ""  # "critique" | "validation" | "console" | "interaction" | ...
 
     def as_line(self) -> str:
         where = f" ({self.where})" if self.where else ""
@@ -40,6 +40,7 @@ class Attempt(BaseModel):
     instrumentation_ok: bool = True
     validation_ok: bool = True
     console_ok: bool = True
+    interaction_ok: bool = True
     critique_passed: bool = False
     problems: list[str] = Field(default_factory=list)
     rolled_back: bool = False

@@ -262,7 +262,7 @@ class TestTheRealRunFailureIsGone:
         result = await build_the_shell(package, tmp_path, ScriptedShell(critic))
 
         assert result.status is PackageStatus.passed, [r.what for r in result.remainders]
-        assert result.checks_passed == result.checks_total == 4
+        assert result.checks_passed == result.checks_total == 5
         # It was judged — on the things the evidence can actually settle.
         assert critic.prompts and "renders" in critic.prompts[-1]
         # And what nobody could check is still on the record, not swallowed.

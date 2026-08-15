@@ -61,10 +61,17 @@
 | B058 | Evaluate memory tool / stores vs our own persistence             | post-MVP | P2 | todo |
 | B059 | Harden the second real run (server actions + validation in the file plan, third-party console noise) | PP5 | P0 | done |
 | B060a | Verification data layer (env-gated pglite client, enforced RLS, per-build lifecycle) | PP7 | P0 | done |
-| B060b | Vision-loop interaction channel: drive fill/submit/reload via data-scio-id, verify outcome + persistence, make 'persists' and guest-isolation observable | PP7 | P0 | todo |
+| B060b | Vision-loop interaction channel: drive fill/submit/reload via data-scio-id, verify outcome + persistence, make 'persists' and guest-isolation observable | PP7 | P0 | done |
 | B061 | Grow the library (more entries; the token/pattern/integration layers) | PP4 | P0 | todo |
 | B062 | Wire the cost estimate from the assemble-vs-generate plan       | PP4 | P0 | done |
 | B063 | Decide customer-facing pricing (markup + currency) — the estimate shows build cost, not a price | PP4 | P0 | todo |
+
+**B060 is complete.** With B060a (a build runs with data) and B060b (a build drives
+the app), the two criteria B054 had to scope out as unobservable — "works end to end
+and persists" and "a guest cannot read another guest's row" — are checked, and they
+gate the build. Verified live: a correct booking feature passes both; the same app
+with a silently failing insert fails the first; the same schema with a policy that
+does not isolate fails the second.
 
 **B053 is prep, not the run.** The engine, the config and the runbook are done and
 tested here; the run itself is operator-driven — it needs an Anthropic key and an

@@ -12,9 +12,10 @@ mode Scio exists to fix.
 
 from __future__ import annotations
 
-from ..layerb.architecture import Architecture, AuthMode
-from .criteria import checked, renders, unobservable
+from ..layerb.architecture import Architecture, AuthMode, Operation, Screen
+from .criteria import Criterion, checked, interacts, renders, unobservable
 from .plan import BuildPackage, BuildPlan, NodeRef, PackageInterface, PackageKind
+from .scripts import is_create, isolation_script, persistence_script
 
 FOUNDATION_ID = "pkg_foundation"
 SCHEMA_ID = "pkg_schema"
@@ -183,6 +184,63 @@ def _auth_package(arch: Architecture) -> BuildPackage:
     )
 
 
+def _it_actually_works(
+    arch: Architecture, entity: str, ops: list[Operation], screens: list[Screen]
+) -> list[Criterion]:
+    """The criteria that say the feature WORKS, not merely that it rendered.
+
+    B054 had to scope these out: the evidence was one page load, so "the booking
+    persists" and "a guest cannot read another guest's booking" were recorded as
+    regrets and judged by nobody. With the interaction channel (B060b) they are
+    scripts — filled in, submitted, reloaded, and looked for in the database —
+    and they gate the build like every other criterion.
+
+    Where a script cannot be derived honestly (an operation with no screen to
+    drive, an app with no identity to isolate by) the criterion stays exactly
+    what it was. An interaction criterion nobody can run would fail every build
+    for a channel that never looked.
+    """
+    criteria: list[Criterion] = []
+
+    for op in ops:
+        label = op.description or op.name
+        script = persistence_script(arch, entity, op, screens) if is_create(op) else None
+        if script is None:
+            criteria.append(unobservable(f"'{label}' works end to end and persists."))
+            continue
+        criteria.append(
+            interacts(
+                f"'{label}' works end to end and persists: filled in through the form, "
+                "submitted, and still on the page and in the database after a fresh load.",
+                script,
+                f"components/{entity}-form.tsx",
+                f"app/actions/{entity}.ts",
+            )
+        )
+
+    isolation = next(
+        (
+            script
+            for op in ops
+            if is_create(op)
+            and (script := isolation_script(arch, entity, op, screens)) is not None
+        ),
+        None,
+    )
+    if isolation is not None:
+        criteria.append(
+            interacts(
+                f"A user cannot read another user's {entity}: "
+                f"each of two users sees their own row and not the other's.",
+                isolation,
+                f"components/{entity}-list.tsx",
+                f"lib/db/{entity}.ts",
+            )
+        )
+
+    return criteria
+
+
 def _feature_packages(arch: Architecture) -> list[BuildPackage]:
     """One package per feature: an entity's operations plus the screens that use
     them. Operations with no entity are grouped under a "general" feature so
@@ -229,10 +287,10 @@ def _feature_packages(arch: Architecture) -> list[BuildPackage]:
                     routes=sorted(s.route for s in screens),
                 ),
                 acceptance_criteria=[
-                    # What the evidence can settle: the screen loaded and the
-                    # controls for each operation are on it. What it cannot:
-                    # whether a booking survives a round trip — the loop looks at
-                    # one page load, it does not fill the form and press send.
+                    # What one page load settles: the screen rendered and the
+                    # controls for each operation are on it. Whether a booking
+                    # survives a round trip is a different question, asked by a
+                    # different channel — see _it_actually_works below.
                     *(
                         renders(
                             f"The interface for '{op.description or op.name}' is on the "
@@ -256,12 +314,7 @@ def _feature_packages(arch: Architecture) -> list[BuildPackage]:
                         if screens
                         else []
                     ),
-                    *(
-                        unobservable(
-                            f"'{op.description or op.name}' works end to end and persists."
-                        )
-                        for op in ops
-                    ),
+                    *_it_actually_works(arch, entity, ops, screens),
                     checked(
                         "The feature's data access is implemented.",
                         "lib/db/",

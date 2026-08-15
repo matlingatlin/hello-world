@@ -176,7 +176,7 @@ class TestHappyPath:
         )
 
         assert result.status is PackageStatus.passed
-        assert result.checks_passed == result.checks_total == 4
+        assert result.checks_passed == result.checks_total == 5
         assert len(result.attempts) == 1
         assert result.files == sorted(planned_files(package))
         assert result.remainders == []

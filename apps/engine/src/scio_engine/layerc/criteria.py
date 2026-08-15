@@ -15,11 +15,19 @@ So a criterion now declares two things about itself:
   `validate.py` before a single token is generated.
 - **observed_by** — which channel can actually check it. Only `render` criteria
   reach the critique; `validation` criteria belong to the deterministic agents
-  that already check them; `unsupported` ones are recorded and judged by nobody.
+  that already check them; `interaction` criteria are settled by driving the app
+  (B060b); `unsupported` ones are recorded and judged by nobody.
 
 An unsupported criterion is kept rather than deleted, because deleting it would
 lose the intent — a headers check IS wanted, it just needs an evidence channel
 that does not exist yet. What it must never do is fail a build.
+
+The `interaction` channel is how that "not yet" was paid off for the two
+criteria that mattered most. "The booking works end to end and persists" and "a
+guest cannot read another guest's booking" were scoped out here as unobservable
+because the evidence was one page load. With the app running against real data
+(B060a) a criterion can carry a `script` instead — and those two now gate the
+build rather than being recorded as regrets.
 """
 
 from __future__ import annotations
@@ -27,6 +35,8 @@ from __future__ import annotations
 from enum import StrEnum
 
 from pydantic import BaseModel, Field, field_validator
+
+from ..core.interaction import Script
 
 
 class Observability(StrEnum):
@@ -36,6 +46,11 @@ class Observability(StrEnum):
     validation = "validation"
     """A deterministic agent already checks it (validation.py). Asking the
     critique to re-judge it from a screenshot only invents a false failure."""
+
+    interaction = "interaction"
+    """A script drives the app and checks what happened (core/interaction). This
+    is what makes "the booking actually saves" checkable: fill the form, press
+    the button, reload, and look — against the app running with real data."""
 
     unsupported = "unsupported"
     """Nothing observes it yet. Recorded so the intent survives; never fails a
@@ -54,6 +69,10 @@ class Criterion(BaseModel):
 
     text: str
     observed_by: Observability = Observability.render
+    script: Script | None = Field(
+        default=None,
+        description="For an interaction criterion: what to do, and what must be true after",
+    )
     produced_by: list[str] = Field(
         default_factory=list,
         description="Path fragments of the planned files that would make this true. "
@@ -90,6 +109,10 @@ class Criterion(BaseModel):
     def judged_by_critique(self) -> bool:
         return self.observed_by is Observability.render
 
+    @property
+    def judged_by_interaction(self) -> bool:
+        return self.observed_by is Observability.interaction and self.script is not None
+
     def observable_in(self, planned_files: list[str]) -> bool:
         """Whether the evidence could settle this at all.
 
@@ -102,6 +125,8 @@ class Criterion(BaseModel):
             return False
         if self.observed_by is Observability.validation:
             return True
+        # An interaction script needs something to click, same as the critique
+        # needs something to look at.
         return any(path.endswith(UI_SUFFIXES) for path in planned_files)
 
 
@@ -131,6 +156,16 @@ def checked(text: str, *produced_by: str) -> Criterion:
     )
 
 
+def interacts(text: str, script: Script, *produced_by: str) -> Criterion:
+    """Checked by driving the app — the channel that makes "it works" a gate."""
+    return Criterion(
+        text=text,
+        observed_by=Observability.interaction,
+        script=script,
+        produced_by=list(produced_by),
+    )
+
+
 def unobservable(text: str, *produced_by: str) -> Criterion:
     return Criterion(
         text=text, observed_by=Observability.unsupported, produced_by=list(produced_by)
@@ -150,6 +185,14 @@ class Coverage(BaseModel):
         return self.produced and self.observable and self.observed_by is Observability.render
 
     @property
+    def checked_by_interaction(self) -> bool:
+        """Judged by driving the app. Not the critique's, but not nobody's —
+        which is the distinction B054 could not yet make."""
+        return (
+            self.produced and self.observable and self.observed_by is Observability.interaction
+        )
+
+    @property
     def reason(self) -> str:
         if not self.produced:
             return "nothing in the package's file plan would produce it"
@@ -159,6 +202,8 @@ class Coverage(BaseModel):
             return "a deterministic validation agent checks it instead"
         if not self.observable:
             return "the package renders nothing, so no evidence could show it"
+        if self.observed_by is Observability.interaction:
+            return "checked by driving the app"
         return "judged by the critique"
 
 
@@ -191,10 +236,30 @@ def judgeable(criteria: list[Criterion], planned_files: list[str]) -> list[Crite
     ]
 
 
+def interacting(criteria: list[Criterion], planned_files: list[str]) -> list[Criterion]:
+    """The criteria a script drives the app to settle.
+
+    Same two structural conditions as the critique's: something in the file plan
+    must produce it, and the package must render something to interact with.
+    """
+    return [
+        c
+        for c in criteria
+        if c.judged_by_interaction
+        and c.produced_by_plan(planned_files)
+        and c.observable_in(planned_files)
+    ]
+
+
 def scoped_out(criteria: list[Criterion], planned_files: list[str]) -> list[str]:
-    """What was NOT judged, and why — for the build's honest record."""
+    """What was NOT judged, and why — for the build's honest record.
+
+    An interaction criterion is judged, by the interaction channel, so it does
+    not belong here: listing it would report "not verified" about the one thing
+    the build actually drove the app to prove.
+    """
     return [
         f"{c.criterion} — {c.reason}"
         for c in cover(criteria, planned_files)
-        if not c.judgeable
+        if not c.judgeable and not c.checked_by_interaction
     ]
