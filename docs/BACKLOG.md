@@ -69,6 +69,13 @@
 | B062 | Wire the cost estimate from the assemble-vs-generate plan       | PP4 | P0 | done |
 | B063 | Decide customer-facing pricing (markup + currency) — the estimate shows build cost, not a price | PP4 | P0 | todo |
 
+**Gate 2's path is de-risked** (spikes/design-marking, 2026-08-12). The design window's riskiest
+mechanic — marking an element inside a cross-origin preview — works: a preview-mode bridge inside
+the iframe reports the click, the engine's strict resolver turns it into a package and a source
+line, and a directed change round-trips with only that package touched. Build gate 2 on the split
+the spike enforces: **the preview reports, the parent decides, and resolution stays server-side.**
+See `spikes/design-marking/FINDINGS.md` for what it does not settle.
+
 **B064 — the product has now been used, not just tested.** One script brings the whole
 stack up in the sandbox with dev auth and a local Postgres, and the first click-through
 went new project → wizard → review → build → reveal in a browser. It found four real

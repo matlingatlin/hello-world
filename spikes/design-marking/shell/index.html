@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Scio — design window (spike)</title>
+    <style>
+      :root { color-scheme: light; }
+      body { margin: 0; font: 14px/1.5 ui-sans-serif, system-ui, sans-serif; background: #f6f7f7; color: #14201f; }
+      header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e3e6e6; }
+      .grid { display: grid; grid-template-columns: 1fr 380px; gap: 16px; padding: 16px; align-items: start; }
+      .frame { background: #fff; border: 1px solid #e3e6e6; border-radius: 10px; overflow: hidden; }
+      .bar { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid #e3e6e6; background: #fbfbfb; font: 11px ui-monospace, monospace; color: #667; }
+      iframe { width: 100%; height: 620px; border: 0; background: #fff; }
+      aside { display: flex; flex-direction: column; gap: 12px; }
+      .card { background: #fff; border: 1px solid #e3e6e6; border-radius: 10px; padding: 14px; }
+      .card h2 { margin: 0 0 8px; font: 600 11px/1.4 ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase; color: #667; }
+      button { font: inherit; padding: 7px 12px; border-radius: 7px; border: 1px solid #0d9488; background: #0d9488; color: #fff; cursor: pointer; }
+      button.ghost { background: #fff; color: #0d9488; }
+      button[disabled] { opacity: .5; cursor: default; }
+      ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+      li { border: 1px solid #e3e6e6; border-radius: 8px; padding: 8px 10px; }
+      code, .mono { font-family: ui-monospace, monospace; font-size: 12px; }
+      .pkg { color: #0d9488; }
+      .bad { color: #b4232a; }
+      .muted { color: #667; }
+      input[type=text] { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #e3e6e6; border-radius: 6px; font: inherit; }
+      pre { margin: 6px 0 0; white-space: pre-wrap; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>Design window</strong>
+      <span class="muted mono" id="origins"></span>
+      <button id="arm" data-testid="arm">Mark an element</button>
+      <button id="clear" class="ghost">Clear</button>
+    </header>
+
+    <div class="grid">
+      <div class="frame">
+        <div class="bar"><span id="preview-url"></span></div>
+        <!-- A different origin from this page, on purpose: that is the whole
+             reason a bridge is needed. -->
+        <iframe id="preview" title="Preview"></iframe>
+      </div>
+
+      <aside>
+        <div class="card">
+          <h2>Can the parent read into the frame?</h2>
+          <div id="dom-access" class="mono" data-testid="dom-access">checking…</div>
+        </div>
+
+        <div class="card">
+          <h2>Markings</h2>
+          <ul id="markings" data-testid="markings"></ul>
+          <p class="muted" id="empty">Nothing marked yet.</p>
+        </div>
+
+        <div class="card">
+          <h2>Directed change</h2>
+          <label class="muted" for="instruction">Change the marked package</label>
+          <input type="text" id="instruction" data-testid="instruction"
+                 value="Book a table → Reserve our table" />
+          <p style="margin:10px 0 0"><button id="apply" data-testid="apply" disabled>Apply to marked package</button></p>
+          <pre id="result" data-testid="result" class="muted"></pre>
+        </div>
+      </aside>
+    </div>
+
+    <script>
+      const state = { config: null, markings: [], selected: null };
+
+      const $ = (id) => document.getElementById(id);
+
+      /**
+       * Everything below comes from the preview — another origin, and in the
+       * real product, generated code. It goes into innerHTML, so it is escaped.
+       * The spike found this the honest way: a refusal message containing
+       * "<div>" rendered as an actual div and vanished from the text.
+       */
+      const esc = (value) =>
+        String(value ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+      async function boot() {
+        state.config = await (await fetch("/config")).json();
+        $("preview").src = state.config.preview_origin + "/booking/new";
+        $("preview-url").textContent = state.config.preview_origin + "/booking/new";
+        $("origins").textContent =
+          "shell " + location.origin + "  ·  preview " + state.config.preview_origin;
+      }
+
+      /**
+       * The claim this spike exists to test, checked in the browser rather than
+       * asserted in prose: with the preview on another origin, the parent gets
+       * nothing from the DOM. If this ever prints "readable", the bridge is
+       * unnecessary and gate 2 is a much smaller job.
+       */
+      function checkDomAccess() {
+        const frame = $("preview");
+        let verdict;
+        try {
+          const doc = frame.contentDocument || frame.contentWindow.document;
+          verdict = doc ? "READABLE — " + doc.querySelectorAll("[data-scio-id]").length + " ids" : "blocked (null document)";
+        } catch (err) {
+          verdict = "blocked — " + err.name + ": " + String(err.message).slice(0, 70);
+        }
+        $("dom-access").textContent = verdict;
+        $("dom-access").className = "mono " + (verdict.startsWith("READABLE") ? "" : "bad");
+      }
+
+      function post(type, extra) {
+        $("preview").contentWindow.postMessage(
+          Object.assign({ source: "scio-shell", type }, extra || {}),
+          state.config.preview_origin,
+        );
+      }
+
+      window.addEventListener("message", async (event) => {
+        // Origin check first, always: anything can postMessage to this window.
+        if (event.origin !== state.config.preview_origin) return;
+        const data = event.data || {};
+        if (data.source !== "scio-preview") return;
+
+        if (data.type === "ready") {
+          $("dom-access").textContent += "  ·  bridge reported " + data.ids.length + " ids";
+          return;
+        }
+        if (data.type !== "marked") return;
+
+        // The shell does not decide what the marking means. It hands the hit to
+        // the engine's strict resolver and shows whatever comes back.
+        const resolved = await (
+          await fetch("/resolve", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          })
+        ).json();
+
+        state.markings.push(resolved);
+        if (resolved.ok) state.selected = resolved;
+        render();
+      });
+
+      function render() {
+        $("empty").style.display = state.markings.length ? "none" : "";
+        $("markings").innerHTML = state.markings
+          .map((m, i) =>
+            m.ok
+              ? `<li data-testid="marking">You marked <code>${esc(m.scio_id)}</code>
+                   in <span class="pkg mono">${esc(m.package)}</span>
+                   <div class="muted mono">${esc(m.file)}:${m.line} · &lt;${esc(m.tag)}&gt; at ${m.coords.x},${m.coords.y}</div>
+                   <input type="text" class="note" data-index="${i}" placeholder="a note about this marking"
+                          value="${esc(m.note || "")}" /></li>`
+              : `<li data-testid="marking"><span class="bad">Could not address this</span>
+                   <div class="muted">${esc(m.error)}</div></li>`,
+          )
+          .join("");
+        $("markings").querySelectorAll(".note").forEach((input) => {
+          input.addEventListener("input", (e) => {
+            state.markings[Number(e.target.dataset.index)].note = e.target.value;
+          });
+        });
+        $("apply").disabled = !state.selected;
+      }
+
+      $("arm").addEventListener("click", () => {
+        const on = $("arm").dataset.on !== "1";
+        $("arm").dataset.on = on ? "1" : "0";
+        $("arm").textContent = on ? "Marking… (click in the preview)" : "Mark an element";
+        post("arm", { on });
+      });
+
+      $("clear").addEventListener("click", () => {
+        state.markings = [];
+        state.selected = null;
+        post("clear");
+        render();
+      });
+
+      $("apply").addEventListener("click", async () => {
+        $("apply").disabled = true;
+        $("result").textContent = "applying…";
+        const res = await (
+          await fetch("/change", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              marking: state.selected,
+              instruction: $("instruction").value,
+              note: state.selected.note || "",
+            }),
+          })
+        ).json();
+        $("result").textContent = res.summary;
+        $("result").className = res.ok ? "mono" : "mono bad";
+        if (res.ok) {
+          // A full reload of the frame, not a hot update: what we are proving is
+          // that the change is in the served app, not in a React state tree.
+          $("preview").src = state.config.preview_origin + "/booking/new?t=" + Date.now();
+        }
+      });
+
+      $("preview").addEventListener("load", checkDomAccess);
+      boot();
+    </script>
+  </body>
+</html>

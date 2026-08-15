@@ -1,0 +1,4 @@
+# The working copy of the fixture app: assembled by run_spike.py from the
+# blueprint, with node_modules symlinked in. Build output, not source.
+app/
+out/

@@ -5,6 +5,25 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — **Spike (spikes/design-marking): the in-iframe marking bridge works end to end —
+  gate 2's riskiest mechanic is de-risked.** Verdict: build the design window on a bridge, and keep
+  the split it enforces. The parent genuinely cannot read into the preview (`SecurityError`, checked
+  in the browser rather than assumed) because the preview is always on its own origin — so a
+  preview-mode script inside it captures clicks on `[data-scio-id]`, draws the marker itself, and
+  postMessages the element's identity out, origin-pinned in both directions. The whole chain ran on
+  the booking blueprint: mark → resolve to `pkg_feature_booking` @ `components/booking-form.tsx:70`
+  → mock directed change → reload → "Book a table" became "Reserve our table" with 2 files changed,
+  **7 byte-identical** and `layout.tsx` untouched. Click to resolved marking: **150 ms**. **The
+  bridge is absent from the delivered app** (flag off → no script, every id still present) —
+  checked, not asserted. The finding that shapes gate 2: **the preview reports, the parent decides.**
+  The bridge sends the clicked node *and* the nearest instrumented ancestor and never substitutes
+  one for the other; `core/resolver` refuses on an uninstrumented element by name, which is what
+  keeps B039's "a marked button rewrites the app shell" bug dead on the far side of a security
+  boundary. Also learned: click coordinates do not survive the crossing (different viewport, an
+  unreadable scroll offset), so the marker must be drawn inside the preview and never painted
+  from the parent; and everything the preview sends is untrusted second-origin input — a refusal message containing
+  `<div>` was interpolated into the shell's innerHTML and became one. 8 browser-free tests cover the
+  payload seam; `run_spike.py` runs the whole thing.
 - 2026-08-12 — B064: **the product can be run and clicked through locally — and doing it for the
   first time found four real bugs** (`scripts/dev-up.sh`, `docs/RUNBOOK-LOCAL.md`). One command
   brings up engine + api + app + a real PostgreSQL 16 **process** (no Docker; pgvector is the one
