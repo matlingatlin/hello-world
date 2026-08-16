@@ -79,6 +79,47 @@ export interface EngineBuildRequest {
   project_id: string;
   build_version: number;
   max_attempts?: number;
+  /** Level 2 only. Set it and the build carries the design window's marking
+   *  bridge, pinned to this origin. Absent = a delivery build, with no bridge. */
+  shell_origin?: string;
+}
+
+/** A batch of markings, on their way to the engine's directed change. */
+export interface EngineDesignChangeRequest {
+  app_dir: string;
+  spec: IntakeSpec;
+  batch: {
+    markings: Array<Record<string, unknown>>;
+    prompt: string;
+  };
+  package_files: Record<string, string[]>;
+  passes?: number;
+}
+
+export interface EngineDesignChangeResponse {
+  applied: boolean;
+  conflicts: Array<{
+    kind: string;
+    scio_id: string;
+    note: string;
+    spec_says: string;
+    question: string;
+  }>;
+  packages: Array<{
+    package: string;
+    edited_files: string[];
+    unchanged_files: number;
+    isolated: boolean;
+    accepted: boolean;
+    rejection: string;
+  }>;
+  unaddressable: Array<{
+    marking: { scio_id: string | null; note: string };
+    error: string;
+  }>;
+  manifest: Record<string, unknown> | null;
+  total_cost_usd: number;
+  description: string;
 }
 
 /** One `event:`/`data:` frame from an SSE stream. */
@@ -170,6 +211,17 @@ export class EngineClient {
       this.logger.warn(`validate unavailable: ${(err as Error).message}`);
       return null;
     }
+  }
+
+  /**
+   * Apply a batch of markings to only the packages they touch.
+   *
+   * Throws rather than returning null: unlike the review screen's decorations,
+   * a change the user pressed go on has no useful degraded state — "we could
+   * not reach the engine" is the answer, not a silent no-op.
+   */
+  designChange(body: EngineDesignChangeRequest): Promise<EngineDesignChangeResponse> {
+    return this.post<EngineDesignChangeResponse>("/design/change", body, 900_000);
   }
 
   /** Layer B, for the review screen's confirmation. Null rather than throwing. */

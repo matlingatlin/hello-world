@@ -215,6 +215,16 @@ export interface BuildFinished {
   /** True when the code came from the stand-in builder (no API keys): the
    *  pipeline is real, the code is not. Shown to the user, never hidden. */
   standin: boolean;
+  /** Where the app was built. A design change operates on this directory. */
+  workspace?: string;
+  /** True when this build carries the design window's marking bridge (Level 2).
+   *  A delivery build does not. */
+  preview?: boolean;
+  /** id -> package + source location. The design window resolves markings
+   *  against it, so it travels with the build rather than being re-derived. */
+  manifest?: Record<string, unknown> | null;
+  /** package -> files, for the isolation proof on a directed change. */
+  package_files?: Record<string, string[]>;
 }
 
 export interface BuildErrorEvent {

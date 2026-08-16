@@ -5,6 +5,33 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-12 — B067: **gate 2a — the design window's backend: preview builds carry the marking
+  bridge, and a batch of markings changes only what it touches.** Level 2 is "show me before you
+  build it", and this is the half that has no UI. **The preview is a different build**: pass
+  `shell_origin` and the app carries the bridge the spike proved (`builder/preview_bridge.py`);
+  leave it out and it does not. The injection is a webpack entry declared in the app's own
+  next.config.js behind `SCIO_PREVIEW_MODE` — the same shape the verification data layer already
+  uses — so **the generated code is untouched**, which matters because the manifest maps ids to
+  source lines, isolation compares file hashes, and directed regeneration rewrites whole packages;
+  editing `layout.tsx` to add a preview feature would disturb all three. Verified against a real
+  Next server, both ways: the bridge is in exactly one bundle with the flag and in **zero** bundles
+  without it, while `data-scio-id` is still there. **`POST /design/change` applies a BATCH**
+  (`design/`): each marking resolved strictly and individually — one unaddressable marking is named
+  and skipped, the rest still apply, because failing a batch whole teaches people to mark one thing
+  at a time — then grouped by package, then one relay per affected package, then the core's
+  `directed_regenerate` per package, unchanged. A package whose regeneration loses a `data-scio-id`
+  is rolled back and reported; a model that edits a file its package does not own is refused; every
+  other package is byte-identical, and the count is what the window shows. **A marking that argues
+  with the approved spec is a question, not a build**: deterministic detection against the
+  architecture's non-goals, its auth mode and its sensitivity posture, matched on the project's own
+  canonical vocabulary (so "reservations" in a non-goal catches "booking" in a note). Nothing is
+  built and nothing is spent — the user decides. api: `POST /projects/:id/design/preview` (streamed,
+  like a build), `GET /projects/:id/design`, `POST /projects/:id/design/change`, all
+  workspace-scoped, and **every applied change is a design version** carrying the workspace, the
+  preview URL and the manifest markings resolve against. One design decision the tests forced:
+  generating a preview with no `APP_ORIGIN` configured now **refuses**, because the alternative is a
+  design window embedding an app that cannot report a single click with nothing anywhere saying why.
+  489 engine tests (+26), api 67 (+14), app 38, typecheck clean.
 - 2026-08-12 — **Spike (spikes/design-marking): the in-iframe marking bridge works end to end —
   gate 2's riskiest mechanic is de-risked.** Verdict: build the design window on a bridge, and keep
   the split it enforces. The parent genuinely cannot read into the preview (`SecurityError`, checked

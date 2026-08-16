@@ -73,7 +73,75 @@ export interface SpecVersionListResponse {
   specVersions: SpecVersion[];
 }
 
-// design
+// design (Level 2 — the design window)
+
+/** One element the user marked, exactly as the in-preview bridge reports it.
+ *  `ancestorId` is evidence for a refusal, never a fallback target. */
+export interface DesignMarking {
+  scioId: string | null;
+  scioPackage?: string | null;
+  tag?: string;
+  text?: string;
+  ancestorId?: string | null;
+  ancestorPackage?: string | null;
+  ancestorDistance?: number;
+  note?: string;
+}
+
+/** Everything marked before pressing go, plus whatever was typed for the change
+ *  as a whole. One change, several targets. */
+export interface ApplyDesignChangeRequest {
+  markings: DesignMarking[];
+  prompt?: string;
+}
+
+/** A marking that argues with the approved spec. Returned as a question — the
+ *  change is NOT applied until the user decides. */
+export interface DesignConflict {
+  kind: string;
+  scioId: string;
+  note: string;
+  specSays: string;
+  question: string;
+}
+
+/** What happened to one package. `unchangedFiles` is the isolation proof. */
+export interface DesignPackageChange {
+  package: string;
+  editedFiles: string[];
+  unchangedFiles: number;
+  isolated: boolean;
+  accepted: boolean;
+  rejection: string;
+}
+
+/** A marking that could not be addressed, and why. */
+export interface DesignSkippedMarking {
+  scioId: string | null;
+  note: string;
+  error: string;
+}
+
+export interface DesignPreviewResponse {
+  previewUrl: string | null;
+  /** id -> package + source location. The design window resolves markings against it. */
+  manifest: Record<string, unknown> | null;
+  designVersion: DesignVersion | null;
+  whole: string | null;
+  summary: string;
+}
+
+export interface ApplyDesignChangeResponse {
+  applied: boolean;
+  conflicts: DesignConflict[];
+  packages: DesignPackageChange[];
+  skipped: DesignSkippedMarking[];
+  previewUrl: string | null;
+  manifest: Record<string, unknown> | null;
+  designVersion: DesignVersion | null;
+  summary: string;
+}
+
 export interface FreezeDesignRequest {
   ref: string;
 }

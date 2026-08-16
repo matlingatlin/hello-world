@@ -23,7 +23,7 @@ click-through found four real bugs in an hour (see the CHANGELOG for
 | | where | what it is |
 |---|---|---|
 | app | <http://127.0.0.1:5173> | Vite dev server, `VITE_DEV_AUTH=1` |
-| api | <http://127.0.0.1:3000> | Nest, `SCIO_DEV_AUTH=1`, docs at `/docs` |
+| api | <http://127.0.0.1:3000> | Nest, `SCIO_DEV_AUTH=1`, `APP_ORIGIN` set, docs at `/docs` |
 | engine | <http://127.0.0.1:8000> | FastAPI, fake providers unless a key is set |
 | Postgres | `127.0.0.1:55432`, db `scio` | a real PostgreSQL 16 **process** |
 
@@ -85,6 +85,14 @@ honoured — dev auth accepts any `dev` token and must never run in production.
 5. **Build** — one progress line per part, streamed over SSE.
 6. **Reveal** — the built app running in an iframe, plus what is true about the
    build.
+
+## Level 2 — the design window's preview
+
+`POST /projects/:id/design/preview` builds the app with the marking bridge in it, so the
+design window can hear about clicks it cannot see (the preview is cross-origin). The
+bridge posts only to `APP_ORIGIN`, which `dev-up.sh` sets for you; without it the api
+refuses to generate a preview rather than handing back a window where nothing is
+clickable. A delivery build — the ordinary `POST /projects/:id/build` — carries no bridge.
 
 ## Free vs real
 

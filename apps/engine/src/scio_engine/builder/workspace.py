@@ -37,6 +37,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..library.verification import PGLITE_PACKAGE, PGLITE_VERSION, next_config
+from .preview_bridge import preview_flag_js, preview_webpack
 
 SCAFFOLD_FILES = ("package.json", "next.config.js", "tsconfig.json", "next-env.d.ts")
 
@@ -137,9 +138,12 @@ def stack_files(project_id: str) -> dict[str, str]:
     """
     return {
         "package.json": package_json(project_id),
-        # Carries the verification alias, which does nothing unless
-        # SCIO_VERIFY_DATA is set (library/verification).
-        "next.config.js": next_config(),
+        # Carries two preview-time swaps, each behind its own flag and each
+        # inert without it: the verification data client (SCIO_VERIFY_DATA) and
+        # the design window's marking bridge (SCIO_PREVIEW_MODE).
+        "next.config.js": next_config(
+            extra_flags=preview_flag_js(), extra_webpack=preview_webpack()
+        ),
         "tsconfig.json": json.dumps(
             {
                 "compilerOptions": {

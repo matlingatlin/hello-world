@@ -116,6 +116,7 @@ else
   (cd "$ROOT/apps/api" && SCIO_DEV_AUTH=1 \
     DATABASE_URL="$DATABASE_URL" \
     CORS_ORIGINS="http://127.0.0.1:$APP_PORT,http://localhost:$APP_PORT" \
+    APP_ORIGIN="http://127.0.0.1:$APP_PORT" \
     ENGINE_URL="http://127.0.0.1:$ENGINE_PORT" \
     PORT="$API_PORT" \
     setsid npx nest start >"$RUN/api.log" 2>&1 & echo $! >"$RUN/api.pid")

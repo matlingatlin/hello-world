@@ -7,14 +7,18 @@ architecture logic, and codegen build on top of this — later kickoffs.
 
 import json
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from .builder.pipeline import stream_full_build
+from .builder.standin import standin_registry
 from .builder.workspace import WorkspaceUnavailable
 from .config import build_registry, use_fake_providers
+from .core.manifest_builder import build_manifest
+from .design import ChangeBatch, DesignChangeResult, apply_change
 from .estimate import BuildEstimate, estimate_plan
 from .execution.matrix import UnknownTaskError, default_matrix
 from .execution.narration import narrate
@@ -220,6 +224,12 @@ class BuildRequest(BaseModel):
     project_id: str = Field(default="project", description="Names the workspace directory")
     build_version: int = Field(default=1, description="The version number to persist as")
     max_attempts: int = Field(default=2, description="Vision-loop attempts per package")
+    shell_origin: str = Field(
+        default="",
+        description="Level 2 only: the design window's origin. Set it and the build carries "
+        "the marking bridge, pinned to that origin. Empty means a delivery build, which "
+        "has no bridge at all.",
+    )
 
 
 @app.post("/build")
@@ -243,6 +253,7 @@ async def build(req: BuildRequest) -> StreamingResponse:
                 registry=build_registry(),
                 build_version=req.build_version,
                 max_attempts=req.max_attempts,
+                shell_origin=req.shell_origin,
             ):
                 if isinstance(payload, str):
                     yield _sse(event, json.dumps({"text": payload}))
@@ -256,6 +267,53 @@ async def build(req: BuildRequest) -> StreamingResponse:
             yield _sse("error", json.dumps({"type": "build_failed", "message": str(exc)}))
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+class DesignChangeRequest(BaseModel):
+    """A batch of markings from the design window, plus where the app lives."""
+
+    app_dir: str = Field(description="The workspace the preview is running from")
+    spec: AppSpec = Field(description="The approved spec — what a conflict is measured against")
+    batch: ChangeBatch
+    package_files: dict[str, list[str]] = Field(
+        default_factory=dict, description="package -> files, from the build that produced it"
+    )
+    passes: int = Field(default=1, description="Relay passes per changed package (1-4)")
+
+
+@app.post("/design/change", response_model=DesignChangeResult)
+async def design_change(req: DesignChangeRequest) -> DesignChangeResult:
+    """Apply a batch of markings to ONLY the packages they touch.
+
+    Three outcomes, and the middle one is the point:
+
+    - **applied** — the affected packages were regenerated, each proven isolated
+      and re-verified for instrumentation. Everything else is byte-identical.
+    - **conflicts** — something in the batch argues with the approved spec. It is
+      returned as a question and NOTHING is built; the user decides.
+    - **unaddressable** — a marking landed on an element with no `data-scio-id`.
+      That marking is named and skipped; the others still apply.
+    """
+    app_dir = Path(req.app_dir)
+    if not app_dir.exists():
+        raise HTTPException(status_code=404, detail=f"no workspace at {req.app_dir}")
+
+    architecture = (await run_layer_b(req.spec, registry=build_registry())).architecture
+    package_files = req.package_files or None
+    manifest = build_manifest(app_dir, package_files or {})
+
+    registry = build_registry()
+    return await apply_change(
+        app_dir,
+        req.batch,
+        manifest=manifest,
+        architecture=architecture,
+        # Without keys the relay returns digests, which contain no code — the
+        # stand-in builder is what makes the free path produce files at all.
+        registry=standin_registry() if registry.is_fake else registry,
+        package_files=package_files,
+        passes=req.passes,
+    )
 
 
 @app.get("/matrix/tasks")

@@ -20,6 +20,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from ..core.instrumentation import Manifest
+from ..core.manifest_builder import build_manifest
 from ..core.sandbox import SandboxProvider, choose_sandbox
 from ..execution.profile import run_profile
 from ..execution.provider import ProviderRegistry
@@ -28,8 +30,11 @@ from ..layerb.service import run_layer_b
 from ..layerc.service import run_layer_c
 from ..library.verification import VerificationDatabase, verification_enabled
 from ..library.verification import prepare as prepare_verification
+from .file_plan import file_plan
 from .loop import BuildOptions, BuildPreview, SandboxPreview
 from .orchestrate import AppBuildOptions, AppBuildResult, stream_build_plan
+from .preview_bridge import prepare as prepare_bridge
+from .preview_bridge import preview_env
 from .result import PackageBuildResult
 from .standin import standin_registry
 from .workspace import prepare_workspace
@@ -66,6 +71,16 @@ class BuildFinished(BaseModel):
     files: list[str] = Field(default_factory=list)
     total_cost_usd: float = 0.0
     standin: bool = False
+    workspace: str = ""
+    preview: bool = Field(
+        default=False, description="Whether this build carries the design window's marking bridge"
+    )
+    manifest: Manifest | None = Field(
+        default=None,
+        description="id -> package + source location. The design window resolves markings "
+        "against this, so it travels with the build rather than being re-derived by a caller.",
+    )
+    package_files: dict[str, list[str]] = Field(default_factory=dict)
 
     @classmethod
     def of(
@@ -75,6 +90,10 @@ class BuildFinished(BaseModel):
         project_id: str,
         whole: str,
         standin: bool,
+        workspace: str = "",
+        preview: bool = False,
+        manifest: Manifest | None = None,
+        package_files: dict[str, list[str]] | None = None,
     ) -> BuildFinished:
         return cls(
             project_id=project_id,
@@ -93,6 +112,10 @@ class BuildFinished(BaseModel):
             files=sorted({f for package in result.packages for f in package.files}),
             total_cost_usd=result.total_cost_usd,
             standin=standin,
+            workspace=workspace,
+            preview=preview,
+            manifest=manifest,
+            package_files=package_files or {},
         )
 
 
@@ -114,6 +137,7 @@ async def stream_full_build(
     max_attempts: int = 2,
     codegen_passes: int | None = None,
     close_preview: bool = False,
+    shell_origin: str = "",
 ) -> AsyncIterator[tuple[str, BaseModel | str]]:
     """Run the whole path, yielding events as they happen.
 
@@ -154,15 +178,23 @@ async def stream_full_build(
     # the flag is set, and then it is one fresh database for this build, owned
     # and discarded here.
     database: VerificationDatabase | None = None
-    verify_env: dict[str, str] = {}
+    app_env: dict[str, str] = {}
     if verification_enabled():
         database = prepare_verification(workspace)
-        verify_env = database.env
+        app_env.update(database.env)
+
+    # Level 2: the app is served for the design window, so it carries the
+    # marking bridge. `shell_origin` is what the bridge is allowed to talk to —
+    # without one it stays silent rather than broadcasting to any frame.
+    # A build with no shell_origin is a delivery build and gets no bridge at all.
+    if shell_origin:
+        prepare_bridge(workspace)
+        app_env.update(preview_env(shell_origin))
 
     running = preview or SandboxPreview(
         sandbox or choose_sandbox(),
         screenshot_dir=workspace.parent / f"{project_id}-shots",
-        env=verify_env,
+        env=app_env,
         # Only when there IS a database: without one the interaction channel
         # says "I did not look" rather than failing a feature for an insert
         # that had nowhere to go.
@@ -214,7 +246,20 @@ async def stream_full_build(
     if database is not None and close_preview:
         database.discard()
 
+    # Derived from the source that is actually on disk, not remembered from the
+    # build: the design window resolves markings against it, and a manifest that
+    # drifted from the code is exactly how a marking targets the wrong package.
+    file_map = file_plan(plan.packages)
     yield (
         "finished",
-        BuildFinished.of(result, project_id=project_id, whole=whole, standin=using_standin),
+        BuildFinished.of(
+            result,
+            project_id=project_id,
+            whole=whole,
+            standin=using_standin,
+            workspace=str(workspace),
+            preview=bool(shell_origin),
+            manifest=build_manifest(workspace, file_map),
+            package_files=file_map,
+        ),
     )

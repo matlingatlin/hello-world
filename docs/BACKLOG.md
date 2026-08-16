@@ -65,9 +65,18 @@
 | B064 | Local dev run mode: whole stack in-sandbox (dev auth, local Postgres, one script) | PP5 | P0 | done |
 | B065 | Wizard UX on the free path: one field per answer is slow; the stand-in cannot read a paragraph | PP5 | P1 | todo |
 | B066 | Spec review: let the user edit a field the wizard filed wrongly, without restarting the wizard | PP5 | P1 | todo |
+| B067 | Gate 2a: design window backend — preview-mode build (bridge) + directed-change round-trip | PP6 | P0 | done |
+| B068 | Gate 2b: the design window UI — embed + marking selection + prompt + batch + generate-again + approve | PP6 | P0 | todo |
 | B061 | Grow the library (more entries; the token/pattern/integration layers) | PP4 | P0 | todo |
 | B062 | Wire the cost estimate from the assemble-vs-generate plan       | PP4 | P0 | done |
 | B063 | Decide customer-facing pricing (markup + currency) — the estimate shows build cost, not a price | PP4 | P0 | todo |
+
+**Gate 2a is done** (B067). The backend of the design window exists: a preview build
+carries the marking bridge (and a delivery build provably does not), and `POST /design/change`
+applies a BATCH of markings to only the packages they touch, behind the isolation and
+instrumentation guardrails. A marking that argues with the approved spec comes back as a
+question and is not built. Each applied change is a design version. **Gate 2b (B068) is the
+UI** — embedding the preview, selecting markings, the prompt, generate-again and approve.
 
 **Gate 2's path is de-risked** (spikes/design-marking, 2026-08-12). The design window's riskiest
 mechanic — marking an element inside a cross-origin preview — works: a preview-mode bridge inside

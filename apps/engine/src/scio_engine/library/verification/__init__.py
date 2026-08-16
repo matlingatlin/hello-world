@@ -65,12 +65,19 @@ def verification_enabled(env: dict[str, str] | None = None) -> bool:
     return source.get(VERIFY_FLAG, "").lower() in {"1", "true", "yes"}
 
 
-def next_config(alias_enabled: bool = True) -> str:
+def next_config(
+    alias_enabled: bool = True, *, extra_flags: str = "", extra_webpack: str = ""
+) -> str:
     """The app's next.config.js, with the verification swap behind the flag.
 
     The condition is evaluated in the app's own config at boot, so the swap
     exists only in a process that was told to verify. There is no build in which
     the user's code silently points somewhere else.
+
+    `extra_flags` / `extra_webpack` let another preview-time concern add its own
+    boot condition and webpack block — the marking bridge does (builder/
+    preview_bridge). They are separate parameters rather than another branch here
+    because verification has no business knowing what the design window needs.
     """
     if not alias_enabled:
         return (
@@ -88,6 +95,7 @@ def next_config(alias_enabled: bool = True) -> str:
 const verifying = ["1", "true", "yes"].includes(
   String(process.env.{VERIFY_FLAG} ?? "").toLowerCase(),
 );
+{extra_flags}
 
 /** @type {{import('next').NextConfig}} */
 module.exports = {{
@@ -108,6 +116,7 @@ module.exports = {{
       // pglite is a WASM module; bundling it into the server output breaks it.
       config.externals = [...(config.externals ?? []), "{PGLITE_PACKAGE}"];
     }}
+{extra_webpack}
     return config;
   }},
 }};
