@@ -4,6 +4,8 @@ import type {
   ApplyDesignChangeRequest,
   ApplyDesignChangeResponse,
   ApproveSpecResponse,
+  CorrectSpecFieldRequest,
+  CorrectSpecFieldResponse,
   CreateProjectRequest,
   DesignPreviewResponse,
   DesignVersionListResponse,
@@ -77,6 +79,18 @@ export function createApi(getToken: GetToken, baseUrl?: string) {
       request<IntakeStepResponse>(`/projects/${projectId}/intake/message`, {
         method: "POST",
         body: JSON.stringify({ text }),
+      }),
+    /**
+     * Correct a field the wizard filed wrongly.
+     *
+     * Returns a whole turn, not a diff: the narrative, the assumptions and the
+     * estimate all follow from the spec, so the review screen re-renders from
+     * this rather than patching the row it just edited.
+     */
+    correctSpecField: (projectId: string, body: CorrectSpecFieldRequest) =>
+      request<CorrectSpecFieldResponse>(`/projects/${projectId}/draft-spec/field`, {
+        method: "POST",
+        body: JSON.stringify(body),
       }),
     approveSpec: (projectId: string, whole?: string) =>
       request<ApproveSpecResponse>(`/projects/${projectId}/spec/approve`, {

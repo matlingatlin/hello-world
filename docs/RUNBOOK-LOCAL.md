@@ -81,7 +81,11 @@ honoured — dev auth accepts any `dev` token and must never run in production.
    per answer** (see below), and expect the wizard to notice a contradiction and
    ask about it.
 4. **Review** — the whole in prose, the spec field by field, the assumptions,
-   and the cost estimate as a range. Approve it.
+   and the cost estimate as a range. **Every field here is correctable**: press
+   `correct` on a row to change it, or use *Belongs under* to move an answer the
+   wizard filed in the wrong slot. A correction that opens new work (two roles
+   trigger `role_permissions`) says so and asks for it inline, and approve stays
+   disabled until it is answered. Then approve it.
 5. **Build** — one progress line per part, streamed over SSE.
 6. **Reveal** — the built app running in an iframe, plus what is true about the
    build.
@@ -149,6 +153,8 @@ real in-process database and drives the generated app.
 | every request blocked by CORS | `CORS_ORIGINS` does not name the app's origin |
 | `extension "vector" is not available` | pgvector is missing — see Prerequisites |
 | the wizard repeats one question | an engine older than 2026-08-12; the intake stand-in is what fixed it |
+| approve is refused with "this spec still needs…" | the gate is genuinely shut — answer what the review screen lists |
+| a correction "doesn't stick" after a wizard turn | it should; extraction refuses to overwrite `corrected-on-review`. If it does, that rule broke |
 | a code change has no effect | something survived `dev-down.sh`; check `ps` — `nest start` forks a child |
 | "Can't reach the Scio API" on the build screen | the api really is down; a StrictMode abort used to cause this and no longer does |
 | clicking the preview in Mark mode adds nothing | the app is open on a different origin than `APP_ORIGIN` — see Level 2 |

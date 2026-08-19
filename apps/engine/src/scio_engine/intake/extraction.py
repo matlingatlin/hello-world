@@ -25,7 +25,7 @@ from ..execution.relay import RelayOptions, run_relay
 from ..layerb.vocabulary import canonical_name
 from .conversation import Conversation
 from .fields import EXTRACTABLE_FIELDS, field_catalogue, guide_for, signal_catalogue
-from .schema import AppSpec, Confidence, DataSensitivity, FieldMeta, Source
+from .schema import CORRECTION_MARK, AppSpec, Confidence, DataSensitivity, FieldMeta, Source
 
 EXTRACTION_SYSTEM = f"""You are Scio's intake extractor. You turn what a person said \
 about the app they want into typed fields. You do not design anything and you do not \
@@ -190,6 +190,18 @@ def apply_extraction(
             continue
 
         current = getattr(spec, name)
+        if current is not None and CORRECTION_MARK in current.provenance:
+            # A person typed this on the review screen because extraction got it
+            # wrong. The conversation still contains the sentence that was
+            # misfiled, so without this the next turn would re-file it and the
+            # correction would evaporate — silently, which is the worst kind.
+            report.rejected.append(
+                Rejection(
+                    field=name,
+                    reason="you corrected this by hand; an extraction may not overwrite it",
+                )
+            )
+            continue
         if source is Source.derived and current is not None and current.source is Source.stated:
             report.rejected.append(
                 Rejection(

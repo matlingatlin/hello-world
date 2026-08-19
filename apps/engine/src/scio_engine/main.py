@@ -32,6 +32,12 @@ from .execution.relay import (
     stream_relay,
 )
 from .intake.conversation import IntakeMessage
+from .intake.correction import (
+    CorrectionError,
+    CorrectionResult,
+    FieldCorrection,
+    correct_field,
+)
 from .intake.gate import BuildableResult, is_buildable, triggered_conditionals
 from .intake.schema import AppSpec
 from .intake.service import IntakeStep, run_intake_step
@@ -112,6 +118,30 @@ def validate_intake(spec: AppSpec) -> ValidateResponse:
         triggered=triggered_conditionals(spec),
         still_needed=[*result.missing_core, *result.unresolved_conditionals],
     )
+
+
+class CorrectFieldRequest(BaseModel):
+    """One hand correction to the working spec."""
+
+    spec: AppSpec
+    correction: FieldCorrection
+
+
+@app.post("/intake/correct", response_model=CorrectionResult)
+def correct_intake_field(req: CorrectFieldRequest) -> CorrectionResult:
+    """Correct a field the wizard filed wrongly, and re-run Layer A's gate.
+
+    Two things come back that a plain write would not give you: what the
+    correction OPENED (two roles trigger role_permissions; sensitive data
+    triggers compliance), and a gate verdict computed over the corrected spec.
+    A correction is recorded as `stated` with a provenance mark, and extraction
+    will not overwrite it afterwards — the conversation still contains the
+    sentence that was misfiled.
+    """
+    try:
+        return correct_field(req.spec, req.correction)
+    except CorrectionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 class IntakeStepRequest(BaseModel):

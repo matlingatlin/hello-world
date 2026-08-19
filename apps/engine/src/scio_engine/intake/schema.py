@@ -13,6 +13,16 @@ from pydantic import BaseModel, Field
 T = TypeVar("T")
 
 
+CORRECTION_MARK = "corrected-on-review"
+"""What a hand correction leaves in a field's `provenance`.
+
+Deliberately not a message id: nothing was said, someone typed it on the review
+screen. Extraction's grounding rule requires a real message id for anything
+claimed as `stated`, so a model can never forge this mark — and it is what
+extraction looks for when it declines to overwrite a correction.
+"""
+
+
 class Source(StrEnum):
     stated = "stated"
     derived = "derived"

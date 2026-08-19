@@ -64,7 +64,7 @@
 | B060b | Vision-loop interaction channel: drive fill/submit/reload via data-scio-id, verify outcome + persistence, make 'persists' and guest-isolation observable | PP7 | P0 | done |
 | B064 | Local dev run mode: whole stack in-sandbox (dev auth, local Postgres, one script) | PP5 | P0 | done |
 | B065 | Wizard UX on the free path: one field per answer is slow; the stand-in cannot read a paragraph | PP5 | P1 | todo |
-| B066 | Spec review: let the user edit a field the wizard filed wrongly, without restarting the wizard | PP5 | P1 | todo |
+| B066 | Spec review: let the user edit a field the wizard filed wrongly, without restarting the wizard | PP5 | P1 | done |
 | B067 | Gate 2a: design window backend — preview-mode build (bridge) + directed-change round-trip | PP6 | P0 | done |
 | B068 | Gate 2b: the design window UI — embed + marking selection + prompt + batch + generate-again + approve | PP6 | P0 | done |
 | B061 | Grow the library (more entries; the token/pattern/integration layers) | PP4 | P0 | todo |
@@ -85,6 +85,15 @@ new spec version rather than rewriting the security posture (ADR-0001's wedge st
 known cost is that code and posture can drift, and the UI says a deeper change belongs in the
 wizard) — and **versions really restore**, via `git read-tree` forward onto a new commit, refused if
 the restored tree's instrumentation no longer verifies.
+
+**B066 — the review screen is editable.** The wizard's misfilings were visible and unfixable:
+the only remedy was restarting the wizard, so people approved specs they could see were wrong.
+Every field can now be corrected in place, an answer can be MOVED to the field it belongs in
+(one request: set it there, empty the wrong one), and a correction is authoritative — it is
+marked `corrected-on-review` and extraction refuses to overwrite it, so the next wizard turn
+cannot quietly re-file the same mistake. Corrections are re-validated through Layer A's own gate,
+so one that opens new work (two roles → `role_permissions`) says so and is answered inline. The
+gate is enforced at approve, not only in the UI.
 
 **Gate 2a is done** (B067). The backend of the design window exists: a preview build
 carries the marking bridge (and a delivery build provably does not), and `POST /design/change`

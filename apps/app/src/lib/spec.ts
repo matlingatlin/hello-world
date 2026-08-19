@@ -99,6 +99,77 @@ export function assumptionRows(spec: IntakeSpec): SpecRow[] {
   return specRows(spec).filter((row) => row.assumed);
 }
 
+/**
+ * What shape a field holds, so the review screen can offer the right editor.
+ *
+ * Read from the value when there is one — that cannot drift from the spec. The
+ * two sets below are only for a field that is EMPTY and being asked for: a
+ * correction can open `role_permissions`, and there is no value to look at.
+ * They mirror `intake/fields.py`'s guide, where the shapes are actually defined.
+ */
+export type FieldKind = "text" | "list" | "sensitivity";
+
+const LIST_FIELDS = new Set(["users_and_roles", "entities", "key_actions", "non_goals"]);
+const SENSITIVITY_FIELDS = new Set(["data_ownership_sensitivity"]);
+
+export function kindOf(field: string, value?: unknown): FieldKind {
+  if (Array.isArray(value)) return "list";
+  if (value !== null && value !== undefined && typeof value === "object") return "sensitivity";
+  if (LIST_FIELDS.has(field)) return "list";
+  if (SENSITIVITY_FIELDS.has(field)) return "sensitivity";
+  return "text";
+}
+
+/** Every field a correction may target — what "this belongs somewhere else" offers. */
+export const CORRECTABLE_FIELDS: string[] = [
+  ...CORE_FIELDS,
+  "non_goals",
+  "role_permissions",
+  "payment",
+  "notifications",
+  "integrations",
+  "media",
+  "compliance",
+  "visibility_seo",
+  "localization",
+  "scheduling",
+  "platform",
+  "data_owner",
+  "look",
+  "publishing",
+  "security_and_a11y",
+  "scale",
+];
+
+/** A field's value as something a person can type into and read back. */
+export function editText(value: unknown, kind: FieldKind): string {
+  if (kind === "list") return Array.isArray(value) ? value.join(", ") : String(value ?? "");
+  return typeof value === "string" ? value : "";
+}
+
+/** …and back, in the shape the api wants. Splitting is the editor's job, not the server's. */
+export function toValue(text: string, kind: FieldKind): string | string[] {
+  if (kind !== "list") return text.trim();
+  return text
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+/** The sensitivity object, read defensively — it is the one structured field. */
+export function readSensitivity(value: unknown): {
+  owner: string;
+  sensitive: boolean;
+  kinds: string[];
+} {
+  const raw = (value ?? {}) as { owner?: unknown; sensitive?: unknown; kinds?: unknown };
+  return {
+    owner: typeof raw.owner === "string" ? raw.owner : "you",
+    sensitive: raw.sensitive === true,
+    kinds: Array.isArray(raw.kinds) ? raw.kinds.map(String) : [],
+  };
+}
+
 /** How far the six core answers have got — the wizard's honest progress. */
 export function coreProgress(spec: IntakeSpec): { answered: number; total: number } {
   const answered = CORE_FIELDS.filter((field) => isSpecField(spec[field])).length;

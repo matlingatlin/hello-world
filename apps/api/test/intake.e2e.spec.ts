@@ -8,7 +8,7 @@ import { AppModule } from "../src/app.module";
 import { IDENTITY_VERIFIER } from "../src/auth/identity-verifier";
 import { ProvisioningService } from "../src/auth/provisioning.service";
 import { WorkspaceScope } from "../src/auth/workspace-scope";
-import { EngineClient, EngineUnavailableError } from "../src/engine/engine.client";
+import { EngineClient, EngineRefusedError, EngineUnavailableError } from "../src/engine/engine.client";
 
 const fakeVerifier = {
   async verify(token: string) {
@@ -171,6 +171,36 @@ class FakeEngine {
   }
   async validate() {
     return this.validateReply;
+  }
+  correctReply: any = null;
+  correctSeen: any[] = [];
+  correctFails: Error | null = null;
+  async correct(body: any) {
+    this.correctSeen.push(body);
+    if (this.correctFails) throw this.correctFails;
+    return (
+      this.correctReply ?? {
+        updated_spec: specWith({
+          users_and_roles: {
+            value: ["guests", "staff"],
+            source: "stated",
+            confidence: "high",
+            provenance: ["corrected-on-review"],
+          },
+        }),
+        gate: {
+          buildable: false,
+          missing_core: [],
+          unresolved_conditionals: ["role_permissions"],
+          contradictions: [],
+        },
+        triggered: ["role_permissions"],
+        still_needed: ["role_permissions"],
+        newly_required: ["role_permissions"],
+        changed: ["users_and_roles"],
+        cleared: ["entities"],
+      }
+    );
   }
 }
 
@@ -441,12 +471,14 @@ describe("Spec approval (e2e)", () => {
   let app: INestApplication;
   let http: any;
   let scope: FakeScope;
+  let engine: FakeEngine;
 
   const w1 = { Authorization: "Bearer w1-token" };
   const w2 = { Authorization: "Bearer w2-token" };
 
   beforeAll(async () => {
     scope = new FakeScope();
+    engine = new FakeEngine();
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(IDENTITY_VERIFIER)
       .useValue(fakeVerifier)
@@ -455,7 +487,7 @@ describe("Spec approval (e2e)", () => {
       .overrideProvider(WorkspaceScope)
       .useValue(scope)
       .overrideProvider(EngineClient)
-      .useValue(new FakeEngine())
+      .useValue(engine)
       .compile();
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
@@ -481,6 +513,18 @@ describe("Spec approval (e2e)", () => {
     ];
     scope.specVersions = [];
     scope.messages = [];
+    // Approving is only reachable for a spec the gate lets through, so these
+    // tests describe a finished wizard. The refusal has its own test below.
+    engine.validateReply = {
+      result: {
+        buildable: true,
+        missing_core: [],
+        unresolved_conditionals: [],
+        contradictions: [],
+      },
+      triggered: [],
+      still_needed: [],
+    };
   });
 
   it("freezes the working spec as version 1 and locks the project", async () => {
@@ -503,6 +547,34 @@ describe("Spec approval (e2e)", () => {
     expect(scope.specVersions.find((s) => s.number === 2).isCurrent).toBe(true);
   });
 
+  it("refuses to freeze a spec the gate says is not buildable", async () => {
+    // Reachable since the review screen's fields became editable (B066):
+    // correcting one role to two opens role_permissions, and freezing that
+    // would produce a contract Layer B refuses to build.
+    engine.validateReply = {
+      result: {
+        buildable: false,
+        missing_core: [],
+        unresolved_conditionals: ["role_permissions"],
+        contradictions: [],
+      },
+      triggered: ["role_permissions"],
+      still_needed: ["role_permissions"],
+    };
+
+    const res = await request(http).post("/projects/p1/spec/approve").set(w1).expect(409);
+
+    expect(res.body.message).toContain("role_permissions");
+    expect(scope.specVersions).toHaveLength(0);
+    expect(scope.projects[0].status).toBe("draft");
+  });
+
+  it("still approves when the engine cannot be reached — an outage is not a refusal", async () => {
+    engine.validateReply = null;
+
+    await request(http).post("/projects/p1/spec/approve").set(w1).expect(201);
+  });
+
   it("refuses to freeze nothing", async () => {
     scope.projects[0].draftSpec = null;
     await request(http).post("/projects/p1/spec/approve").set(w1).expect(409);
@@ -520,6 +592,160 @@ describe("Spec approval (e2e)", () => {
 
     const res = await request(http).get("/projects/p1/spec/versions").set(w1).expect(200);
     expect(res.body.specVersions.map((s: any) => s.number)).toEqual([2, 1]);
+  });
+});
+
+describe("Correcting a misfiled spec field (e2e)", () => {
+  let app: INestApplication;
+  let http: any;
+  let scope: FakeScope;
+  let engine: FakeEngine;
+
+  const w1 = { Authorization: "Bearer w1-token" };
+  const w2 = { Authorization: "Bearer w2-token" };
+
+  beforeAll(async () => {
+    scope = new FakeScope();
+    engine = new FakeEngine();
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(IDENTITY_VERIFIER)
+      .useValue(fakeVerifier)
+      .overrideProvider(ProvisioningService)
+      .useValue(fakeProvisioning)
+      .overrideProvider(WorkspaceScope)
+      .useValue(scope)
+      .overrideProvider(EngineClient)
+      .useValue(engine)
+      .compile();
+    app = moduleRef.createNestApplication();
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    await app.init();
+    http = app.getHttpServer();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(() => {
+    scope.projects = [
+      {
+        id: "p1",
+        workspaceId: "w1",
+        name: "Bistro",
+        type: "app",
+        status: "draft",
+        draftSpec: specWith({
+          entities: {
+            value: ["guests", "staff"],
+            source: "stated",
+            confidence: "high",
+            provenance: ["m2"],
+          },
+        }),
+        deletedAt: null,
+      },
+    ];
+    scope.specVersions = [];
+    scope.messages = [];
+    engine.correctReply = null;
+    engine.correctSeen = [];
+    engine.correctFails = null;
+  });
+
+  const move = {
+    field: "users_and_roles",
+    value: ["guests", "staff"],
+    clear: ["entities"],
+  };
+
+  it("moves a misfiled answer to the right field and stores the result", async () => {
+    const res = await request(http)
+      .post("/projects/p1/draft-spec/field")
+      .set(w1)
+      .send(move)
+      .expect(201);
+
+    // The engine got the correction verbatim — the api decides nothing about it.
+    expect(engine.correctSeen[0].correction).toEqual(move);
+    expect(res.body.changed).toEqual(["users_and_roles"]);
+    expect(res.body.cleared).toEqual(["entities"]);
+    // The working spec is what changed. No spec_version was written.
+    expect(scope.projects[0].draftSpec.users_and_roles.value).toEqual(["guests", "staff"]);
+    expect(scope.specVersions).toHaveLength(0);
+  });
+
+  it("says what the correction opened, and holds the gate", async () => {
+    const res = await request(http)
+      .post("/projects/p1/draft-spec/field")
+      .set(w1)
+      .send(move)
+      .expect(201);
+
+    expect(res.body.newly_required).toEqual(["role_permissions"]);
+    expect(res.body.buildable).toBe(false);
+    // Nothing is asked back: a correction is not a wizard turn, and no message
+    // is written into the conversation.
+    expect(res.body.next_question).toBeNull();
+    expect(scope.messages).toHaveLength(0);
+  });
+
+  it("refreshes the whole and the estimate once the correction closes the gate", async () => {
+    engine.correctReply = {
+      updated_spec: specWith({
+        users_and_roles: { value: ["guests"], source: "stated", confidence: "high", provenance: [] },
+      }),
+      gate: { buildable: true, missing_core: [], unresolved_conditionals: [], contradictions: [] },
+      triggered: [],
+      still_needed: [],
+      newly_required: [],
+      changed: ["users_and_roles"],
+      cleared: [],
+    };
+
+    const res = await request(http)
+      .post("/projects/p1/draft-spec/field")
+      .set(w1)
+      .send(move)
+      .expect(201);
+
+    // The summary describes the CORRECTED spec — re-rendering only the edited
+    // row would leave prose describing a spec that no longer exists.
+    expect(res.body.whole).toBe("You're building a table-booking app.");
+    expect(res.body.estimate.parts).toBe(2);
+  });
+
+  it("passes the engine's refusal through as a refusal, not an outage", async () => {
+    engine.correctFails = new EngineRefusedError("'purpose' needs a sentence");
+
+    const res = await request(http)
+      .post("/projects/p1/draft-spec/field")
+      .set(w1)
+      .send({ field: "purpose", value: ["a", "list"] })
+      .expect(400);
+
+    expect(res.body.message).toContain("needs a sentence");
+    // Nothing was written on a refusal.
+    expect(scope.projects[0].draftSpec.entities.value).toEqual(["guests", "staff"]);
+  });
+
+  it("refuses a correction when there is no spec yet", async () => {
+    scope.projects[0].draftSpec = null;
+    await request(http).post("/projects/p1/draft-spec/field").set(w1).send(move).expect(409);
+  });
+
+  it("is 404 across tenants, and writes nothing", async () => {
+    await request(http).post("/projects/p1/draft-spec/field").set(w2).send(move).expect(404);
+    expect(engine.correctSeen).toHaveLength(0);
+    expect(scope.projects[0].draftSpec.entities.value).toEqual(["guests", "staff"]);
+  });
+
+  it("rejects a body that names no field", async () => {
+    await request(http)
+      .post("/projects/p1/draft-spec/field")
+      .set(w1)
+      .send({ value: "something" })
+      .expect(400);
   });
 });
 

@@ -5,6 +5,58 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-19 — B066: **correct a misfiled spec field without redoing the wizard.** The wizard
+  sometimes files an answer under the wrong slot — "guests and staff" lands in *what it manages*
+  instead of *who it's for*. The review screen showed that faithfully and offered no way out except
+  starting over, which nobody does: they approve a spec they can see is wrong, and every layer below
+  builds the wrong thing correctly. Every field on the review screen is now editable
+  (`apps/app/src/pages/SpecPage.tsx`), with the right control for the shape — a list is typed as a
+  list and split client-side, and the sensitivity field gets its three parts instead of a JSON blob
+  nobody can be expected to type. **"Belongs under" is the fix for the actual defect**: choosing a
+  different field sets the answer there and empties the wrong one in ONE request, so the spec is
+  never briefly holding the same answer under two headings.
+
+  Three properties make a correction worth trusting, and each is a rule rather than a hope:
+
+  **A correction is authoritative.** It is recorded as `stated` with `provenance:
+  ["corrected-on-review"]` — deliberately not a message id, so a model can never forge it — and
+  `intake/extraction.apply_extraction` now refuses to overwrite a field carrying that mark, saying
+  so in the extraction report. Without this the very next wizard turn re-extracts the same old
+  conversation, re-files the same misfiling, and the correction evaporates silently. Verified live:
+  after correcting *who it's for* to "guests, staff", telling the wizard *"just guests, nobody else"*
+  left the correction standing.
+
+  **A correction is re-validated, not just stored** (`intake/correction.py`, `POST /intake/correct`,
+  `POST /projects/:id/draft-spec/field`). It goes back through Layer A's own gate and trigger logic,
+  so a correction that OPENS work says which: one role corrected to two triggers `role_permissions`,
+  and sensitive data triggers `compliance`. The review screen shows exactly that — *"Correcting Who
+  it's for opened this"* — and asks for it **inline**, which is the whole point: no wizard restart
+  for one extra sentence. Re-detection runs too, so a correction can settle the contradiction it
+  caused. The response is a whole turn rather than a diff, because the narrative, the assumptions
+  and the cost estimate are all derived from the spec, and a screen showing prose about a spec that
+  no longer exists is the quiet wrongness this screen exists to prevent.
+
+  **The gate is held where it is enforceable.** The review screen disables approve while anything is
+  open, and `spec.service.approve` now asks the engine's gate and refuses (409, naming what is
+  missing) rather than freezing a contract Layer B would reject minutes later in the build view. An
+  unreachable engine is *not* a refusal — we cannot prove a spec unbuildable during an outage, so
+  approve behaves as it always did. Relatedly, a 4xx from the engine is no longer reported as
+  "the engine is not reachable": `EngineRefusedError` passes the engine's own message through as a
+  400, so typing a list into a sentence field says *"'purpose' needs a sentence"* instead of
+  announcing an outage that is not happening.
+
+  engine 519 tests (+18), api 83 (+9), app 70 (+12), typecheck and ruff clean.
+
+  **Clicked through in a browser against the local stack** (`scripts/dev-up.sh`, dev auth, local
+  Postgres, no keys): review screen with 13 correctable rows → corrected *who it's for* to "guests,
+  staff" → *"That change needs a bit more"* with `role_permissions` asked inline (and no "belongs
+  under" on it, because it IS the field being asked) → approve disabled throughout → moved *what it
+  manages* into *what users can do*, the source row disappearing → answered the remaining
+  conditionals inline → the panel cleared, the estimate came back (6 parts) and approve enabled →
+  approved, landing on *"How involved do you want to be?"*. The frozen `spec_version` carries the
+  corrected values and their `corrected-on-review` provenance. The only console failures were
+  Google Fonts, which the sandbox blocks and always has.
+
 - 2026-08-19 — B068: **gate 2b — the design window: the half a person touches.** Gate 2a built the
   backend and nothing could reach it; `/design` was a placeholder and approving a spec went straight
   to a build. Now approving asks **one question** — *just build it* or *shape the design first* —

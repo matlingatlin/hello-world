@@ -10,6 +10,7 @@ import type {
   SpecVersionResponse,
 } from "@scio/shared";
 import { WorkspaceScope } from "../../auth/workspace-scope";
+import { EngineClient } from "../../engine/engine.client";
 
 /**
  * Frozen spec contracts. All queries scoped via project -> workspace_id.
@@ -20,7 +21,10 @@ import { WorkspaceScope } from "../../auth/workspace-scope";
  */
 @Injectable()
 export class SpecService {
-  constructor(private readonly scope: WorkspaceScope) {}
+  constructor(
+    private readonly scope: WorkspaceScope,
+    private readonly engine: EngineClient,
+  ) {}
 
   private client(workspaceId: string) {
     return this.scope.forWorkspace(workspaceId);
@@ -59,6 +63,30 @@ export class SpecService {
     const spec = (project.draftSpec ?? null) as IntakeSpec | null;
     if (!spec || Object.keys(spec).length === 0) {
       throw new ConflictException("There is no spec to approve yet — finish the wizard first.");
+    }
+
+    // The gate, checked where it is enforceable.
+    //
+    // The review screen holds its own approve button shut, but a button is not a
+    // rule — and this became reachable the moment fields became editable there:
+    // correcting "one role" to "two roles" opens role_permissions, and freezing
+    // that spec would produce a contract Layer B refuses to build, discovered
+    // minutes later in the build view instead of instantly here.
+    //
+    // An unreachable engine is NOT a refusal: we cannot prove the spec is
+    // unbuildable, so approve behaves as it always did rather than blocking on
+    // an outage.
+    const verdict = await this.engine.validate(spec);
+    if (verdict && !verdict.result.buildable) {
+      const missing = [
+        ...verdict.result.missing_core,
+        ...verdict.result.unresolved_conditionals,
+      ];
+      throw new ConflictException(
+        missing.length > 0
+          ? `This spec still needs: ${missing.join(", ")}.`
+          : "This spec has an unresolved contradiction — settle it before approving.",
+      );
     }
 
     const previous = await this.client(workspaceId).specVersion.findMany({

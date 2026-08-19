@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import type {
+  CorrectSpecFieldRequest,
+  CorrectSpecFieldResponse,
   EngineStatus,
   IntakeSpec,
   IntakeStepResponse,
@@ -91,6 +93,73 @@ export class IntakeService {
       whole,
       estimate,
       engine,
+    };
+  }
+
+  /**
+   * Correct a field the wizard filed wrongly — without redoing the wizard.
+   *
+   * The whole point is that this is cheap. The engine applies the correction,
+   * marks it as something a person typed (so the next extraction cannot quietly
+   * re-file it), and re-runs Layer A's gate over the result — which is what
+   * turns "the value changed" into "and here is what that opened".
+   *
+   * The response is a full turn, not a diff: the narrative, the assumptions and
+   * the estimate all follow from the spec, so a screen that re-rendered only the
+   * edited row would show a summary describing a spec that no longer exists.
+   *
+   * Only the working spec is touched. A spec_version is a frozen contract and is
+   * written at approve, from whatever the spec has become by then.
+   */
+  async correct(
+    workspaceId: string,
+    projectId: string,
+    body: CorrectSpecFieldRequest,
+  ): Promise<CorrectSpecFieldResponse> {
+    const project = await this.project(workspaceId, projectId);
+    const spec = (project.draftSpec ?? null) as IntakeSpec | null;
+    if (!spec || Object.keys(spec).length === 0) {
+      throw new ConflictException("There is no spec to correct yet — finish the wizard first.");
+    }
+
+    const corrected = await this.engine.correct({
+      spec,
+      correction: {
+        field: body.field,
+        value: body.value,
+        clear: body.clear ?? [],
+      },
+    });
+
+    await this.client(workspaceId).project.update({
+      where: { id: projectId },
+      data: { draftSpec: corrected.updated_spec as object },
+    });
+
+    const engine: EngineStatus = { reachable: true };
+    let whole: string | null = null;
+    let estimate: BuildEstimate | null = null;
+    if (corrected.gate.buildable) {
+      ({ whole, estimate } = await this.confirmation(corrected.updated_spec, engine));
+    }
+
+    return {
+      updated_spec: corrected.updated_spec,
+      buildable: corrected.gate.buildable,
+      // A correction is not a wizard turn: nothing was said, so nothing is
+      // asked back. What is still missing travels in `still_needed`, and the
+      // review screen asks for it inline.
+      next_question: null,
+      contradictions: (corrected.updated_spec.contradictions ?? []).filter((c) => !c.resolved),
+      gate: corrected.gate,
+      messages: await this.messages(workspaceId, projectId),
+      whole,
+      estimate,
+      engine,
+      newly_required: corrected.newly_required,
+      still_needed: corrected.still_needed,
+      changed: corrected.changed,
+      cleared: corrected.cleared,
     };
   }
 

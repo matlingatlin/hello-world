@@ -143,6 +143,39 @@ export interface IntakeStepResponse {
   engine: EngineStatus;
 }
 
+/**
+ * Correcting a field the wizard filed wrongly, from the review screen.
+ *
+ * `clear` is how "this answer belongs under a different field" is expressed:
+ * set it on the right field and empty the wrong one, in one action, so the spec
+ * never passes through a state where the same answer is filed twice.
+ *
+ * A correction touches the WORKING spec only. A spec_version is a frozen
+ * contract written at approve, and rewriting one in place would break the
+ * promise that a build can be traced to exactly what was approved.
+ */
+export interface CorrectSpecFieldRequest {
+  field: string;
+  /** A sentence, a list, or the sensitivity object — whatever the field holds. */
+  value: string | string[] | Record<string, unknown>;
+  clear?: string[];
+}
+
+/**
+ * The corrected spec, re-validated.
+ *
+ * Same shape as a wizard turn, so the review screen re-renders from one place,
+ * plus what the correction OPENED: two roles trigger role_permissions, sensitive
+ * data triggers compliance. Those are asked inline — the point of the whole
+ * feature is not having to restart the wizard.
+ */
+export interface CorrectSpecFieldResponse extends IntakeStepResponse {
+  newly_required: string[];
+  still_needed: string[];
+  changed: string[];
+  cleared: string[];
+}
+
 export interface EngineStatus {
   reachable: boolean;
   /** Set when a non-essential engine call failed; the turn still succeeded. */

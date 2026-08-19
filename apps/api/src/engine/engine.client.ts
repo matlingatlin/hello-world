@@ -1,4 +1,4 @@
-import { Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { IntakeSpec } from "@scio/shared";
 
@@ -52,6 +52,21 @@ export interface EngineValidateResponse {
   };
   triggered: string[];
   still_needed: string[];
+}
+
+export interface EngineCorrectRequest {
+  spec: IntakeSpec;
+  correction: { field: string; value: unknown; clear: string[] };
+}
+
+export interface EngineCorrectResponse {
+  updated_spec: IntakeSpec;
+  gate: EngineValidateResponse["result"];
+  triggered: string[];
+  still_needed: string[];
+  newly_required: string[];
+  changed: string[];
+  cleared: string[];
 }
 
 /**
@@ -180,6 +195,32 @@ export class EngineUnavailableError extends ServiceUnavailableException {
   }
 }
 
+/**
+ * The engine answered, and said no.
+ *
+ * Kept apart from `EngineUnavailableError` because the two mean opposite things
+ * to the person on the other end. "We could not reach the engine" invites a
+ * retry; "that value is the wrong shape for that field" invites a fix, and
+ * telling someone their typo is an outage is how a product stops being
+ * believed. The engine's own message is passed through — it names the field.
+ */
+export class EngineRefusedError extends BadRequestException {
+  constructor(detail: string) {
+    super(detail);
+  }
+}
+
+/** FastAPI puts the reason in `detail`; anything else is passed through as-is. */
+function readDetail(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body) as { detail?: unknown };
+    if (typeof parsed.detail === "string" && parsed.detail.trim()) return parsed.detail;
+  } catch {
+    /* not JSON — fall through */
+  }
+  return body.trim() ? body.slice(0, 300) : null;
+}
+
 @Injectable()
 export class EngineClient {
   private readonly logger = new Logger(EngineClient.name);
@@ -202,11 +243,15 @@ export class EngineClient {
       });
       if (!res.ok) {
         const detail = await res.text().catch(() => "");
+        // A 4xx is a refusal with a reason, not an outage — see EngineRefusedError.
+        if (res.status >= 400 && res.status < 500) {
+          throw new EngineRefusedError(readDetail(detail) ?? `${path} returned ${res.status}`);
+        }
         throw new EngineUnavailableError(`${path} returned ${res.status}: ${detail.slice(0, 300)}`);
       }
       return (await res.json()) as T;
     } catch (err) {
-      if (err instanceof EngineUnavailableError) throw err;
+      if (err instanceof EngineUnavailableError || err instanceof EngineRefusedError) throw err;
       const reason = err instanceof Error ? err.message : String(err);
       throw new EngineUnavailableError(`${path}: ${reason}`);
     } finally {
@@ -233,6 +278,21 @@ export class EngineClient {
       this.logger.warn(`validate unavailable: ${(err as Error).message}`);
       return null;
     }
+  }
+
+  /**
+   * Correct a field the wizard filed wrongly, and re-run Layer A's gate.
+   *
+   * Throws rather than returning null, and for the same reason `designChange`
+   * does: the user pressed save on a correction, and "we could not reach the
+   * engine" is the answer — a correction that silently did not happen would
+   * leave them looking at a spec they believe they have fixed.
+   *
+   * A 400 from the engine is a refusal, not an outage: the value was the wrong
+   * shape for the field, and the message names which.
+   */
+  correct(body: EngineCorrectRequest): Promise<EngineCorrectResponse> {
+    return this.post<EngineCorrectResponse>("/intake/correct", body, 30_000);
   }
 
   /**
