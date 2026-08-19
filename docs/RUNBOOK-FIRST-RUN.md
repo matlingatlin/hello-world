@@ -271,7 +271,7 @@ third of Opus's output price; Haiku is roughly a fifth of Sonnet's.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `/health` says `fake` / `standin` | no key in the process | check `apps/engine/.env`, restart uvicorn |
+| `/health` says `fake` / `standin` | no key in the process | check `config_from_env_file` in `/health`: if `ANTHROPIC_API_KEY` is not listed the file was not read (wrong path, or the name is already set to something empty in the environment — the environment always wins) |
 | `ProviderError: anthropic SDK not installed` | missing extra | `pip install -e ".[providers]"` |
 | `not_found_error: model` | id is wrong or unavailable to your key | check the console; do not add a date suffix |
 | Packages fail on `[codegen]` "cut off" | package is bigger than the output budget | it retries automatically; if it persists, raise `CODEGEN_MAX_TOKENS` |

@@ -1,11 +1,59 @@
 """Engine configuration. Keys come from the environment (Azure secrets manager in
-production, ADR-0004) — never from committed files."""
+production, ADR-0004) — never from committed files.
+
+Locally there is one more step, because there is no secrets manager: an
+operator-written `apps/engine/.env`, which `docs/RUNBOOK-FIRST-RUN.md` has
+documented as the whole configuration for a real run since it was written.
+Nothing actually read it — the engine looked only at `os.environ`, so a
+correctly-filled `.env` produced a stand-in build and a `/health` saying `fake`,
+with no hint as to why. It is loaded here, once, at import.
+
+Two rules keep this from being the "config from a committed file" ADR-0004
+rules out: the file is gitignored and never shipped, and a variable already
+present in the real environment always wins, so a deployment's secrets are
+never shadowed by a stray local file.
+"""
 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from .execution.provider import ProviderRegistry
+
+ENGINE_ROOT = Path(__file__).resolve().parents[2]
+"""apps/engine — where an operator's .env lives."""
+
+
+def load_env_file(path: Path | None = None) -> list[str]:
+    """Read `KEY=value` lines into the environment. Returns the names it set.
+
+    Deliberately tiny and dependency-free: `export` prefixes, blank lines,
+    `#` comments and surrounding quotes, and nothing else. Anything more and
+    this becomes a shell parser nobody audits — in a file that holds a key.
+    """
+    target = path or ENGINE_ROOT / ".env"
+    if not target.exists():
+        return []
+
+    applied: list[str] = []
+    for raw in target.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, _, value = line.removeprefix("export ").partition("=")
+        name = name.strip()
+        value = value.strip().strip("\"'")
+        # The environment wins: a deployment's real secret must never be
+        # shadowed by a file somebody left in a checkout.
+        if name and name not in os.environ:
+            os.environ[name] = value
+            applied.append(name)
+    return applied
+
+
+LOADED_FROM_ENV_FILE = load_env_file()
+"""Which names came from the .env — reported by /health, without their values."""
 
 
 def use_fake_providers() -> bool:

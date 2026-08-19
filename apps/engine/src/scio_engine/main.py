@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from .builder.pipeline import stream_full_build
 from .builder.standin import standin_registry
 from .builder.workspace import WorkspaceUnavailable
-from .config import build_registry, use_fake_providers
+from .config import LOADED_FROM_ENV_FILE, build_registry, use_fake_providers
 from .core.manifest_builder import build_manifest
 from .design import ChangeBatch, DesignChangeResult, RestoreResult, apply_change, restore_version
 from .estimate import BuildEstimate, estimate_plan
@@ -66,6 +66,12 @@ class HealthResponse(BaseModel):
         default="",
         description="'standin' when no real model is available to write code, else 'model'",
     )
+    config_from_env_file: list[str] = Field(
+        default_factory=list,
+        description="Names (never values) this process took from apps/engine/.env. The "
+        "documented failure mode is a correctly-filled .env that nothing read, so /health "
+        "says which names actually arrived.",
+    )
 
 
 class ValidateResponse(BaseModel):
@@ -109,6 +115,7 @@ def health() -> HealthResponse:
         providers="fake" if fake else "real",
         profile=run_profile().describe(),
         builder="standin" if fake else "model",
+        config_from_env_file=list(LOADED_FROM_ENV_FILE),
     )
 
 

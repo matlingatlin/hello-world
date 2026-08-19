@@ -4,6 +4,22 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Fixed
+- 2026-08-19 — **the engine now reads `apps/engine/.env`.** `docs/RUNBOOK-FIRST-RUN.md` has said
+  since it was written that this file is "the whole configuration for a real run", and nothing read
+  it: `config.py` looked only at `os.environ`, so a correctly-filled `.env` produced a stand-in
+  build and a `/health` reporting `providers: fake` — the exact symptom the runbook's own
+  troubleshooting table points at, with no way to tell a missing key from an unread one. Found the
+  first time the product was brought up in real mode; it blocked bring-up entirely.
+
+  The loader is deliberately tiny and dependency-free (`export` prefixes, comments, blank lines and
+  surrounding quotes, nothing else — this is a file that holds a key, and a shell parser nobody
+  audits does not belong in it). Two rules keep it compatible with ADR-0004's "never from committed
+  files": the file is gitignored and never shipped, and **a variable already in the real environment
+  always wins**, so a deployment's secret can never be shadowed by a stray local file. `/health`
+  now also reports `config_from_env_file` — the NAMES it took from the file, never the values — so
+  "the key never arrived" and "the key is wrong" stop looking identical.
+
 ### Added
 - 2026-08-19 — B061: **contribute-back — the library grows from real builds.** The component
   library is the product's nave (ADR-0014): the more of an app that comes from curated, tested
