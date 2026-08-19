@@ -79,11 +79,17 @@ class TestTheStoreAgainstPostgres:
     @pytest.fixture(autouse=True)
     def clean(self):
         store = PostgresCatalogStore(DSN, seed_dir=None)
-        with store._connect() as connection, connection.cursor() as cur:
-            cur.execute("DELETE FROM library_entry")
+        # Proposed categories too: they outlive a run, and a `sprocket` left
+        # behind by an earlier one makes "a proposal is unconfirmed until
+        # somebody says so" fail for a reason nowhere near the assertion.
+        def clear() -> None:
+            with store._connect() as connection, connection.cursor() as cur:
+                cur.execute("DELETE FROM library_entry")
+                cur.execute("DELETE FROM library_category WHERE seeded = false")
+
+        clear()
         yield store
-        with store._connect() as connection, connection.cursor() as cur:
-            cur.execute("DELETE FROM library_entry")
+        clear()
 
     def test_the_tables_are_created_on_first_use(self, clean: PostgresCatalogStore):
         assert clean.registry().names()  # the seeded categories are rows

@@ -68,6 +68,7 @@ class AppBuildResult(BaseModel):
     app_url: str = ""
     element_count: int = 0
     total_cost_usd: float = 0.0
+    total_tokens: int = 0
 
     def _ids(self, status: PackageStatus) -> list[str]:
         return [p.package_id for p in self.packages if p.status is status]
@@ -329,6 +330,7 @@ async def stream_build_plan(
         packages=results,
         app_url=app_url,
         total_cost_usd=sum(r.total_cost_usd for r in results),
+        total_tokens=sum(r.total_tokens for r in results),
         element_count=len(manifest.elements) if manifest else 0,
     )
 

@@ -71,10 +71,10 @@
 | B062 | Wire the cost estimate from the assemble-vs-generate plan       | PP4 | P0 | done |
 | B069 | Design window: routes and per-route markings (the preview has more than one page) | PP6 | P1 | todo        |
 | B070 | "Build it" recreates the workspace, so the design history is lost at the delivery build | PP6 | P0 | todo        |
-| B071 | The whole + estimate are recomputed on every GET /intake: ~12s and a real Layer B+C model call per page load | PP5 | P0 | todo |
-| B072 | The wizard shows "Nothing yet — 0 of 6" while that GET is in flight — a false statement, not a spinner | PP5 | P0 | todo |
-| B073 | A build's actual cost is never recorded (usage_event empty, no cost on build_version) — only the estimate exists | PP5 | P0 | todo |
-| B074 | Contribute gate: allow RFC 2606 reserved names (example.com, .test, localhost) so test fixtures stop reading as leaks | PP4 | P1 | todo |
+| B071 | The whole + estimate are recomputed on every GET /intake: ~12s and a real Layer B+C model call per page load | PP5 | P0 | done |
+| B072 | The wizard shows "Nothing yet — 0 of 6" while that GET is in flight — a false statement, not a spinner | PP5 | P0 | done |
+| B073 | A build's actual cost is never recorded (usage_event empty, no cost on build_version) — only the estimate exists | PP5 | P0 | done |
+| B074 | Contribute gate: allow RFC 2606 reserved names (example.com, .test, localhost) so test fixtures stop reading as leaks | PP4 | P1 | done |
 | B063 | Decide customer-facing pricing (markup + currency) — the estimate shows build cost, not a price | PP4 | P0 | todo |
 
 **Gate 2b is done** (B068) — **the design window exists and has been clicked**. Approving a spec
@@ -89,6 +89,18 @@ new spec version rather than rewriting the security posture (ADR-0001's wedge st
 known cost is that code and posture can drift, and the UI says a deeper change belongs in the
 wizard) — and **versions really restore**, via `git read-tree` forward onto a new commit, refused if
 the restored tree's instrumentation no longer verifies.
+
+**B071–B074 are fixed, and re-measured against the same project.** `GET /intake` went from
+**12.7s to 0.008s** and now makes no model call at all — the whole and the estimate are stored
+with the spec that produced them. The wizard says "Reading your project…" instead of claiming
+"0 of 6 core answers" it does not have. A build writes a `usage_event` with its real cost, tokens
+and model, and the reveal shows what it actually spent beside what it was estimated at. The
+contribute gate stopped reading `guest@example.com` as a leak — the exact `pkg_auth` the first run
+refused now contributes as `auth.1.1`. Two things were found while fixing them: the key-detection
+rule caught only the legacy `sk-<alnum>` shape, so a real `sk-ant-api03-…` key would have sailed
+through the one check meant to stop it; and the new `.env` loader made the test suite pick up an
+operator's key, so `test_api.py` was making REAL model calls — 100 seconds and real money for a
+unit-test run. Both fixed.
 
 **The first full REAL run happened (2026-08-19).** The whole product was brought up against
 Claude (`claude-sonnet-5`, passes=1) and walked in a browser: wizard → review → build → reveal,

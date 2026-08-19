@@ -36,12 +36,35 @@ MIN_LIGHTHOUSE = 85
 _UI_SUFFIXES = (".tsx", ".jsx")
 _TEST_MARKERS = ("test", "spec")
 
+# Names the standards reserve for documentation and testing, and which therefore
+# say nothing about anybody's project (RFC 2606, RFC 6761).
+#
+# This exists because the rule below refused real work: `pkg_auth` cleared all
+# five build gates in the first real run and was rejected for containing
+# `guest@example.com` and `https://app.example.com/auth/callback` — which is
+# what a model writes in a test, and exactly what these names are FOR. A gate
+# that cannot tell a fixture from a customer's address refuses everything, and a
+# rule that refuses everything is not enforcement, it is a switch left off.
+#
+# The rule itself is unchanged for everything else: a real domain still fails.
+_RESERVED_HOSTS = (
+    r"(?:localhost|127\.0\.0\.1|\[::1\]"
+    r"|(?:[\w-]+\.)*example\.(?:com|org|net)"
+    r"|[\w-]+\.(?:test|example|invalid|localhost))"
+)
+
 # Things that are always somebody's, never the library's.
 _LEAK_PATTERNS: tuple[tuple[str, str], ...] = (
-    (r"https?://(?!localhost|127\.0\.0\.1)[\w.-]+", "a hard-coded external URL"),
-    (r"(?i)\bsk-[A-Za-z0-9]{16,}", "what looks like an API key"),
+    (rf"https?://(?!{_RESERVED_HOSTS}\b)[\w.-]+", "a hard-coded external URL"),
+    # The key body may contain hyphens and underscores. It did not used to, and
+    # the consequence was that this rule caught only the legacy `sk-<alnum>`
+    # shape: a real `sk-ant-api03-…` or `sk-proj-…` key stopped the match at the
+    # first hyphen and sailed through the one check meant to stop exactly that.
+    # The three prefixes are the three providers this engine can be given keys
+    # for (execution/provider.py).
+    (r"\b(?:sk-[A-Za-z0-9_-]{20,}|AIza[A-Za-z0-9_-]{30,})", "what looks like an API key"),
     (r"(?i)(api[_-]?key|secret|password)\s*[:=]\s*[\"'][^\"']{8,}[\"']", "a hard-coded credential"),
-    (r"(?i)\b[\w.+-]+@[\w-]+\.[\w.]+\b", "an email address"),
+    (rf"(?i)\b[\w.+-]+@(?!{_RESERVED_HOSTS}\b)[\w-]+\.[\w.]+\b", "an email address"),
 )
 
 

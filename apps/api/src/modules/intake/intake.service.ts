@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import type {
   CorrectSpecFieldRequest,
   CorrectSpecFieldResponse,
@@ -56,9 +57,16 @@ export class IntakeService {
    * message, so they vanished the moment the page was fetched again.
    *
    * The gate is deterministic and free, so it is recomputed here rather than
-   * remembered. The confirmation costs a Layer B call, so it is fetched only
-   * once the spec is actually buildable — which is exactly when the review
-   * screen asks for it.
+   * remembered. The confirmation is NOT: it costs a real Layer B + Layer C
+   * model call, and recomputing it per request made this endpoint take ~12
+   * seconds and spend money every time somebody opened or refreshed a page
+   * (measured at 10.6s and 12.7s in the first full real run). It is derived
+   * from the spec, so it is computed when the spec CHANGES — see `step` and
+   * `correct` — and simply read here.
+   *
+   * The one exception is a project specced before this existed: nothing stored,
+   * spec buildable. That computes once and stores the result, so the second
+   * load is free like every other.
    */
   async history(workspaceId: string, projectId: string): Promise<IntakeStepResponse> {
     const project = await this.project(workspaceId, projectId);
@@ -77,10 +85,13 @@ export class IntakeService {
       contradictions: [],
     };
 
-    let whole: string | null = null;
-    let estimate: BuildEstimate | null = null;
-    if (gate.buildable && spec) {
+    let whole = (project.draftWhole ?? null) as string | null;
+    let estimate = readEstimate(project.draftEstimate);
+    // Keyed on the whole, not on both: it is what the screen is waiting for,
+    // and "stored but empty" must not read as "already computed".
+    if (gate.buildable && spec && !whole) {
       ({ whole, estimate } = await this.confirmation(spec, engine));
+      await this.storeConfirmation(workspaceId, projectId, whole, estimate);
     }
 
     return {
@@ -131,17 +142,23 @@ export class IntakeService {
       },
     });
 
-    await this.client(workspaceId).project.update({
-      where: { id: projectId },
-      data: { draftSpec: corrected.updated_spec as object },
-    });
-
     const engine: EngineStatus = { reachable: true };
     let whole: string | null = null;
     let estimate: BuildEstimate | null = null;
     if (corrected.gate.buildable) {
       ({ whole, estimate } = await this.confirmation(corrected.updated_spec, engine));
     }
+
+    // Written together with the spec — see `step`. A correction that reopens
+    // the gate clears them, which is right: there is nothing to show a cost for.
+    await this.client(workspaceId).project.update({
+      where: { id: projectId },
+      data: {
+        draftSpec: corrected.updated_spec as object,
+        draftWhole: whole,
+        draftEstimate: estimate ?? Prisma.DbNull,
+      },
+    });
 
     return {
       updated_spec: corrected.updated_spec,
@@ -161,6 +178,19 @@ export class IntakeService {
       changed: corrected.changed,
       cleared: corrected.cleared,
     };
+  }
+
+  /** Store what `confirmation()` derived, so the next load does not pay for it. */
+  private async storeConfirmation(
+    workspaceId: string,
+    projectId: string,
+    whole: string | null,
+    estimate: BuildEstimate | null,
+  ): Promise<void> {
+    await this.client(workspaceId).project.update({
+      where: { id: projectId },
+      data: { draftWhole: whole, draftEstimate: estimate ?? Prisma.DbNull },
+    });
   }
 
   private async messages(workspaceId: string, projectId: string): Promise<WizardTurn[]> {
@@ -205,11 +235,6 @@ export class IntakeService {
       });
     }
 
-    await this.client(workspaceId).project.update({
-      where: { id: projectId },
-      data: { draftSpec: step.updated_spec as object },
-    });
-
     const engine: EngineStatus = { reachable: true };
     let whole: string | null = null;
     let estimate: BuildEstimate | null = null;
@@ -217,6 +242,18 @@ export class IntakeService {
     if (step.buildable) {
       ({ whole, estimate } = await this.confirmation(step.updated_spec, engine));
     }
+
+    // The spec and what is derived from it are written together. There is no
+    // path that writes one without the other, which is what makes reading them
+    // back in `history` safe: they cannot be describing an older spec.
+    await this.client(workspaceId).project.update({
+      where: { id: projectId },
+      data: {
+        draftSpec: step.updated_spec as object,
+        draftWhole: whole,
+        draftEstimate: estimate ?? Prisma.DbNull,
+      },
+    });
 
     const messages = await this.messages(workspaceId, projectId);
     const last = messages[messages.length - 1];
@@ -291,4 +328,15 @@ export class IntakeService {
       },
     };
   }
+}
+
+/** The stored estimate, or null if there is not a real one.
+ *
+ * A nullable Json column does not round-trip as `null` everywhere — Prisma
+ * writes a `DbNull` sentinel — so the shape is checked rather than the
+ * emptiness. An estimate without a part count is not an estimate.
+ */
+function readEstimate(value: unknown): BuildEstimate | null {
+  if (!value || typeof value !== "object") return null;
+  return "parts" in (value as Record<string, unknown>) ? (value as BuildEstimate) : null;
 }

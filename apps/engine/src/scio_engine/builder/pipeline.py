@@ -71,6 +71,12 @@ class BuildFinished(BaseModel):
     element_count: int = 0
     files: list[str] = Field(default_factory=list)
     total_cost_usd: float = 0.0
+    total_tokens: int = 0
+    model: str = Field(
+        default="",
+        description="Which model actually wrote this build. Recorded with the spend, because "
+        "a cost is only re-checkable if you know what rate card it came from.",
+    )
     standin: bool = False
     workspace: str = ""
     preview: bool = Field(
@@ -95,6 +101,7 @@ class BuildFinished(BaseModel):
         preview: bool = False,
         manifest: Manifest | None = None,
         package_files: dict[str, list[str]] | None = None,
+        model: str = "",
     ) -> BuildFinished:
         return cls(
             project_id=project_id,
@@ -112,6 +119,8 @@ class BuildFinished(BaseModel):
             element_count=result.element_count,
             files=sorted({f for package in result.packages for f in package.files}),
             total_cost_usd=result.total_cost_usd,
+            total_tokens=result.total_tokens,
+            model=model,
             standin=standin,
             workspace=workspace,
             preview=preview,
@@ -286,5 +295,6 @@ async def stream_full_build(
             preview=bool(shell_origin),
             manifest=build_manifest(workspace, file_map),
             package_files=file_map,
+            model=profile.only_model,
         ),
     )

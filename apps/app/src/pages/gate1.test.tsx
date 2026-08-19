@@ -75,6 +75,24 @@ function renderAt(path: string, element: JSX.Element) {
 }
 
 describe("Wizard", () => {
+  it("says it is reading, rather than claiming nothing has been answered", async () => {
+    // The first real run showed a fully-specced project "0 of 6 core answers"
+    // with Continue disabled for twelve seconds, because "not loaded" and
+    // "nothing answered" were the same state. A screen whose job is to reflect
+    // the user's own answers must never state a number it does not have.
+    let release: (value: unknown) => void = () => {};
+    mockApi({ getIntake: vi.fn().mockReturnValue(new Promise((r) => (release = r))) });
+    renderAt("/projects/p1/wizard", <WizardPage />);
+
+    expect(await screen.findByTestId("wholeness-loading")).toBeDefined();
+    expect(screen.queryByText(/0 of 6 core answers/)).toBeNull();
+    expect(screen.queryByText(/Nothing yet/)).toBeNull();
+
+    release(step({ updated_spec: SPEC as never }));
+    await waitFor(() => expect(screen.queryByTestId("wholeness-loading")).toBeNull());
+    expect(screen.getByText(/3 of 6 core answers/)).toBeDefined();
+  });
+
   it("shows an opening question and an empty panel before anything has been said", async () => {
     mockApi({ getIntake: vi.fn().mockResolvedValue(step({ updated_spec: {} })) });
     renderAt("/projects/p1/wizard", <WizardPage />);

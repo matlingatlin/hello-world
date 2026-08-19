@@ -124,6 +124,13 @@ model Project {
   /// Lives on the project because it is still being edited; a spec_version is a
   /// contract and must never be rewritten in place.
   draftSpec   Json?         @map("draft_spec")
+  /// The confirmation prose and the cost estimate for `draftSpec`, stored
+  /// because they are DERIVED from it and deriving them costs a real Layer B +
+  /// Layer C model call. Recomputing them per request made loading the wizard
+  /// or the review screen take ~12 seconds and spend money on a page refresh.
+  /// Written by every path that writes draftSpec, so they cannot drift from it.
+  draftWhole     String? @map("draft_whole")
+  draftEstimate  Json?   @map("draft_estimate")
   /// Where the current build is being served (a sandbox URL). Points at a
   /// running preview, so it is expected to go stale — the build_version is the
   /// durable record, this is only what to embed right now.

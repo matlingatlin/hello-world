@@ -327,7 +327,7 @@ async def _generate(
             timeout_s=CODEGEN_TIMEOUT_S,
         ),
     )
-    return result.final_text, result.total_cost_usd, result.truncated
+    return result.final_text, result.total_cost_usd, result.total_tokens, result.truncated
 
 
 def _check_instrumentation(
@@ -443,7 +443,7 @@ async def build_package(
             current = _files_on_disk(app_dir, allowed)
 
             try:
-                text, cost, truncated = await _generate(
+                text, cost, tokens, truncated = await _generate(
                     package,
                     contract,
                     registry=registry,
@@ -458,7 +458,9 @@ async def build_package(
                 last_gate = _Gate(problems=list(problems))
                 break
             attempt.cost_usd = cost
+            attempt.tokens = tokens
             result.total_cost_usd += cost
+            result.total_tokens += tokens
 
             if truncated:
                 # The reply ends inside a file. Writing what arrived would put

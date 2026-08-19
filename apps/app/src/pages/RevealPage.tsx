@@ -14,6 +14,16 @@ import { useApi } from "../lib/useApi";
  * built are rendered from the same record, at the same size, as the good news.
  */
 
+/** What a build spent. Always two decimals: "$0" would read as free rather than
+ *  cheap, and cheap-but-not-free is the honest answer for most builds. */
+function spent(value: number): string {
+  return `$${Math.max(0, value).toFixed(2)}`;
+}
+
+function tokens(value: number): string {
+  return value >= 1000 ? `${Math.round(value / 1000)}k` : String(value);
+}
+
 function Receipt({ status }: { status: NonNullable<LatestBuildResponse["honestStatus"]> }) {
   const rows: Array<{ label: string; items: string[]; cls: string; mark: string }> = [
     { label: "Works", items: status.working, cls: "text-verified", mark: "✓" },
@@ -139,8 +149,18 @@ export function RevealPage() {
           {status && <Receipt status={status} />}
 
           {build?.buildVersion && (
-            <p className="font-mono text-[11px] text-muted">
+            <p className="font-mono text-[11px] text-muted" data-testid="build-provenance">
               version {build.buildVersion.number} · {build.buildVersion.gitSha.slice(0, 12)}
+              {/* What it ACTUALLY cost. The review screen estimated before the
+                  build; until this existed nothing ever said what was spent,
+                  which makes an estimate impossible to trust twice. */}
+              {build.spend && (
+                <>
+                  {" · "}
+                  {spent(build.spend.costUsd)} spent
+                  {build.spend.tokens > 0 && ` · ${tokens(build.spend.tokens)} tokens`}
+                </>
+              )}
             </p>
           )}
 

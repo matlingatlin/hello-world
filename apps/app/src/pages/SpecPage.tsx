@@ -119,6 +119,15 @@ export function SpecPage() {
       <div className="bg-surface border border-line rounded-card p-[22px] relative">
         <span className="absolute top-3 left-3 w-2.5 h-2.5 border-t-[1.5px] border-l-[1.5px] border-line-strong" />
 
+        {/* Nothing has come back yet. Saying so is the only honest thing to
+            render: an empty field list here reads as "Scio understood nothing",
+            and the approve button below it would offer to freeze that. */}
+        {step === null && error === null && (
+          <p className="text-[13px] text-muted" data-testid="spec-loading">
+            Reading your spec…
+          </p>
+        )}
+
         {/* The narrative is the confirmation; the fields are the detail. Both
             are shown — the spec is what gets frozen, so it is never hidden
             behind prose that may not have been available this run. */}

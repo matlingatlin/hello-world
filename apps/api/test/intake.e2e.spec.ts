@@ -163,7 +163,9 @@ class FakeEngine {
       }
     );
   }
+  architectureCalls = 0;
   async architecture() {
+    this.architectureCalls += 1;
     return this.architectureReply;
   }
   async plan() {
@@ -447,6 +449,56 @@ describe("Gate 1 (e2e): wizard turn + spec freeze", () => {
 
     expect(res.body.gate.missing_core).toEqual(["users_and_roles"]);
     expect(res.body.buildable).toBe(false);
+  });
+
+  it("a GET does not pay for the whole twice", async () => {
+    // The confirmation is a real Layer B + Layer C model call. Recomputing it
+    // per request made this endpoint take ~12 seconds and spend money every
+    // time somebody opened or refreshed a page (measured in the first real run).
+    scope.projects[0].draftSpec = specWith({
+      users_and_roles: { value: ["guests"], source: "stated", confidence: "high", provenance: [] },
+    });
+    engine.validateReply = {
+      result: { buildable: true, missing_core: [], unresolved_conditionals: [], contradictions: [] },
+      triggered: [],
+      still_needed: [],
+    };
+    engine.architectureCalls = 0;
+
+    await request(http).get(`/projects/${projectId}/intake`).set(w1).expect(200);
+    const afterFirst = engine.architectureCalls;
+    const res = await request(http).get(`/projects/${projectId}/intake`).set(w1).expect(200);
+
+    expect(afterFirst).toBe(1); // computed once, because nothing was stored yet
+    expect(engine.architectureCalls).toBe(1); // and never again
+    expect(res.body.whole).toContain("table-booking app");
+    expect(res.body.estimate.parts).toBe(2);
+  });
+
+  it("a new answer refreshes what is stored, so it cannot describe an older spec", async () => {
+    scope.projects[0].draftSpec = specWith({
+      users_and_roles: { value: ["guests"], source: "stated", confidence: "high", provenance: [] },
+    });
+    engine.validateReply = {
+      result: { buildable: true, missing_core: [], unresolved_conditionals: [], contradictions: [] },
+      triggered: [],
+      still_needed: [],
+    };
+    await request(http).get(`/projects/${projectId}/intake`).set(w1).expect(200);
+
+    engine.steps = [buildableStep()];
+    engine.architectureReply = {
+      whole: { narrative: "You're building something else entirely.", assumptions: [], grounding: {}, models_used: [], generated: false },
+      architecture: { nodes: [] },
+    };
+    await request(http)
+      .post(`/projects/${projectId}/intake/message`)
+      .set(w1)
+      .send({ text: "actually, something else" })
+      .expect(201);
+
+    const res = await request(http).get(`/projects/${projectId}/intake`).set(w1).expect(200);
+    expect(res.body.whole).toContain("something else entirely");
   });
 
   it("a GET of a buildable spec carries the whole and the estimate", async () => {

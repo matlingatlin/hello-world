@@ -584,10 +584,42 @@ class TestContributeBackGate:
     def test_a_candidate_with_a_hardcoded_url_or_key_is_rejected(self):
         candidate = clean_candidate()
         candidate.entry.files["components/__ENTITY__-form.tsx"] += (
-            "\nconst api = 'https://bella-vista.example.com';\n"
+            "\nconst api = 'https://bella-vista.se/api';\n"
         )
 
         assert any("external URL" in f.message for f in review(candidate).findings)
+
+    def test_a_real_api_key_is_caught_whatever_shape_it_comes_in(self):
+        """The rule used to stop at the first hyphen, so a real `sk-ant-api03-…`
+        key — the one this product is actually handed — sailed through the one
+        check meant to stop exactly that."""
+        for key in (
+            "sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-AbCdEfGh",
+            "sk-proj-AbCdEfGhIjKlMnOpQrStUvWx",
+            "AIzaSyAbCdEfGhIjKlMnOpQrStUvWxYz0123456",
+        ):
+            candidate = clean_candidate()
+            candidate.entry.files["components/__ENTITY__-form.tsx"] += f"\nconst k = '{key}';\n"
+
+            findings = review(candidate).findings
+            assert any("API key" in f.message for f in findings), key
+
+    def test_names_reserved_for_examples_are_not_leaks(self):
+        """RFC 2606 / RFC 6761 reserve these precisely so a test can use them.
+
+        This is why `pkg_auth` was refused in the first real run despite passing
+        all five build gates: a model writes `guest@example.com` in a test, and a
+        gate that reads that as a customer's address refuses everything real.
+        """
+        candidate = clean_candidate()
+        candidate.entry.files["tests/__ENTITY__.test.ts"] += (
+            "\nconst who = 'guest@example.com';\n"
+            "const callback = 'https://app.example.com/auth/callback';\n"
+            "const local = 'http://localhost:3000/';\n"
+        )
+
+        findings = review(candidate).findings
+        assert not any(f.rule == "no_leakage" for f in findings), [f.message for f in findings]
 
     def test_an_ungeneralized_feature_is_rejected(self):
         candidate = clean_candidate()

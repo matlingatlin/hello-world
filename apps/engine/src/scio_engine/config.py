@@ -25,6 +25,18 @@ ENGINE_ROOT = Path(__file__).resolve().parents[2]
 """apps/engine — where an operator's .env lives."""
 
 
+SKIP_ENV_FILE = "SCIO_SKIP_ENV_FILE"
+"""Set this and the .env is not read at all.
+
+The test suite sets it. Without it, whether the suite passes depends on whether
+the person running it happens to have configured a key: the relay's ordering
+tests picked up the operator's `SCIO_MODEL` and asserted against the wrong
+model, and `test_api.py` started making REAL model calls — a test run that
+spends money and takes 100 seconds instead of one. Tests must be hermetic, and
+an operator's local file is not part of the code under test.
+"""
+
+
 def load_env_file(path: Path | None = None) -> list[str]:
     """Read `KEY=value` lines into the environment. Returns the names it set.
 
@@ -32,6 +44,8 @@ def load_env_file(path: Path | None = None) -> list[str]:
     `#` comments and surrounding quotes, and nothing else. Anything more and
     this becomes a shell parser nobody audits — in a file that holds a key.
     """
+    if os.getenv(SKIP_ENV_FILE, "").lower() in {"1", "true", "yes"}:
+        return []
     target = path or ENGINE_ROOT / ".env"
     if not target.exists():
         return []

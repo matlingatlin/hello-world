@@ -85,6 +85,15 @@ export class BuildService {
     const spec = specs.find((s: { isCurrent: boolean }) => s.isCurrent) ?? specs[0];
     const whole = (spec?.assumptions as { whole?: string } | undefined)?.whole ?? null;
 
+    // What the build actually cost, read back from the metering record rather
+    // than recomputed. The estimate on the review screen says what a build
+    // SHOULD cost; until now nothing anywhere said what it did.
+    const metered = await this.client(workspaceId).usageEvent.findMany({
+      where: { projectId, kind: "generation" },
+      orderBy: { createdAt: "desc" },
+    });
+    const spend = metered[0] ?? null;
+
     return {
       buildVersion: current
         ? {
@@ -100,6 +109,14 @@ export class BuildService {
       projectStatus: project.status as string,
       honestStatus: (current?.honestStatus ?? null) as LatestBuildResponse["honestStatus"],
       whole,
+      spend: spend
+        ? {
+            costUsd: Number(spend.cost),
+            tokens: Number(spend.amount),
+            model: (spend.model as string) ?? "",
+            at: new Date(spend.createdAt).toISOString(),
+          }
+        : null,
     };
   }
 
@@ -207,6 +224,34 @@ export class BuildService {
         isCurrent: true,
       },
     });
+
+    // The metering record. `usage_event` has existed since ADR-0009 and nothing
+    // had ever written to it: the engine computed `total_cost_usd`, the api
+    // passed it through to the browser, and it was dropped there — so the
+    // product could predict a cost and never say what it spent.
+    //
+    // Written after the build_version and never allowed to fail the build: a
+    // delivered app must not be undone by a bookkeeping error.
+    if (finished.total_cost_usd > 0 || (finished.total_tokens ?? 0) > 0) {
+      try {
+        await client.usageEvent.create({
+          data: {
+            // Also stamped by the scoped client (auth/workspace-scope); named
+            // here because Prisma's generated types require it.
+            workspaceId,
+            projectId,
+            kind: "generation",
+            model: finished.model ?? null,
+            // Tokens, not "one build": a cost with no quantity behind it cannot
+            // be audited or re-priced when the rate card changes.
+            amount: finished.total_tokens ?? 0,
+            cost: finished.total_cost_usd,
+          },
+        });
+      } catch (err) {
+        this.logger.warn(`could not record usage for ${projectId}: ${(err as Error).message}`);
+      }
+    }
 
     await client.project.update({
       where: { id: projectId },

@@ -110,6 +110,21 @@ async function openEditor(field: string) {
 }
 
 describe("Correcting a field on the review screen", () => {
+  it("says it is reading, rather than showing an empty spec", async () => {
+    // An empty field list here reads as "Scio understood nothing about my app",
+    // and the approve button below it would offer to freeze exactly that.
+    let release: (value: unknown) => void = () => {};
+    mockApi({ getIntake: vi.fn().mockReturnValue(new Promise((r) => (release = r))) });
+    renderSpec();
+
+    expect(await screen.findByTestId("spec-loading")).toBeDefined();
+    expect(screen.queryByTestId("row-purpose")).toBeNull();
+
+    release(step());
+    await waitFor(() => expect(screen.queryByTestId("spec-loading")).toBeNull());
+    expect(screen.getByTestId("row-purpose")).toBeDefined();
+  });
+
   it("every field offers a correction — that is the whole point of showing them", async () => {
     mockApi();
     renderSpec();

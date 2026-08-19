@@ -49,15 +49,37 @@ function stripExample(text: string, example: string): string {
 function WholenessPanel({
   spec,
   buildable,
+  loading,
   onContinue,
 }: {
   spec: IntakeSpec;
   buildable: boolean;
+  /** Nothing has come back yet. NOT the same as "nothing has been answered",
+   *  which is what this panel used to claim during the wait — the first real
+   *  run showed a fully-specced project "0 of 6 core answers" for twelve
+   *  seconds, with Continue disabled. A screen whose whole job is to reflect
+   *  the user's answers back must never state a number it does not have. */
+  loading: boolean;
   onContinue: () => void;
 }) {
   const rows = specRows(spec);
   const { answered, total } = coreProgress(spec);
   const percent = Math.round((answered / total) * 100);
+
+  if (loading) {
+    return (
+      <aside
+        className="bg-surface border border-line rounded-card p-[18px] relative self-start"
+        data-testid="wholeness-loading"
+      >
+        <span className="absolute top-3 left-3 w-2.5 h-2.5 border-t-[1.5px] border-l-[1.5px] border-line-strong" />
+        <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-3.5">
+          Your app so far
+        </div>
+        <p className="text-[13px] text-muted">Reading your project…</p>
+      </aside>
+    );
+  }
 
   return (
     <aside className="bg-surface border border-line rounded-card p-[18px] relative self-start">
@@ -224,6 +246,7 @@ export function WizardPage() {
         <WholenessPanel
           spec={spec}
           buildable={step?.buildable ?? false}
+          loading={step === null && error === null}
           onContinue={() => navigate(`/projects/${projectId}/spec`)}
         />
       </div>

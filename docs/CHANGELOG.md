@@ -5,6 +5,51 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Fixed
+- 2026-08-19 — **B071–B074: what the first real run surfaced.** Each was measured, not guessed.
+
+  **B071 — a page load no longer costs a model call.** `GET /projects/:id/intake` re-derived the
+  confirmation prose and the cost estimate on every request, which is a real Layer B + Layer C run:
+  **12.7 seconds and money, every time somebody opened or refreshed the wizard or the review
+  screen.** They are derived from the spec, so they are now computed when the spec CHANGES and
+  stored beside it (`project.draft_whole` / `draft_estimate`, migration `0004`). Every path that
+  writes `draftSpec` writes them in the same update, so they cannot describe an older spec; a
+  project specced before this computes once and stores the result. Re-measured on the same project:
+  **12.7s → 0.008s**, and a project taken through the wizard afterwards never pays at all, because
+  the turn that finished the spec already stored them.
+
+  **B072 — the wizard no longer states a number it does not have.** While that request was in
+  flight it said "Nothing yet — answer the first question" and "0 of 6 core answers", with Continue
+  disabled, to someone whose spec was complete. "Not loaded" and "nothing answered" were the same
+  state. They are now distinct: "Reading your project…", and the same on the review screen, which
+  used to render an empty field list with an approve button under it.
+
+  **B073 — the product can finally say what a build cost.** The engine computed `total_cost_usd`,
+  the api passed it to the browser, and it was dropped there: `usage_event` had zero rows since
+  ADR-0009 defined it. Tokens are now carried the same five hops the cost already travelled
+  (relay → loop → result → orchestrate → pipeline), a finished build writes one `usage_event`
+  (cost, tokens, model), and the reveal shows what it actually spent beside the version line. A
+  build that spent nothing writes no row — `$0.00` would read as a measurement rather than as
+  "every part came from the library".
+
+  **B074 — a test fixture is not a leak.** The contribute gate refused `pkg_auth`, which had passed
+  all five build gates, because its model-written test contained `guest@example.com` and
+  `https://app.example.com/auth/callback` — names RFC 2606 and RFC 6761 reserve for exactly this.
+  Those are now exempt; a real domain still fails. Verified against the actual artefact: the
+  package the first run refused now contributes as `auth.1.1`.
+
+  **Two things found while fixing those, both worse than what they were found under:**
+
+  - The gate's "what looks like an API key" rule matched only the legacy `sk-<alnum>` shape. A real
+    `sk-ant-api03-…` or `sk-proj-…` key stopped the match at the first hyphen and **sailed through
+    the one check meant to stop exactly that**. Now matches the modern shapes and Google's.
+  - The `.env` loader added an hour earlier made the engine's test suite pick up an operator's
+    configuration: the relay's ordering tests asserted against whatever `SCIO_MODEL` named, and
+    `test_api.py` started making **real model calls** — 100 seconds and real money for a unit-test
+    run. `SCIO_SKIP_ENV_FILE`, set by `conftest`, makes the suite hermetic again (31 relay/api
+    tests: 99s → 1.3s). The library store is now isolated per test for the same reason.
+
+  engine 563 tests (+8), api 87 (+4), app 72 (+2), typecheck and ruff clean.
+
 - 2026-08-19 — **the engine now reads `apps/engine/.env`.** `docs/RUNBOOK-FIRST-RUN.md` has said
   since it was written that this file is "the whole configuration for a real run", and nothing read
   it: `config.py` looked only at `os.environ`, so a correctly-filled `.env` produced a stand-in

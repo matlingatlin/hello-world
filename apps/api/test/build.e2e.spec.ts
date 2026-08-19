@@ -35,6 +35,7 @@ class FakeScope {
   projects: any[] = [];
   specVersions: any[] = [];
   buildVersions: any[] = [];
+  usageEvents: any[] = [];
   messages: any[] = [];
   private seq = 0;
 
@@ -84,6 +85,25 @@ class FakeScope {
       message: collection(store.messages, (a, b) => a.createdAt - b.createdAt),
       specVersion: collection(store.specVersions, (a, b) => b.number - a.number),
       buildVersion: collection(store.buildVersions, (a, b) => b.number - a.number),
+      // Metering. Scoped by workspace in the real client (auth/workspace-scope),
+      // so it is here too: a build's cost must not be readable across tenants.
+      usageEvent: {
+        async create({ data }: any) {
+          const row = { id: randomUUID(), ...data, createdAt: new Date(2026, 0, 1, 0, 0, store.seq++) };
+          store.usageEvents.push(row);
+          return row;
+        },
+        async findMany({ where }: any) {
+          return store.usageEvents
+            .filter(
+              (u) =>
+                u.workspaceId === workspaceId &&
+                (where?.projectId === undefined || u.projectId === where.projectId) &&
+                (where?.kind === undefined || u.kind === where.kind),
+            )
+            .sort((a, b) => b.createdAt - a.createdAt);
+        },
+      },
     };
   }
 }
@@ -103,7 +123,9 @@ const FINISHED = {
   remainders: ["pkg_feature_menu: needs a look — no date field"],
   element_count: 13,
   files: ["app/page.tsx"],
-  total_cost_usd: 0,
+  total_cost_usd: 0.83,
+  total_tokens: 41234,
+  model: "claude-sonnet-5",
   standin: true,
 };
 
@@ -196,6 +218,7 @@ describe("Build (e2e): stream + persistence", () => {
       },
     ];
     scope.buildVersions = [];
+    scope.usageEvents = [];
     engine.events = [
       ["started", { project_id: "p1", whole: "…", packages: ["pkg_foundation"], total: 1, workspace: "/tmp/p1" }],
       ["progress", { package_id: "pkg_foundation", index: 1, total: 1, done: 1, status: "passed", message: "works" }],
@@ -288,6 +311,40 @@ describe("Build (e2e): stream + persistence", () => {
 
     expect(scope.buildVersions).toHaveLength(0);
     expect(scope.projects[0].status).toBe("error");
+  });
+
+  it("records what the build actually cost", async () => {
+    // Until this existed the engine computed a cost, the api passed it to the
+    // browser, and it was dropped there — so the product could predict a cost
+    // and never say what it spent. usage_event has existed since ADR-0009 and
+    // nothing had ever written to it.
+    await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+    expect(scope.usageEvents).toHaveLength(1);
+    const metered = scope.usageEvents[0];
+    expect(metered.kind).toBe("generation");
+    expect(Number(metered.cost)).toBe(0.83);
+    // Tokens, not "one build": a cost with no quantity cannot be re-priced.
+    expect(Number(metered.amount)).toBe(41234);
+    expect(metered.model).toBe("claude-sonnet-5");
+    expect(metered.workspaceId).toBe("w1");
+
+    const res = await request(http).get("/projects/p1/build/latest").set(w1).expect(200);
+    expect(res.body.spend).toMatchObject({ costUsd: 0.83, tokens: 41234, model: "claude-sonnet-5" });
+  });
+
+  it("a build that spent nothing writes no metering row", async () => {
+    // Assembling every part from the library is free. A $0.00 row would read as
+    // a measurement; no row is the honest answer.
+    engine.events = engine.events.map(([name, data]) =>
+      name === "finished" ? [name, { ...data, total_cost_usd: 0, total_tokens: 0 }] : [name, data],
+    );
+
+    await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+    expect(scope.usageEvents).toHaveLength(0);
+    const res = await request(http).get("/projects/p1/build/latest").set(w1).expect(200);
+    expect(res.body.spend).toBeNull();
   });
 
   it("reads the build back for the reveal", async () => {

@@ -45,6 +45,7 @@ class Attempt(BaseModel):
     problems: list[str] = Field(default_factory=list)
     rolled_back: bool = False
     cost_usd: float = 0.0
+    tokens: int = 0
 
 
 class PackageBuildResult(BaseModel):
@@ -62,6 +63,11 @@ class PackageBuildResult(BaseModel):
         "offering it back as if the build had invented it.",
     )
     total_cost_usd: float = 0.0
+    total_tokens: int = Field(
+        default=0,
+        description="Input + output tokens spent on this package. Recorded beside the cost "
+        "because a figure with no quantity behind it cannot be audited or re-priced.",
+    )
     checks_passed: int = 0
     checks_total: int = 0
 

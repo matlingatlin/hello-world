@@ -245,6 +245,11 @@ export interface BuildFinished {
   element_count: number;
   files: string[];
   total_cost_usd: number;
+  /** Input + output tokens the build spent. Recorded beside the cost because a
+   *  figure with no quantity behind it cannot be audited or re-priced. */
+  total_tokens?: number;
+  /** Which model wrote it — a cost is only re-checkable against a rate card. */
+  model?: string;
   /** True when the code came from the stand-in builder (no API keys): the
    *  pipeline is real, the code is not. Shown to the user, never hidden. */
   standin: boolean;
@@ -298,4 +303,16 @@ export interface LatestBuildResponse {
     standin: boolean;
   } | null;
   whole: string | null;
+  /** What this build actually cost, read back from the metering record.
+   *  The estimate says what a build should cost; this says what it did. Null
+   *  when nothing was metered — which is the truthful answer for a build that
+   *  assembled every part from the library and called no model at all. */
+  spend?: BuildSpend | null;
+}
+
+export interface BuildSpend {
+  costUsd: number;
+  tokens: number;
+  model: string;
+  at: string;
 }
