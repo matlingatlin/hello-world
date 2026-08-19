@@ -71,6 +71,10 @@
 | B062 | Wire the cost estimate from the assemble-vs-generate plan       | PP4 | P0 | done |
 | B069 | Design window: routes and per-route markings (the preview has more than one page) | PP6 | P1 | todo        |
 | B070 | "Build it" recreates the workspace, so the design history is lost at the delivery build | PP6 | P0 | todo        |
+| B071 | The whole + estimate are recomputed on every GET /intake: ~12s and a real Layer B+C model call per page load | PP5 | P0 | todo |
+| B072 | The wizard shows "Nothing yet — 0 of 6" while that GET is in flight — a false statement, not a spinner | PP5 | P0 | todo |
+| B073 | A build's actual cost is never recorded (usage_event empty, no cost on build_version) — only the estimate exists | PP5 | P0 | todo |
+| B074 | Contribute gate: allow RFC 2606 reserved names (example.com, .test, localhost) so test fixtures stop reading as leaks | PP4 | P1 | todo |
 | B063 | Decide customer-facing pricing (markup + currency) — the estimate shows build cost, not a price | PP4 | P0 | todo |
 
 **Gate 2b is done** (B068) — **the design window exists and has been clicked**. Approving a spec
@@ -85,6 +89,15 @@ new spec version rather than rewriting the security posture (ADR-0001's wedge st
 known cost is that code and posture can drift, and the UI says a deeper change belongs in the
 wizard) — and **versions really restore**, via `git read-tree` forward onto a new commit, refused if
 the restored tree's instrumentation no longer verifies.
+
+**The first full REAL run happened (2026-08-19).** The whole product was brought up against
+Claude (`claude-sonnet-5`, passes=1) and walked in a browser: wizard → review → build → reveal,
+6 of 6 parts passing, a running app. It surfaced four things, now B071–B074: every load of the
+wizard or review screen costs a real Layer B+C model call and ~12 seconds; while that is in
+flight the wizard states "Nothing yet — 0 of 6", which is false rather than merely blank; the
+build's actual cost is recorded nowhere (only the pre-build estimate exists); and the contribute
+gate refuses real packages because model-written test fixtures contain `guest@example.com` and
+`https://app.example.com/...`, which the leakage rules cannot tell from a genuine leak.
 
 **B061 — the library grows from real builds.** It had four hand-written entries and no way
 to get a fifth. Every delivery build now offers its work back: what came FROM the library is

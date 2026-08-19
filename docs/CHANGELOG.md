@@ -21,6 +21,42 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   "the key never arrived" and "the key is wrong" stop looking identical.
 
 ### Added
+- 2026-08-19 — **the first full REAL run: the whole product, in a browser, against Claude.** Engine
+  + api + app + local Postgres + dev auth, `claude-sonnet-5` at one pass, no external services.
+  `/health` reported `providers: real`, `builder: model`. Walked new project → wizard → review →
+  "Just build it" → build → reveal.
+
+  **What worked.** Intake with a real model took **10 turns** and filed every answer correctly —
+  `data_ownership_sensitivity` came back as `{owner: me, sensitive: true, kinds: [names, phone
+  numbers]}` from one sentence, and `role_permissions`, `scheduling`, `compliance` and
+  `notifications` all landed in their own slots. The review screen showed a genuine paragraph of
+  prose ("…the whole flow revolves around sittings scheduled every 30 minutes between 17:00 and
+  22:00, Stockholm time"), 17 spec rows and an estimate of **~$0.49–$1.17 · ~10–24 min · 6 parts ·
+  1 reused · 5 built** — the library hit is real: `pkg_feature_booking` was ASSEMBLED from the seed
+  blueprint with no model call. The build took **~11 minutes** and finished **6 of 6 parts
+  passing**, no remainders, `standin: false`. The reveal embedded the running app, which serves
+  instrumented HTML and renders "Book your table". The generated code is real Next.js — server
+  actions, zod validation, RLS-aware data access, `data-scio-id` on every element.
+
+  **What the run surfaced** (recorded as B071–B074, nothing else changed per the kickoff):
+
+  - **Every load of the wizard or the review screen costs a real Layer B + Layer C model call and
+    ~12 seconds** (measured: 10.6s, 12.7s). `GET /projects/:id/intake` re-derives the whole and the
+    estimate from scratch on each request instead of storing them with the draft spec. A page
+    refresh now costs money.
+  - **While that is in flight the wizard says "Nothing yet — answer the first question" and "0 of 6
+    core answers"**, with "Continue to review" disabled. That is not a blank panel, it is a false
+    statement about the user's own data — the one thing this product's screens are not allowed to
+    do.
+  - **A build's actual cost is recorded nowhere.** `usage_event` is empty, `build_version` has no
+    cost column, and `honest_status` carries none. The engine computes `total_cost_usd` and the api
+    passes it through to the browser, where it is dropped. The product can predict a cost and never
+    tell you what it really spent.
+  - **The contribute gate refuses real packages over test fixtures.** `pkg_auth` passed all five
+    build gates and was rejected because its model-written test contains `guest@example.com` and
+    `https://app.example.com/auth/callback` — names RFC 2606 reserves for exactly this purpose. The
+    leakage rules cannot currently tell a fixture from a customer's address.
+
 - 2026-08-19 — B061: **contribute-back — the library grows from real builds.** The component
   library is the product's nave (ADR-0014): the more of an app that comes from curated, tested
   parts, the cheaper and more predictable a build is. It had four hand-written entries and no way
