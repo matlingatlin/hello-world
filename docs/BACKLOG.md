@@ -66,17 +66,32 @@
 | B065 | Wizard UX on the free path: one field per answer is slow; the stand-in cannot read a paragraph | PP5 | P1 | todo |
 | B066 | Spec review: let the user edit a field the wizard filed wrongly, without restarting the wizard | PP5 | P1 | todo |
 | B067 | Gate 2a: design window backend — preview-mode build (bridge) + directed-change round-trip | PP6 | P0 | done |
-| B068 | Gate 2b: the design window UI — embed + marking selection + prompt + batch + generate-again + approve | PP6 | P0 | todo |
+| B068 | Gate 2b: the design window UI — embed + marking selection + prompt + batch + generate-again + approve | PP6 | P0 | done |
 | B061 | Grow the library (more entries; the token/pattern/integration layers) | PP4 | P0 | todo |
 | B062 | Wire the cost estimate from the assemble-vs-generate plan       | PP4 | P0 | done |
+| B069 | Design window: routes and per-route markings (the preview has more than one page) | PP6 | P1 | todo        |
+| B070 | "Build it" recreates the workspace, so the design history is lost at the delivery build | PP6 | P0 | todo        |
 | B063 | Decide customer-facing pricing (markup + currency) — the estimate shows build cost, not a price | PP4 | P0 | todo |
+
+**Gate 2b is done** (B068) — **the design window exists and has been clicked**. Approving a spec
+now asks one question (build it, or shape the design first), and Level 2 is a real screen: the
+preview embedded, a Use/Mark toggle that arms the in-preview bridge, a *pending list that IS the
+change set* (edit the note, remove the line, "Generate again" sends all of them plus the free prompt
+as one change), the isolation proof and any skipped marking shown afterwards, conflicts answered
+inline with both choices, and a versions list you can actually return to. Two calls were settled
+here: **conflicts are answered in the window, not back in the wizard** — dropping a non-goal removes
+it from the spec, while dropping a protection asks a second time and records an **allowance** on a
+new spec version rather than rewriting the security posture (ADR-0001's wedge stays intact; the
+known cost is that code and posture can drift, and the UI says a deeper change belongs in the
+wizard) — and **versions really restore**, via `git read-tree` forward onto a new commit, refused if
+the restored tree's instrumentation no longer verifies.
 
 **Gate 2a is done** (B067). The backend of the design window exists: a preview build
 carries the marking bridge (and a delivery build provably does not), and `POST /design/change`
 applies a BATCH of markings to only the packages they touch, behind the isolation and
 instrumentation guardrails. A marking that argues with the approved spec comes back as a
-question and is not built. Each applied change is a design version. **Gate 2b (B068) is the
-UI** — embedding the preview, selecting markings, the prompt, generate-again and approve.
+question and is not built. Each applied change is a design version. Gate 2b (B068) built the UI
+on top of it.
 
 **Gate 2's path is de-risked** (spikes/design-marking, 2026-08-12). The design window's riskiest
 mechanic — marking an element inside a cross-origin preview — works: a preview-mode bridge inside

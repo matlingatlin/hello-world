@@ -22,7 +22,7 @@ class GitError(RuntimeError):
     reporting a version that does not exist."""
 
 
-def _git(app_dir: Path, *args: str) -> str:
+def git(app_dir: Path, *args: str) -> str:
     result = subprocess.run(
         ["git", *args], cwd=app_dir, capture_output=True, text=True, check=False
     )
@@ -36,9 +36,9 @@ def ensure_repo(app_dir: Path) -> None:
     starts at the first build, not whenever they think to export."""
     if (app_dir / ".git").exists():
         return
-    _git(app_dir, "init", "-q")
-    _git(app_dir, "config", "user.email", "builder@scio.local")
-    _git(app_dir, "config", "user.name", "Scio builder")
+    git(app_dir, "init", "-q")
+    git(app_dir, "config", "user.email", "builder@scio.local")
+    git(app_dir, "config", "user.name", "Scio builder")
 
 
 class PersistedBuild(BaseModel):
@@ -67,11 +67,11 @@ def persist_package_build(
     ensure_repo(app_dir)
 
     manifest_path = ManifestStore(app_dir).save(manifest)
-    _git(app_dir, "add", "-A")
+    git(app_dir, "add", "-A")
 
-    status = _git(app_dir, "status", "--porcelain")
+    status = git(app_dir, "status", "--porcelain")
     if not status:
-        sha = _git(app_dir, "rev-parse", "HEAD")
+        sha = git(app_dir, "rev-parse", "HEAD")
         return PersistedBuild(
             build_version=build_version,
             git_sha=sha,
@@ -79,8 +79,8 @@ def persist_package_build(
             files=list(files),
         )
 
-    _git(app_dir, "commit", "-q", "-m", f"build({package_id}): {description}")
-    sha = _git(app_dir, "rev-parse", "HEAD")
+    git(app_dir, "commit", "-q", "-m", f"build({package_id}): {description}")
+    sha = git(app_dir, "rev-parse", "HEAD")
     return PersistedBuild(
         build_version=build_version,
         git_sha=sha,

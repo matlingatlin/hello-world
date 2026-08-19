@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import time
@@ -73,6 +74,12 @@ def serve(app: Path, *, preview: bool) -> tuple[str, subprocess.Popen]:
         stderr=subprocess.STDOUT,
         text=True,
         env=env,
+        # Its own process group, so `stop` can take the whole tree down. `npx`
+        # forks `next`, which forks `next-server` — terminating only the process
+        # we started leaves a next-server behind holding ~6 GB, and two of those
+        # make the sandbox unusable for anything else. Same lesson as
+        # scripts/dev-down.sh.
+        start_new_session=True,
     )
     url = f"http://127.0.0.1:{port}"
     deadline = time.time() + 180
@@ -86,8 +93,21 @@ def serve(app: Path, *, preview: bool) -> tuple[str, subprocess.Popen]:
             return url, process
         except Exception:
             time.sleep(1)
-    process.terminate()
+    stop(process)
     raise AssertionError("next never came up")
+
+
+def stop(process: subprocess.Popen) -> None:
+    """Kill the whole tree, not just the wrapper we started."""
+    try:
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    try:
+        process.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        process.wait(timeout=30)
 
 
 def bundles_with_bridge(url: str) -> tuple[int, int]:
@@ -112,8 +132,7 @@ class TestTheBridgeIsPreviewOnly:
         try:
             carrying, total = bundles_with_bridge(url)
         finally:
-            process.terminate()
-            process.wait(timeout=60)
+            stop(process)
             shutil.rmtree(app / ".next", ignore_errors=True)
 
         assert total > 0, "the page loaded no scripts at all — the check proves nothing"
@@ -126,8 +145,7 @@ class TestTheBridgeIsPreviewOnly:
             carrying, total = bundles_with_bridge(url)
             html = urllib.request.urlopen(f"{url}/booking/new", timeout=60).read().decode()
         finally:
-            process.terminate()
-            process.wait(timeout=60)
+            stop(process)
             shutil.rmtree(app / ".next", ignore_errors=True)
 
         assert total > 0

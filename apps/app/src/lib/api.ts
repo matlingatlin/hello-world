@@ -1,10 +1,17 @@
 import type {
+  AmendSpecRequest,
+  AmendSpecResponse,
+  ApplyDesignChangeRequest,
+  ApplyDesignChangeResponse,
   ApproveSpecResponse,
   CreateProjectRequest,
+  DesignPreviewResponse,
+  DesignVersionListResponse,
   IntakeStepResponse,
   LatestBuildResponse,
   ProjectListResponse,
   ProjectResponse,
+  RestoreDesignVersionResponse,
 } from "@scio/shared";
 
 export class ApiError extends Error {
@@ -75,6 +82,35 @@ export function createApi(getToken: GetToken, baseUrl?: string) {
       request<ApproveSpecResponse>(`/projects/${projectId}/spec/approve`, {
         method: "POST",
         body: JSON.stringify({ whole }),
+      }),
+
+    // --- gate 2: the design window ---
+    getDesign: (projectId: string) =>
+      request<DesignPreviewResponse>(`/projects/${projectId}/design`),
+    /** Build the preview the window embeds. Streamed: it takes minutes, and the
+     *  progress is only honest if it comes from parts actually finishing. */
+    streamDesignPreview: (
+      projectId: string,
+      onEvent: (event: string, data: Record<string, unknown>) => void,
+      signal?: AbortSignal,
+    ) => streamSse(`/projects/${projectId}/design/preview`, onEvent, signal),
+    applyDesignChange: (projectId: string, body: ApplyDesignChangeRequest) =>
+      request<ApplyDesignChangeResponse>(`/projects/${projectId}/design/change`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    listDesignVersions: (projectId: string) =>
+      request<DesignVersionListResponse>(`/projects/${projectId}/design-versions`),
+    restoreDesignVersion: (projectId: string, versionId: string) =>
+      request<RestoreDesignVersionResponse>(
+        `/projects/${projectId}/design-versions/${versionId}/restore`,
+        { method: "POST" },
+      ),
+    /** Answer a conflict by changing the approved spec. A new spec version. */
+    amendSpec: (projectId: string, body: AmendSpecRequest) =>
+      request<AmendSpecResponse>(`/projects/${projectId}/spec/amend`, {
+        method: "POST",
+        body: JSON.stringify(body),
       }),
 
     // --- the build ---

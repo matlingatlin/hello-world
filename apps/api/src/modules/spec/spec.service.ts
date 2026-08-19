@@ -1,5 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import type {
+  AmendSpecRequest,
+  AmendSpecResponse,
   ApproveSpecRequest,
   ApproveSpecResponse,
   IntakeSpec,
@@ -101,6 +103,137 @@ export class SpecService {
       projectStatus: "spec_locked",
     };
   }
+
+  /**
+   * Change the approved spec because a marking argued with it.
+   *
+   * The design window asks before it builds — "you said no payments; do you
+   * want them after all?" — and this is what "yes" means. It is a spec change,
+   * frozen as a new version, not a flag on a change request: the spec is what
+   * the build is held to, and something built against a decision the user
+   * reversed has to be able to show when they reversed it.
+   *
+   * The two kinds are deliberately not the same act:
+   *
+   * - `non_goal` removes the thing the spec excluded. Exact, and the conflict
+   *   disappears because the architecture no longer excludes it.
+   * - `auth` / `access` leave the security posture ALONE and record an
+   *   allowance. The spec still says the data is sensitive — because it is —
+   *   and the record says what the user permitted anyway. Rewriting the posture
+   *   from a side panel is how secure defaults quietly stop being defaults
+   *   (ADR-0001), and this is the product's wedge.
+   *
+   * The known cost of an allowance: code and posture can drift, because the
+   * architecture keeps deriving protections the code was allowed to skip. A
+   * deeper change belongs in the wizard, and the design window says so.
+   */
+  async amend(
+    workspaceId: string,
+    projectId: string,
+    body: AmendSpecRequest,
+  ): Promise<AmendSpecResponse> {
+    await this.project(workspaceId, projectId);
+    const says = (body.specSays ?? "").trim();
+    if (!says) {
+      throw new ConflictException("An amendment has to name what it changes.");
+    }
+
+    const previous = await this.client(workspaceId).specVersion.findMany({
+      where: { projectId },
+      orderBy: { number: "desc" },
+    });
+    const current = previous.find((r: { isCurrent: boolean }) => r.isCurrent) ?? previous[0];
+    if (!current) {
+      throw new ConflictException("There is no approved spec to amend.");
+    }
+
+    const spec = structuredClone(current.content ?? {}) as IntakeSpec;
+    const assumptions = { ...((current.assumptions ?? {}) as Record<string, unknown>) };
+    const allowances = [...toStrings(assumptions.allowances)];
+    let removedNonGoal: string | null = null;
+
+    if (body.kind === "non_goal") {
+      const field = spec.non_goals;
+      const kept = (field?.value ?? []).filter((item) => !same(item, says));
+      if (field && kept.length !== field.value.length) {
+        removedNonGoal = says;
+        spec.non_goals = {
+          ...field,
+          value: kept,
+          provenance: [...(field.provenance ?? []), `dropped in the design window: ${says}`],
+        };
+      }
+      // Not found is not an error: the same conflict answered twice must not
+      // fail the second time, or the design window gets stuck on it.
+    } else if (!allowances.some((a) => same(a, says))) {
+      allowances.push(says);
+    }
+
+    assumptions.allowances = allowances;
+    assumptions.amendments = [
+      ...toRecords(assumptions.amendments),
+      {
+        kind: body.kind,
+        specSays: says,
+        note: body.note ?? "",
+        at: new Date().toISOString(),
+      },
+    ];
+
+    for (const row of previous.filter((r: { isCurrent: boolean }) => r.isCurrent)) {
+      await this.client(workspaceId).specVersion.update({
+        where: { id: row.id },
+        data: { isCurrent: false },
+      });
+    }
+
+    const created = await this.client(workspaceId).specVersion.create({
+      data: {
+        projectId,
+        number: (previous[0]?.number ?? 0) + 1,
+        content: spec as object,
+        assumptions: assumptions as object,
+        isCurrent: true,
+      },
+    });
+
+    // The draft follows the frozen spec, or re-approving would quietly put the
+    // dropped non-goal back and the same question would be asked again.
+    await this.client(workspaceId).project.update({
+      where: { id: projectId },
+      data: { draftSpec: spec as object },
+    });
+
+    return {
+      specVersion: {
+        id: created.id,
+        number: created.number,
+        isCurrent: true,
+        createdAt: new Date(created.createdAt).toISOString(),
+      },
+      allowances,
+      removedNonGoal,
+    };
+  }
+}
+
+/** Two sentences that mean the same allowance. Compared the way they were shown. */
+function same(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+function toStrings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+}
+
+function toRecords(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value) ? (value as Array<Record<string, unknown>>) : [];
+}
+
+/** The allowances recorded on a frozen spec version. */
+export function allowancesOf(assumptions: unknown): string[] {
+  const record = (assumptions ?? {}) as Record<string, unknown>;
+  return toStrings(record.allowances);
 }
 
 function isField(value: unknown): value is SpecField {

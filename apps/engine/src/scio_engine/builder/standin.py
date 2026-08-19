@@ -28,6 +28,7 @@ _CURRENT_FILES = re.compile(
     r"^FILE: (?P<path>\S+)\n```\n(?P<body>.*?)^```", re.MULTILINE | re.DOTALL
 )
 _CRITIQUE_MARKER = "Acceptance criteria (judge against exactly these)"
+_DESIGN_CHANGE_MARKER = "## What the user marked, and what they want"
 
 PASS_VERDICT = '{"verdict": "pass", "criteria": [], "problems": []}'
 
@@ -194,6 +195,38 @@ def echo_current_files(prompt: str) -> str:
     return "\n\n".join(blocks) or generate_files(prompt)
 
 
+def apply_marked_change(prompt: str) -> str:
+    """A directed change from the stand-in: the same code, plus a note saying so.
+
+    Without this the free path stops dead at gate 2, because the ordinary fake
+    provider returns a digest and extraction fails — so nobody without an API
+    key could ever click through the design window, which is exactly the kind of
+    path that breaks quietly (see this module's opening note).
+
+    It changes one thing and one thing only: a comment at the top of each file
+    the change touched, naming what was asked for. That is a real byte change,
+    so the round trip is genuinely exercised — isolation proof, instrumentation
+    re-verification, commit, design version — while every `data-scio-id` is left
+    exactly where it was. Inventing an actual edit would corrupt the coupling the
+    whole gate depends on, and pretending to have made one would be a lie the
+    user could not see through.
+    """
+    asked = prompt.rsplit(_DESIGN_CHANGE_MARKER, 1)[-1].strip().splitlines()
+    wanted = " / ".join(line.strip() for line in asked[:4] if line.strip())[:160]
+    blocks = []
+    for match in _CURRENT_FILES.finditer(prompt):
+        body = match.group("body")
+        note = (
+            "// scio stand-in: no model configured, so this was not really "
+            f"changed. Asked: {wanted}\n"
+        )
+        without_note = "\n".join(
+            line for line in body.splitlines() if not line.startswith("// scio stand-in:")
+        )
+        blocks.append(f"FILE: {match.group('path')}\n```\n{note}{without_note}\n```")
+    return "\n\n".join(blocks) or generate_files(prompt)
+
+
 class StandInProvider(ModelProvider):
     """Answers the builder's prompts deterministically, without a model."""
 
@@ -216,6 +249,8 @@ class StandInProvider(ModelProvider):
 
         if _CRITIQUE_MARKER in joined:
             text = PASS_VERDICT
+        elif _DESIGN_CHANGE_MARKER in joined:
+            text = apply_marked_change(joined)
         elif "## What is wrong" in joined:
             text = echo_current_files(joined)
         else:

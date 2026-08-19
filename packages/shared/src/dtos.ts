@@ -73,6 +73,37 @@ export interface SpecVersionListResponse {
   specVersions: SpecVersion[];
 }
 
+/**
+ * A deliberate, recorded change to the approved spec, made from the design
+ * window because a marking argued with it.
+ *
+ * Two shapes, because dropping a non-goal and dropping a protection are not the
+ * same act: `non_goal` removes the thing the spec excluded, while `auth` and
+ * `access` leave the security posture alone and record an ALLOWANCE — the exact
+ * sentence the user was asked about and said yes to. The posture still says the
+ * data is sensitive; the record says what was permitted anyway, and by whom.
+ */
+export interface AmendSpecRequest {
+  kind: "non_goal" | "auth" | "access";
+  /** The exact sentence the conflict quoted. Only that sentence is affected. */
+  specSays: string;
+  /** What the user had marked when they were asked. Kept for the record. */
+  note?: string;
+}
+
+export interface AmendSpecResponse {
+  specVersion: {
+    id: string;
+    number: number;
+    isCurrent: boolean;
+    createdAt: string;
+  };
+  /** Every allowance now on the spec — what the engine is told to stop asking about. */
+  allowances: string[];
+  /** The non-goal that was dropped, if this was that kind of amendment. */
+  removedNonGoal: string | null;
+}
+
 // design (Level 2 — the design window)
 
 /** One element the user marked, exactly as the in-preview bridge reports it.
@@ -140,6 +171,36 @@ export interface ApplyDesignChangeResponse {
   manifest: Record<string, unknown> | null;
   designVersion: DesignVersion | null;
   summary: string;
+}
+
+/**
+ * What a design version's `ref` holds, as JSON.
+ *
+ * It is a *pointer to a preview*, not a copy of one: where the app is on disk,
+ * where it is running, the manifest markings resolve against, and the commit to
+ * check out to come back here. `gitSha` empty means the change landed on disk
+ * but could not be committed — so this version can be read, and not returned to.
+ */
+export interface DesignVersionRef {
+  workspace?: string;
+  previewUrl?: string;
+  manifest?: Record<string, unknown> | null;
+  packageFiles?: Record<string, string[]>;
+  summary?: string;
+  whole?: string;
+  /** What the user asked for, in their own words. */
+  change?: string;
+  gitSha?: string;
+}
+
+/** Returning to an earlier design version. Never a 500 for "that one cannot be
+ *  restored" — the reason is the answer. */
+export interface RestoreDesignVersionResponse {
+  restored: boolean;
+  previewUrl: string | null;
+  manifest: Record<string, unknown> | null;
+  designVersion: DesignVersion | null;
+  error: string;
 }
 
 export interface FreezeDesignRequest {

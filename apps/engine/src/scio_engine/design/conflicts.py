@@ -25,6 +25,7 @@ business — the build's own gates and the reveal's honest status carry that.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 
 from pydantic import BaseModel
 
@@ -179,10 +180,27 @@ def _notes(batch: ChangeBatch) -> list[tuple[Marking, str]]:
     return pairs
 
 
-def detect_conflicts(batch: ChangeBatch, arch: Architecture) -> list[Conflict]:
-    """Everything in this batch that argues with the spec. Empty means build it."""
-    return [
+def detect_conflicts(
+    batch: ChangeBatch,
+    arch: Architecture,
+    *,
+    allowances: Sequence[str] = (),
+) -> list[Conflict]:
+    """Everything in this batch that argues with the spec. Empty means build it.
+
+    `allowances` are the things the user has already been asked about and said
+    yes to, recorded on the spec as a frozen spec_version. They are matched on
+    `spec_says` — the exact sentence the question quoted — so an allowance can
+    only ever silence the question it was given in answer to.
+
+    This is the ONLY way a conflict stops being one. A security decision the
+    spec derived (ADR-0001) is never quietly undone: it is asked about once,
+    answered in writing, and the answer is in the record.
+    """
+    allowed = {a.strip().casefold() for a in allowances if a.strip()}
+    found = [
         *_non_goal_conflicts(batch, arch),
         *_auth_conflicts(batch, arch),
         *_access_conflicts(batch, arch),
     ]
+    return [c for c in found if c.spec_says.strip().casefold() not in allowed]

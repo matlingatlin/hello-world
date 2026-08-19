@@ -40,9 +40,11 @@ export function SpecPage() {
     try {
       // The whole is what they are approving, so it is frozen with the spec.
       await api.approveSpec(projectId, step?.whole ?? undefined);
-      // Level 1: approval leads straight to the build. No detour — the user
-      // said "build it", and a screen in between would only be ceremony.
-      navigate(`/projects/${projectId}/build`);
+      // One question stands between the spec and the build: shape the design
+      // first, or build straight away. It is asked here rather than assumed
+      // because a change made against a preview costs one package, and the same
+      // change made after a full build costs the build.
+      navigate(`/projects/${projectId}/involve`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
       setApproving(false);

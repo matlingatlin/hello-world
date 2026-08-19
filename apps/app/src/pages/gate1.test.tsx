@@ -312,7 +312,7 @@ describe("Review (spec gate)", () => {
     expect(panel.textContent).not.toContain("$");
   });
 
-  it("freezes the spec with the whole and goes straight to the build (Level 1)", async () => {
+  it("freezes the spec with the whole, then asks how involved they want to be", async () => {
     const whole = "You're building a table-booking app for your guests.";
     const api = mockApi({
       getIntake: vi.fn().mockResolvedValue(step({ buildable: true, whole })),
@@ -323,8 +323,9 @@ describe("Review (spec gate)", () => {
 
     // The whole is frozen with the spec: it is what they actually approved.
     expect(api.approveSpec).toHaveBeenCalledWith("p1", whole);
-    // No involvement detour on Level 1 — they said build it.
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects/p1/build"));
+    // One question between the spec and the build: build straight away, or
+    // shape the design first (gate 2). Level 1 is still one click from here.
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects/p1/involve"));
   });
 
   it("offers the two other exits", async () => {

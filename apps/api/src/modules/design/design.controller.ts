@@ -8,6 +8,7 @@ import type {
   DesignVersionListResponse,
   DesignVersionResponse,
   FreezeDesignRequest,
+  RestoreDesignVersionResponse,
 } from "@scio/shared";
 import { CurrentWorkspace } from "../../auth/auth-context";
 import { DesignService } from "./design.service";
@@ -80,6 +81,16 @@ export class DesignVersionController {
     @Param("projectId") projectId: string,
   ): Promise<DesignVersionListResponse> {
     return this.designs.list(workspaceId, projectId);
+  }
+
+  @Post(":versionId/restore")
+  @ApiOperation({ summary: "Put an earlier design version's code back" })
+  restore(
+    @CurrentWorkspace() workspaceId: string,
+    @Param("projectId") projectId: string,
+    @Param("versionId") versionId: string,
+  ): Promise<RestoreDesignVersionResponse> {
+    return this.designs.restore(workspaceId, projectId, versionId);
   }
 
   @Post()

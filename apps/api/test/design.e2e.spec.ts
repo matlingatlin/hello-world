@@ -57,6 +57,10 @@ class FakeScope {
         if (!owns(where.projectId)) return [];
         return rows.filter((r) => r.projectId === where.projectId).sort(sort);
       },
+      async findFirst({ where }: any) {
+        if (!owns(where.projectId)) return null;
+        return rows.find((r) => r.id === where.id && r.projectId === where.projectId) ?? null;
+      },
       async update({ where, data }: any) {
         const row = rows.find((r) => r.id === where.id);
         if (!row) throw new Error("record not found");
@@ -162,11 +166,21 @@ const CONFLICTED = {
   description: "booking-form-submit: add payments here",
 };
 
+const RESTORED = {
+  restored: true,
+  git_sha: "aaaaaaaaaaaa",
+  head: "cccccccccccc",
+  manifest: MANIFEST,
+  error: "",
+};
+
 class FakeEngine {
   events: Array<[string, Record<string, unknown>]> = [];
   changeReply: any = APPLIED;
+  restoreReply: any = RESTORED;
   seen: any[] = [];
   changes: any[] = [];
+  restores: any[] = [];
 
   async streamBuild(body: any, onEvent: (e: string, d: Record<string, unknown>) => Promise<void>) {
     this.seen.push(body);
@@ -175,6 +189,10 @@ class FakeEngine {
   async designChange(body: any) {
     this.changes.push(body);
     return this.changeReply;
+  }
+  async designRestore(body: any) {
+    this.restores.push(body);
+    return this.restoreReply;
   }
   async intakeStep() {
     return {} as never;
@@ -235,8 +253,10 @@ describe("Design window (e2e): preview + directed change", () => {
     scope.designVersions = [];
     engine.events = [["finished", PREVIEW_FINISHED]];
     engine.changeReply = APPLIED;
+    engine.restoreReply = RESTORED;
     engine.seen = [];
     engine.changes = [];
+    engine.restores = [];
   });
 
   const generate = () => request(http).post("/projects/p1/design/preview").set(w1);
@@ -430,4 +450,121 @@ describe("Design window (e2e): preview + directed change", () => {
 
     expect(res.body.designVersions.map((d: { number: number }) => d.number)).toEqual([2, 1]);
   });
+
+  // ------------------------------------------------------------------
+  // Answering a conflict, and going back
+  // ------------------------------------------------------------------
+
+  const amend = (body: unknown) =>
+    request(http).post("/projects/p1/spec/amend").set(w1).send(body);
+
+  it("drops a non-goal from the spec when the user says they want it after all", async () => {
+    scope.specVersions = [
+      {
+        id: "s1",
+        projectId: "p1",
+        number: 1,
+        content: {
+          purpose: {},
+          non_goals: { value: ["no payments for now", "no mobile app"], source: "user", provenance: [] },
+        },
+        assumptions: {},
+        isCurrent: true,
+      },
+    ];
+
+    const res = await amend({ kind: "non_goal", specSays: "no payments for now" }).expect(201);
+
+    expect(res.body.removedNonGoal).toBe("no payments for now");
+    expect(res.body.specVersion.number).toBe(2);
+    const frozen = scope.specVersions.find((v) => v.number === 2);
+    expect(frozen.content.non_goals.value).toEqual(["no mobile app"]);
+    // The old version is still readable — a build points at it.
+    expect(scope.specVersions.find((v) => v.number === 1).content.non_goals.value).toHaveLength(2);
+  });
+
+  it("records a security decision as an ALLOWANCE, leaving the posture alone", async () => {
+    const res = await amend({
+      kind: "access",
+      specSays: "personal data, with row-level security on",
+      note: "make the bookings public",
+    }).expect(201);
+
+    expect(res.body.allowances).toEqual(["personal data, with row-level security on"]);
+    expect(res.body.removedNonGoal).toBeNull();
+    const frozen = scope.specVersions.find((v) => v.number === 2);
+    // The spec still says what it said. What changed is the record of what the
+    // user was asked and permitted — ADR-0001's wedge stays intact.
+    expect(frozen.content).toEqual({ purpose: {} });
+    expect(frozen.assumptions.amendments[0]).toMatchObject({
+      kind: "access",
+      note: "make the bookings public",
+    });
+  });
+
+  it("tells the engine which questions have already been answered", async () => {
+    await generate().expect(201);
+    await amend({ kind: "auth", specSays: "sign-in via supabase-auth" }).expect(201);
+
+    await change({ markings: [{ scioId: "booking-form-submit", note: "remove the login" }] }).expect(
+      201,
+    );
+
+    expect(engine.changes[0].allowances).toEqual(["sign-in via supabase-auth"]);
+  });
+
+  it("does not fail when the same conflict is answered twice", async () => {
+    await amend({ kind: "auth", specSays: "sign-in via supabase-auth" }).expect(201);
+    const res = await amend({ kind: "auth", specSays: "sign-in via supabase-auth" }).expect(201);
+
+    expect(res.body.allowances).toEqual(["sign-in via supabase-auth"]);
+  });
+
+  it("returns to an earlier version by its commit, and records the return", async () => {
+    await generate().expect(201);
+    await change({ markings: [{ scioId: "booking-form-submit", note: "say Reserve" }] }).expect(201);
+    const first = scope.designVersions.find((d) => d.number === 1);
+
+    const res = await request(http)
+      .post(`/projects/p1/design-versions/${first.id}/restore`)
+      .set(w1)
+      .expect(201);
+
+    expect(res.body.restored).toBe(true);
+    expect(engine.restores[0]).toMatchObject({
+      app_dir: "/tmp/scio/p1",
+      git_sha: "3a28a30d9de2",
+    });
+    // Forward, not backward: going back is itself a version, so changing your
+    // mind twice still works.
+    expect(scope.designVersions).toHaveLength(3);
+    expect(JSON.parse(scope.designVersions.find((d) => d.number === 3).ref).change).toBe(
+      "returned to version 1",
+    );
+  });
+
+  it("says why a version cannot be returned to, rather than failing", async () => {
+    await generate().expect(201);
+    engine.restoreReply = { ...RESTORED, restored: false, error: "that version no longer verifies" };
+    const first = scope.designVersions.find((d) => d.number === 1);
+
+    const res = await request(http)
+      .post(`/projects/p1/design-versions/${first.id}/restore`)
+      .set(w1)
+      .expect(201);
+
+    expect(res.body.restored).toBe(false);
+    expect(res.body.error).toContain("no longer verifies");
+    expect(scope.designVersions).toHaveLength(1);
+  });
+
+  it("never restores across tenants", async () => {
+    await generate().expect(201);
+    const first = scope.designVersions.find((d) => d.number === 1);
+
+    await request(http).post(`/projects/p1/design-versions/${first.id}/restore`).set(w2).expect(404);
+
+    expect(engine.restores).toHaveLength(0);
+  });
 });
+

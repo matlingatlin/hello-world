@@ -18,7 +18,7 @@ from .builder.standin import standin_registry
 from .builder.workspace import WorkspaceUnavailable
 from .config import build_registry, use_fake_providers
 from .core.manifest_builder import build_manifest
-from .design import ChangeBatch, DesignChangeResult, apply_change
+from .design import ChangeBatch, DesignChangeResult, RestoreResult, apply_change, restore_version
 from .estimate import BuildEstimate, estimate_plan
 from .execution.matrix import UnknownTaskError, default_matrix
 from .execution.narration import narrate
@@ -279,6 +279,11 @@ class DesignChangeRequest(BaseModel):
         default_factory=dict, description="package -> files, from the build that produced it"
     )
     passes: int = Field(default=1, description="Relay passes per changed package (1-4)")
+    allowances: list[str] = Field(
+        default_factory=list,
+        description="Conflicts the user has already answered yes to, quoted by the exact "
+        "`spec_says` the question used. A spec change the user made in writing, not a switch.",
+    )
 
 
 @app.post("/design/change", response_model=DesignChangeResult)
@@ -313,7 +318,34 @@ async def design_change(req: DesignChangeRequest) -> DesignChangeResult:
         registry=standin_registry() if registry.is_fake else registry,
         package_files=package_files,
         passes=req.passes,
+        allowances=req.allowances,
     )
+
+
+class DesignRestoreRequest(BaseModel):
+    """Go back to an earlier design version."""
+
+    app_dir: str = Field(description="The workspace the preview is running from")
+    git_sha: str = Field(description="The commit that design version recorded")
+    package_files: dict[str, list[str]] = Field(
+        default_factory=dict, description="package -> files, from the build that produced it"
+    )
+
+
+@app.post("/design/restore", response_model=RestoreResult)
+def design_restore(req: DesignRestoreRequest) -> RestoreResult:
+    """Put an earlier design version's code back, or say why it cannot go back.
+
+    A restore is a write, so it goes through the same instrumentation guardrail
+    as a change: the manifest is rebuilt from the restored source and verified,
+    and a tree that does not verify is undone rather than served. Returning to a
+    preview where marking silently lands in the wrong package would be worse
+    than not returning at all.
+    """
+    app_dir = Path(req.app_dir)
+    if not app_dir.exists():
+        raise HTTPException(status_code=404, detail=f"no workspace at {req.app_dir}")
+    return restore_version(app_dir, req.git_sha, package_files=req.package_files)
 
 
 @app.get("/matrix/tasks")

@@ -86,13 +86,39 @@ honoured — dev auth accepts any `dev` token and must never run in production.
 6. **Reveal** — the built app running in an iframe, plus what is true about the
    build.
 
-## Level 2 — the design window's preview
+## Level 2 — the design window
+
+Approving a spec now asks one question: **just build it**, or **shape the design first**.
+The second is Level 2, at `/projects/:id/design`:
+
+1. A preview is built (streamed, same per-part progress as a build) and embedded.
+2. **Use / Mark.** In Mark, clicking anything in the preview adds it to *your changes*;
+   the app's own behaviour is suppressed so marking a Submit button does not submit.
+3. Each change gets a note. **Generate again** sends all of them plus the free prompt as
+   ONE change, and only the packages they touch are rebuilt. The panel then shows which
+   files changed and how many others were byte-identical.
+4. A marking that argues with the approved spec comes back as a **question** and nothing
+   is built: *Keep it as-is*, or *Change the plan*. Dropping a protection asks a second
+   time and records an **allowance** on a new spec version rather than rewriting the
+   security posture.
+5. **Versions** lists every change, and *Return to this version* really checks that
+   commit back out (and refuses if its code no longer matches its instrumentation).
+
+If the preview has stopped — pressing **Build it** recreates the workspace and takes the
+preview with it — the window says so and offers **Build the preview again**.
 
 `POST /projects/:id/design/preview` builds the app with the marking bridge in it, so the
 design window can hear about clicks it cannot see (the preview is cross-origin). The
 bridge posts only to `APP_ORIGIN`, which `dev-up.sh` sets for you; without it the api
 refuses to generate a preview rather than handing back a window where nothing is
 clickable. A delivery build — the ordinary `POST /projects/:id/build` — carries no bridge.
+
+**Open the app on the origin `APP_ORIGIN` names.** The bridge's target origin is baked
+into the preview at build time, so visiting `localhost:5173` when `APP_ORIGIN` says
+`127.0.0.1:5173` makes marking silently do nothing. The design window waits for the
+bridge to say hello and tells you this in so many words rather than looking merely
+unresponsive — but the fix is to use the right origin, or to set `APP_ORIGIN` to yours
+and generate the preview again.
 
 ## Free vs real
 
@@ -125,3 +151,5 @@ real in-process database and drives the generated app.
 | the wizard repeats one question | an engine older than 2026-08-12; the intake stand-in is what fixed it |
 | a code change has no effect | something survived `dev-down.sh`; check `ps` — `nest start` forks a child |
 | "Can't reach the Scio API" on the build screen | the api really is down; a StrictMode abort used to cause this and no longer does |
+| clicking the preview in Mark mode adds nothing | the app is open on a different origin than `APP_ORIGIN` — see Level 2 |
+| the design preview shows "Internal Server Error" | it stopped (usually a later build recreated the workspace) — press *Build the preview again* |

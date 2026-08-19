@@ -94,6 +94,24 @@ export interface EngineDesignChangeRequest {
   };
   package_files: Record<string, string[]>;
   passes?: number;
+  /** Conflicts the user has already answered yes to, quoted by the exact
+   *  `spec_says` the question used. Frozen on the spec, not a request flag. */
+  allowances?: string[];
+}
+
+/** Going back to an earlier design version. */
+export interface EngineDesignRestoreRequest {
+  app_dir: string;
+  git_sha: string;
+  package_files: Record<string, string[]>;
+}
+
+export interface EngineDesignRestoreResponse {
+  restored: boolean;
+  git_sha: string;
+  head: string;
+  manifest: Record<string, unknown> | null;
+  error: string;
 }
 
 export interface EngineDesignChangeResponse {
@@ -120,6 +138,10 @@ export interface EngineDesignChangeResponse {
   manifest: Record<string, unknown> | null;
   total_cost_usd: number;
   description: string;
+  /** The commit the change produced. Empty means it is on disk and cannot be
+   *  returned to — `persistence_error` says why. */
+  git_sha: string;
+  persistence_error: string;
 }
 
 /** One `event:`/`data:` frame from an SSE stream. */
@@ -222,6 +244,18 @@ export class EngineClient {
    */
   designChange(body: EngineDesignChangeRequest): Promise<EngineDesignChangeResponse> {
     return this.post<EngineDesignChangeResponse>("/design/change", body, 900_000);
+  }
+
+  /**
+   * Put an earlier design version's code back.
+   *
+   * No model runs, so the budget is a file operation's rather than a build's.
+   * "That version cannot be restored" comes back as `restored: false` with the
+   * reason — a refusal is an answer, and the engine has already put the working
+   * tree back where it was.
+   */
+  designRestore(body: EngineDesignRestoreRequest): Promise<EngineDesignRestoreResponse> {
+    return this.post<EngineDesignRestoreResponse>("/design/restore", body, 120_000);
   }
 
   /** Layer B, for the review screen's confirmation. Null rather than throwing. */

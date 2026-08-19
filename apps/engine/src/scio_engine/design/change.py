@@ -21,12 +21,15 @@ count is what the design window shows.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
 from ..builder.codegen import FIX_SYSTEM, CodeExtractionError, extract_files
+from ..builder.persistence import GitError, ensure_repo, git
 from ..core.instrumentation import Manifest
+from ..core.persistence import ManifestStore
 from ..core.regenerate import PackageRegenerator, directed_regenerate
 from ..core.stamping import stamp_files
 from ..execution.provider import ProviderRegistry
@@ -73,6 +76,12 @@ class DesignChangeResult(BaseModel):
     manifest: Manifest | None = None
     total_cost_usd: float = 0.0
     description: str = ""
+    git_sha: str = Field(
+        default="",
+        description="The commit this change produced. Empty means it could not be committed, "
+        "and therefore cannot be returned to — see `persistence_error`.",
+    )
+    persistence_error: str = ""
 
     @property
     def changed_packages(self) -> list[str]:
@@ -99,6 +108,11 @@ class DesignChange(BaseModel):
 
     batch: ChangeBatch
     package_files: dict[str, list[str]] = Field(default_factory=dict)
+    allowances: list[str] = Field(
+        default_factory=list,
+        description="Conflicts the user has already answered yes to, by the exact "
+        "`spec_says` the question quoted.",
+    )
 
 
 class PreparedRegenerator(PackageRegenerator):
@@ -176,6 +190,25 @@ async def _edits_for(
     return stamp_files(extracted.files, package), result.total_cost_usd
 
 
+def commit_change(app_dir: Path, description: str, manifest: Manifest) -> str:
+    """Commit what the change wrote, and return the sha.
+
+    A design version that cannot be checked out again is decoration: the whole
+    reason people keep asking for changes is that the previous answer is still
+    there. The manifest goes into the same commit for the reason
+    `builder/persistence` gives — code and coupling that can be checked out
+    separately eventually are, and then a marking resolves against the wrong
+    version.
+    """
+    app_dir = Path(app_dir).resolve()
+    ensure_repo(app_dir)
+    ManifestStore(app_dir).save(manifest)
+    git(app_dir, "add", "-A")
+    if git(app_dir, "status", "--porcelain"):
+        git(app_dir, "commit", "-q", "-m", f"design: {description}".strip()[:2000])
+    return git(app_dir, "rev-parse", "HEAD")
+
+
 async def apply_change(
     app_dir: Path,
     batch: ChangeBatch,
@@ -186,6 +219,7 @@ async def apply_change(
     contracts: dict[str, str] | None = None,
     package_files: dict[str, list[str]] | None = None,
     passes: int = 1,
+    allowances: Sequence[str] = (),
 ) -> DesignChangeResult:
     """The whole guarded round trip. Never raises for a bad marking or a conflict."""
     app_dir = Path(app_dir).resolve()
@@ -198,7 +232,7 @@ async def apply_change(
     )
 
     # Asked before anything is built, and before a single token is spent.
-    conflicts = detect_conflicts(batch, architecture)
+    conflicts = detect_conflicts(batch, architecture, allowances=allowances)
     if conflicts:
         result.conflicts = conflicts
         return result
@@ -260,4 +294,17 @@ async def apply_change(
             result.manifest = regeneration.manifest
 
     result.applied = any(p.accepted for p in result.packages)
+
+    # Committed here rather than per package: a batch is one change, and one
+    # entry in the history is what the user asked for. Failing to commit does
+    # not undo a change that is already on disk, so it is reported rather than
+    # raised — the design window shows the version without a way back.
+    if result.applied:
+        try:
+            result.git_sha = commit_change(
+                app_dir, result.description, result.manifest or manifest
+            )
+        except GitError as exc:
+            result.persistence_error = str(exc)
+
     return result

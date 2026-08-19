@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { AuthGate, SignInScreen } from "./lib/auth";
 import { CreatePage } from "./pages/CreatePage";
+import { DesignPage } from "./pages/DesignPage";
+import { InvolvePage } from "./pages/InvolvePage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { BuildPage } from "./pages/BuildPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
@@ -10,8 +12,6 @@ import { SpecPage } from "./pages/SpecPage";
 import { WizardPage } from "./pages/WizardPage";
 
 const PLACEHOLDERS: Array<{ path: string; title: string }> = [
-  { path: "/involve", title: "How involved" },
-  { path: "/design", title: "Design" },
   { path: "/live", title: "Refine" },
   { path: "/versions", title: "Versions" },
   { path: "/ship", title: "Ship" },
@@ -45,10 +45,14 @@ export function App() {
             provenance all belong to it, so the routes carry its id. */}
         <Route path="/projects/:projectId/wizard" element={<WizardPage />} />
         <Route path="/projects/:projectId/spec" element={<SpecPage />} />
+        <Route path="/projects/:projectId/involve" element={<InvolvePage />} />
+        <Route path="/projects/:projectId/design" element={<DesignPage />} />
         <Route path="/projects/:projectId/build" element={<BuildPage />} />
         <Route path="/projects/:projectId/reveal" element={<RevealPage />} />
         <Route path="/wizard" element={<Navigate to="/projects" replace />} />
         <Route path="/spec" element={<Navigate to="/projects" replace />} />
+        <Route path="/involve" element={<Navigate to="/projects" replace />} />
+        <Route path="/design" element={<Navigate to="/projects" replace />} />
         <Route path="/build" element={<Navigate to="/projects" replace />} />
         <Route path="/reveal" element={<Navigate to="/projects" replace />} />
         {PLACEHOLDERS.map(({ path, title }) => (

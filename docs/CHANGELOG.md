@@ -5,6 +5,91 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-19 — B068: **gate 2b — the design window: the half a person touches.** Gate 2a built the
+  backend and nothing could reach it; `/design` was a placeholder and approving a spec went straight
+  to a build. Now approving asks **one question** — *just build it* or *shape the design first* —
+  and Level 2 is a real screen (`apps/app/src/pages/{InvolvePage,DesignPage}.tsx`,
+  `src/lib/bridge.ts`). The preview is built streamed (same per-part progress a build shows) and
+  embedded; a **Use / Mark** toggle arms the in-preview bridge, and while armed the app's own
+  behaviour is suppressed so marking a Submit button does not submit and navigate away from the
+  thing being marked. **The pending list IS the change set**: each marking becomes a line with an
+  editable note and a remove, and *Generate again* sends all of them plus the free prompt as ONE
+  change — a change is usually several small things noticed together, and making people submit them
+  one at a time is what makes a design tool feel expensive. Afterwards the panel shows the isolation
+  proof in the engine's own numbers ("changed components/booking-form.tsx, 3 other files untouched")
+  and names every marking the engine skipped, keeping it in the list so it can be reworded rather
+  than lost. The parent half of the bridge is origin-pinned both ways, never posts to `"*"`, and
+  **returns data rather than rendering it** — React escapes by construction, which is the fix for
+  the spike's `innerHTML` lesson.
+
+  Two calls were open going in, and both were settled for usability without giving up the wedge:
+
+  **Conflicts are answered here, not back in the wizard.** Sending someone to the wizard to say
+  "actually anyone should see the menu" is bad product. So a conflict renders inline with two
+  answers: *Keep it as-is*, which drops that one marking, and *Change the plan*, which is a real
+  amendment (`POST /projects/:id/spec/amend`, frozen as a new `spec_version`). The two kinds are
+  deliberately different acts: a `non_goal` amendment **removes the non-goal** from the spec, while
+  `auth`/`access` ask a **second time**, name the protection by the sentence the question quoted,
+  and record an **allowance** rather than rewriting the security posture. The architecture still
+  says the data is sensitive; the record says what the user permitted anyway, and the engine's
+  `detect_conflicts` skips only the exact `spec_says` that was allowed — an allowance is never a
+  switch that turns the questions off. Known cost, stated in the code and in the UI: an allowance
+  lets code and posture drift, and a deeper change belongs in the wizard.
+
+  **Versions really restore.** A list you cannot return to is decoration. An applied change is now a
+  **commit** (`design/change.commit_change`, manifest in the same commit), the design version stores
+  its sha, and *Return to this version* runs `git read-tree -u --reset` and commits the result **on
+  top of HEAD** — forward, not backward, so changing your mind twice still works. A restore is a
+  write, so it goes through the same guardrail as everything else: the manifest is rebuilt from the
+  restored source and the instrumentation re-verified, and a tree that no longer verifies is undone
+  and refused with the reason rather than served (a preview whose ids do not match its manifest is
+  one where marking lands in the wrong package — B039). A version that was never committed says so
+  instead of offering a button that cannot work.
+
+  Recorded as ADR-0015 (answering a design conflict). api 74 tests (+7), app 58 (+20), engine 501
+  (+12), typecheck and ruff clean.
+
+  **Clicked through in a browser against the local stack** (`scripts/dev-up.sh`, dev auth, local
+  Postgres, no keys): new project → wizard → approve → *"How involved do you want to be?"* → shape
+  the design first → preview built and embedded → **the bridge said hello** → marked two elements →
+  wrote a note on each → added a prompt → Generate again → *"changed app/layout.tsx, app/page.tsx,
+  components/site-header.tsx, lib/supabase.ts (16 other files untouched)"*, the list cleared, the
+  preview reloaded and **marking still worked afterwards** → *"make the bookings public"* → the
+  question, with nothing built → *Change the plan* → the second confirmation naming the protection
+  → *Yes, allow it* → the allowance frozen on spec version 2 (`allowances` + an `amendments` record
+  with the note and the timestamp; the spec's own content untouched) and the change applied → four
+  design versions each with their own commit → *Return to this version* → v4 "returned to version 1",
+  with v2 and v3 still in the list and still returnable → *Build it* → the build view.
+
+  Two things it could not settle honestly, both recorded rather than papered over: the `non_goal`
+  conflict could not be raised through the browser because the stand-in wizard filed "no payments
+  for now" under `sign_in` rather than `non_goals` (B065/B066's known problem — the conflict
+  detector was right to see no contradiction), so the `access` conflict carried that path instead;
+  and **"Build it" recreates the workspace**, which throws away the design history the versions
+  panel points at (B070).
+
+  **Four things only running it could have found**, all fixed here:
+
+  1. **The free path could not do a design change at all.** Without keys the relay returns a digest,
+     so `/design/change` died with "No FILE blocks in the reply" — the stand-in builder covered the
+     build and nothing covered this. It now answers a directed change by returning the same files
+     with one comment at the top naming what was asked, which exercises the whole round trip
+     (isolation, instrumentation, commit, version) while leaving every `data-scio-id` where it was,
+     and says in the file itself that no model wrote it.
+  2. **The "preview never said hello" warning cried wolf.** Its countdown started when the page
+     rendered, but a dev preview compiles on first request and can take half a minute — so the
+     warning appeared on a preview that was merely still starting. It now starts at the iframe's
+     `load`.
+  3. **A preview that had stopped left a dead iframe with no way out.** It happens for real — a
+     delivery build recreates the workspace and takes the preview with it — and the window's answer
+     was an "Internal Server Error" frame and nothing else. The warning now carries a **Build the
+     preview again** button, exercised live: dead preview → rebuilt → bridge said hello → marking
+     worked.
+  4. **`tests/test_preview_bridge_live.py` leaked its Next servers.** `npx next dev` forks `next`,
+     which forks `next-server`; terminating the process we started left **two next-servers holding
+     12 GB** after a full engine run, and the next thing to want memory — a browser — simply could
+     not start. Each server now gets its own process group, and the group is killed. Exactly the
+     lesson `scripts/dev-down.sh` already carries, in the one place that had not learned it.
 - 2026-08-12 — B067: **gate 2a — the design window's backend: preview builds carry the marking
   bridge, and a batch of markings changes only what it touches.** Level 2 is "show me before you
   build it", and this is the half that has no UI. **The preview is a different build**: pass

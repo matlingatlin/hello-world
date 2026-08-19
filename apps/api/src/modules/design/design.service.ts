@@ -9,8 +9,10 @@ import type {
   DesignVersionResponse,
   FreezeDesignRequest,
   IntakeSpec,
+  RestoreDesignVersionResponse,
 } from "@scio/shared";
 import { WorkspaceScope } from "../../auth/workspace-scope";
+import { allowancesOf } from "../spec/spec.service";
 import { EngineClient } from "../../engine/engine.client";
 import type { BuildFinished } from "@scio/shared";
 
@@ -223,6 +225,7 @@ export class DesignService {
       summary: result.summary ?? "",
       whole: result.whole ?? "",
       change: "the first preview",
+      gitSha: result.git_sha ?? "",
     });
 
     await this.client(workspaceId).project.update({
@@ -287,6 +290,10 @@ export class DesignService {
         prompt: body.prompt ?? "",
       },
       package_files: (ref.packageFiles as Record<string, string[]>) ?? {},
+      // Questions the user has already answered. They live on the frozen spec,
+      // so the engine keeps deciding what a conflict is — this only tells it
+      // which ones were settled in writing.
+      allowances: allowancesOf(spec.assumptions),
     });
 
     const previewUrl = (ref.previewUrl as string) || null;
@@ -301,6 +308,9 @@ export class DesignService {
         ...ref,
         manifest,
         change: result.description,
+        // Empty when the change landed but could not be committed: the version
+        // is then readable and not returnable, and the window says which.
+        gitSha: result.git_sha ?? "",
       });
     }
 
@@ -352,6 +362,83 @@ export class DesignService {
       lines.push(`${result.unaddressable.length} marking(s) could not be addressed`);
     }
     return lines.join("\n");
+  }
+
+  /**
+   * Return to an earlier design version.
+   *
+   * The list is only worth having if you can go back to what is on it — that is
+   * what makes "keep asking, you can undo it" true rather than a slogan. The
+   * restore is a write like any other, so the engine re-verifies the restored
+   * tree's instrumentation and refuses a version whose code and manifest have
+   * drifted; that refusal is relayed as an answer, not an error.
+   *
+   * Going back is recorded as a NEW version rather than deleting the ones after
+   * it. Changing your mind twice is normal, and a history that erases itself
+   * cannot support the second change of mind.
+   */
+  async restore(
+    workspaceId: string,
+    projectId: string,
+    versionId: string,
+  ): Promise<RestoreDesignVersionResponse> {
+    await this.project(workspaceId, projectId);
+    const target = await this.client(workspaceId).designVersion.findFirst({
+      where: { id: versionId, projectId },
+    });
+    if (!target) throw new NotFoundException("Design version not found");
+
+    const targetRef = this.refOf(target);
+    const current = await this.currentDesign(workspaceId, projectId);
+    const currentRef = this.refOf(current);
+    const gitSha = (targetRef.gitSha as string) || "";
+    const workspace = (currentRef.workspace as string) || (targetRef.workspace as string) || "";
+
+    if (!gitSha) {
+      return {
+        restored: false,
+        previewUrl: (currentRef.previewUrl as string) || null,
+        manifest: (currentRef.manifest as Record<string, unknown>) ?? null,
+        designVersion: current ? this.asDto(current) : null,
+        error:
+          `Version ${target.number} was never committed, so there is nothing to return to. ` +
+          "The change it describes is still in the versions after it.",
+      };
+    }
+    if (!workspace) {
+      throw new ConflictException("Generate a preview first — there is nothing to restore into.");
+    }
+
+    const result = await this.engine.designRestore({
+      app_dir: workspace,
+      git_sha: gitSha,
+      package_files: (currentRef.packageFiles as Record<string, string[]>) ?? {},
+    });
+
+    if (!result.restored) {
+      return {
+        restored: false,
+        previewUrl: (currentRef.previewUrl as string) || null,
+        manifest: (currentRef.manifest as Record<string, unknown>) ?? null,
+        designVersion: current ? this.asDto(current) : null,
+        error: result.error || "That version could not be restored.",
+      };
+    }
+
+    const version = await this.record(workspaceId, projectId, {
+      ...currentRef,
+      manifest: result.manifest ?? targetRef.manifest ?? currentRef.manifest ?? null,
+      change: `returned to version ${target.number}`,
+      gitSha: result.head || gitSha,
+    });
+
+    return {
+      restored: true,
+      previewUrl: (currentRef.previewUrl as string) || null,
+      manifest: (result.manifest as Record<string, unknown>) ?? null,
+      designVersion: version,
+      error: "",
+    };
   }
 
   async freeze(
