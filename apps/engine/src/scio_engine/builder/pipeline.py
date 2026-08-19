@@ -28,6 +28,7 @@ from ..execution.provider import ProviderRegistry
 from ..intake.schema import AppSpec
 from ..layerb.service import run_layer_b
 from ..layerc.service import run_layer_c
+from ..library.contribute import ContributionReport, contribute_build
 from ..library.verification import VerificationDatabase, verification_enabled
 from ..library.verification import prepare as prepare_verification
 from .file_plan import file_plan
@@ -245,6 +246,30 @@ async def stream_full_build(
     # after the sandbox has stopped reading it.
     if database is not None and close_preview:
         database.discard()
+
+    # Offer what this build produced back to the library (B061).
+    #
+    # After the build and before the finish, because a contribution is a
+    # side-effect of a delivered app and must never be the reason one is not
+    # delivered — `contribute_build` swallows its own failures for the same
+    # reason. Parts that CAME from the library are skipped there: they carry the
+    # entry id they were assembled from.
+    #
+    # Skipped entirely for a preview build: a Level 2 preview is a draft the
+    # user is about to mark up and change, and learning from it would fill the
+    # library with things nobody kept.
+    contribution: ContributionReport | None = None
+    if not shell_origin:
+        contribution = await contribute_build(
+            plan.packages,
+            result.packages,
+            workspace,
+            registry=builder,
+            architecture=layer_b.architecture,
+            project_id=project_id,
+        )
+        if contribution.outcomes:
+            yield "library", {"summary": contribution.describe(), "added": contribution.added}
 
     # Derived from the source that is actually on disk, not remembered from the
     # build: the design window resolves markings against it, and a manifest that

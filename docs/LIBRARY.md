@@ -85,18 +85,37 @@ rather than by a model.
 
 The two mistakes are not symmetric. Generating something the library already has
 costs money. *Assembling the wrong thing* ships code that looks reviewed and is
-not what the user asked for. So a match must be an identity, not a resemblance —
-all four of these, or it generates (`library/matcher.py`):
+not what the user asked for. So a match must be an identity, not a resemblance,
+and it is decided in two steps that do different jobs (`library/matcher.py`,
+ADR-0016):
 
-1. the entry is vetted (tested **and** security-reviewed);
-2. its entity **is** the package's entity, in canonical vocabulary;
-3. every operation the package owns is one the entry provides — four of five is
-   not a match, the fifth would silently vanish;
-4. the files it would write are **exactly** the package's file plan.
+**The category narrows.** A package about bookings only looks at entries in the
+`booking` category. Categories are canonical, from a seeded registry with
+aliases (`library/categories.py`) — which is what stops the library splitting
+into `login`, `auth` and `user-accounts` holding three copies of one thing.
 
-Only when two vetted entries survive all four is there anything for a model to
-decide, and only then is the relay asked. If it cannot choose, the package
-generates: the matcher never guesses.
+**The contract decides.** A contract is what a thing does with the project's own
+words removed: canonical operations, routes and files, all written against
+`__ENTITY__` (`library/identity.py`). A package assembles from an entry when the
+entry's contract **covers** the package's:
+
+- every operation the package owns is one the entry provides — four of five is
+  not a match, the fifth would silently vanish;
+- the files it would write are **exactly** the package's file plan;
+- the entry is vetted (tested **and** security-reviewed) and not rejected.
+
+An entry may provide *more* than a package needs; it may never provide less.
+Because the contract has the entity taken out of it, a project that says
+"reservations" matches what a project that said "bookings" contributed, without
+anyone teaching the matcher about restaurants.
+
+Only when two vetted entries survive is there anything for a model to decide,
+and only then is the relay asked. If it cannot choose, the package generates:
+the matcher never guesses.
+
+Only `feature` and `auth` packages are matchable. A foundation, a schema or a
+token set is derived from ONE architecture, and an entry claiming to cover one
+would assemble the wrong app.
 
 ## Assembling is not "skip the checks"
 
@@ -107,19 +126,83 @@ at the moment it is written rather than three packages later. What does not
 happen: no relay call, no repair loop, no waiting on a model to remember the
 instrumentation rules.
 
-## Contributing back
+An assembled package carries the entry id it came from
+(`PackageBuildResult.entry_id`). That is how the contribute step knows not to
+offer it back.
 
-When a build is approved, a *generated* part may be offered to the library — but
-only through a gate (`library/gate.py`), and only with a human choosing to. A
-library that fills up automatically fills up with things nobody chose.
+## Contributing back — how the library actually grows
 
-The gate rejects a candidate that is: untested, not security-reviewed, below the
-score bar, not generalized (still written against one project's concept), or
-leaking anything project-specific — a customer's name, a URL, a key, an email.
+Four hand-written entries is not a nave. The things worth having in the library
+are exactly the things builds already produce and already prove, so every
+delivery build offers its work back, and `library/contribute.py` is the sequence
+of refusals that decides what is kept:
 
-**Status:** the gate is built and tested. The contribution itself (writing an
-accepted entry into the catalog) is stubbed — `propose()` reviews and reports,
-it does not persist.
+    skip what came from the library  →  it is already in there
+    require every build gate         →  the build's own checks ARE the quality bar
+    generalize                       →  one project's code becomes anybody's
+    re-verify                        →  generalization can break code; prove it did not
+    gate                             →  no leakage, tested, instrumented
+    dedup on the contract            →  new version, new entry, or nothing
+    assign an id from the store      →  category.seqno.version, seqno from the DB
+
+**Ids.** `booking.1.1` — category, sequence number, version. The store assigns
+the seqno under a lock on the category, so two builds finishing at once get 2
+and 3 rather than 2 and 2.
+
+**Quality is the build's gates**, not a fresh opinion: a package is a candidate
+only if it passed every gate it was put through (tests, the vision loop
+including the interaction channel and RLS, instrumentation, the validation
+agents). Lighthouse and accessibility are not measured in the build yet (B048),
+so `Quality.scores_measured` records which evidence an entry carries and the
+gate reads the right one.
+
+**Version vs new is decided on the contract.** A candidate whose contract
+already exists is not a new entry — it is a claim to be a better version of one.
+It replaces the existing entry only if it is *Pareto* better on evidence that
+was counted (no worse on anything, better on something), and is otherwise
+discarded. That is the difference between a library that improves and one that
+accumulates. A build never replaces a seed.
+
+**A model is used for generalization only**, and is not trusted even there: the
+entity substitution runs deterministically first, and a reply that drops a
+`data-scio-id`, returns a different set of files or cannot be parsed is
+discarded in favour of the deterministic result. Everything that decides
+anything is deterministic.
+
+**Re-verification is not optional.** A generalized entry is adapted to a sample
+entity it has never seen (`widget`) and checked: every file lands and is
+non-empty, no placeholder survives into the output, the instrumentation
+verifies, the validation agents pass, and the contract still holds.
+
+**Contributed entries are provisional.** They are offerable — they cleared every
+gate a seed clears plus a re-verification a seed never had — but the listing
+says where they came from and that nobody has looked yet. Approving is a record
+of a person having looked, not a gate on usefulness.
+
+A preview build (Level 2) contributes nothing: it is a draft the user is about
+to change.
+
+## Where it lives
+
+Seeds are in the repo (`library/catalog/<id>/`), reviewed like the code they
+are. Contributions go to Postgres — `library_entry` and `library_category`,
+created idempotently by the engine, in the same database the api uses but not in
+Prisma's care (ADR-0016). Without `SCIO_CATALOG_DB` the engine still reads the
+seeds, matches and assembles; it just cannot keep what it learns, and
+`/library/entries` says `persistent: false` rather than pretending.
+
+## The curation surface
+
+```
+GET  /library/entries?category=&status=      what is in there, and what is provisional
+POST /library/entries/{id}/approve           a person looked at this and it stays
+POST /library/entries/{id}/reject            a person looked at this and it goes
+POST /library/categories                     propose a category (unconfirmed)
+POST /library/categories/{name}/confirm      the only way the registry grows
+```
+
+A rejected entry is marked, not deleted: that it was offered and refused is a
+fact about the library worth keeping, and a rejected entry is never offerable.
 
 ## What is built, and what is next
 
@@ -132,9 +215,18 @@ Built (B045, first slice):
 - assemble-vs-generate marked on every package and shown in the build
 - the contribute-back gate
 
+Built (B061, contribute-back):
+
+- ids, canonical categories and contracts (`identity.py`, `categories.py`)
+- the catalog store — seeds on disk, contributions in Postgres, DB-assigned seqnos
+- matching on category + contract, so contributed entries are found by the next build
+- generalization (relay), re-verification, dedup and version-vs-new
+- the contribute step in the build pipeline, and the curation endpoints
+
 Next:
 
-- grow the library — more entries, the remaining three layers
-- wire the cost estimate from the assemble-vs-generate plan: the plan already
-  says which parts are free, which is most of what a deterministic estimate needs
-- fleet learning: what a build had to fix becomes a candidate for the library
+- real quality scores for contributed entries (B048): Lighthouse and
+  accessibility measured in the build, so contributions are held to the same
+  numeric bar as seeds
+- the remaining three layers (tokens, patterns, integrations)
+- fleet learning: what a build had to *fix* becomes a candidate for the library

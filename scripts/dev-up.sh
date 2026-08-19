@@ -100,7 +100,12 @@ if curl -fsS -o /dev/null "http://127.0.0.1:$ENGINE_PORT/health" 2>/dev/null; th
 else
   # setsid, not just nohup: each server gets its own session, so it survives the
   # shell that started it and dev-down can take its whole process tree down.
-  (cd "$ROOT/apps/engine" && setsid .venv/bin/python -m uvicorn scio_engine.main:app \
+  # SCIO_CATALOG_DB: where the component library keeps what it learns from
+  # builds (B061). The same database the api uses, but its own `library_*`
+  # tables, created by the engine — Prisma owns the product's schema, the
+  # engine owns the library's, and neither migrates the other's.
+  (cd "$ROOT/apps/engine" && SCIO_CATALOG_DB="$DATABASE_URL" \
+    setsid .venv/bin/python -m uvicorn scio_engine.main:app \
     --host 127.0.0.1 --port "$ENGINE_PORT" >"$RUN/engine.log" 2>&1 & echo $! >"$RUN/engine.pid")
   wait_for engine "http://127.0.0.1:$ENGINE_PORT/health" 60
 fi

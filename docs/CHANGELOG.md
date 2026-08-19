@@ -5,6 +5,70 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-19 — B061: **contribute-back — the library grows from real builds.** The component
+  library is the product's nave (ADR-0014): the more of an app that comes from curated, tested
+  parts, the cheaper and more predictable a build is. It had four hand-written entries and no way
+  to get a fifth. Now every delivery build offers its work back, and what survives a sequence of
+  refusals is kept — see ADR-0016 for the reasoning.
+
+  **Search side.** The matcher no longer asks "is this the same entity"; the **category narrows**
+  and the **contract decides**. A contract is what a thing does with the project's own words
+  removed — canonical operations, routes and files, all against `__ENTITY__`
+  (`library/identity.py`). An entry may cover more than a package needs, never less, and the files
+  must be exactly the file plan. Because the entity is taken out of it, a project that says
+  "reservations" matches what a project that said "bookings" contributed, and neither ever shared a
+  word. Layer C and the assembler both read the **store** rather than the seed directory, so what
+  the library learns is what the next build can use.
+
+  **Contribute side** (`library/contribute.py`): skip what carries an entry id (it came from the
+  library — without this the library contributes its own entries back to itself forever) → require
+  every build gate → generalize → re-verify → gate → dedup on the contract → take an id from the
+  store. Ids are `category.seqno.version` and the **store assigns the seqno under a lock**, so two
+  builds contributing to `booking` at once get 2 and 3. Categories are canonical with a proposal
+  path (`library/categories.py`), so `login`, `signin` and `user_account` all land in `auth`
+  instead of starting three spellings of one thing; an unrecognised area is *proposed*, unconfirmed
+  and matched against by nothing, until a person confirms it.
+
+  **Quality is the build's own gates**, not a fresh opinion. "Better" — the only thing that lets a
+  candidate replace an entry projects already assemble — is Pareto on evidence that was actually
+  counted: no worse on anything, better on something. Lighthouse and accessibility are not measured
+  in the build yet (B048), so `Quality.scores_measured` records which evidence an entry carries and
+  the gate reads the right one rather than inventing a number. A build never replaces a seed.
+
+  **A model is used for generalization only**, and not trusted there either: the entity
+  substitution runs deterministically first, and a reply that drops a `data-scio-id`, returns a
+  different set of files or cannot be parsed is discarded in favour of the deterministic result.
+  Nothing is added without being **re-verified**: the entry is adapted to a sample entity it has
+  never seen (`widget`) and checked for empty files, surviving placeholders, instrumentation and
+  the validation agents. Contributed entries are **provisional** and reviewable
+  (`GET /library/entries`, approve/reject, propose/confirm a category), stored in Postgres in the
+  engine's own `library_*` tables — Prisma keeps owning the product's schema. Without
+  `SCIO_CATALOG_DB` the engine still matches and assembles from the seeds and reports
+  `persistent: false` rather than pretending.
+
+  engine 555 tests (+36), ruff clean; api and app untouched and green. The delivered app is
+  unchanged: contributing happens after the build and swallows its own failures, and a Level 2
+  preview contributes nothing at all.
+
+  **Run against the local stack, which found five things no test did.** (1) The engine could not
+  connect: it is handed the api's `DATABASE_URL`, and psycopg rejects Prisma's `?schema=public`.
+  (2) The obvious fix encoded the space in `-c search_path=…` as `+`, and Postgres reported an
+  unrecognised parameter called `+search_path`. (3) Eight concurrent contributions were handed
+  `booking.1.1` four times and three of them were silently overwritten — reading the high-water
+  mark and inserting afterwards is two transactions, so id assignment and insertion now happen
+  under one lock. (4) The `library` event was a plain dict and the SSE writer only handled models,
+  which surfaced a *successful* build to the user as a failed one. (5) Layer C matched against the
+  seed directory and then the assembler did too, so the library could learn and never use what it
+  learned. All five are fixed, and (1)–(3) are locked down by tests that skip loudly without a
+  database.
+
+  **The acceptance story, run for real** (`scripts/dev-up.sh`, no keys): a booking app assembled
+  `feature-booking` from the seeds and contributed nothing (the assembled package was skipped as
+  "already the library's"); a workout app had no match, so it generated, and contributed
+  `auth.1.1` and `workout.1.1` — provisional, in Postgres, with `workout` recorded as a proposed
+  category; a second workout app **discarded** both as "not worse"; and a third **assembled both
+  from what the first build taught**, with no model call for either.
+
 - 2026-08-19 — B066: **correct a misfiled spec field without redoing the wizard.** The wizard
   sometimes files an answer under the wrong slot — "guests and staff" lands in *what it manages*
   instead of *who it's for*. The review screen showed that faithfully and offered no way out except

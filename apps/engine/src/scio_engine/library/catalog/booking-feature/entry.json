@@ -68,5 +68,13 @@
     "accessibility_score": 92,
     "lighthouse_score": 95,
     "review_notes": "Validation is server-side only (the client cannot skip it); data access goes through the anon client so row-level security still decides; every element carries a data-scio-id; no secrets, no dangerous HTML."
-  }
+  },
+  "category": "booking",
+  "hashtags": [
+    "form",
+    "list",
+    "server-actions",
+    "validation",
+    "rls"
+  ]
 }

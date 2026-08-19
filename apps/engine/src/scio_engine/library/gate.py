@@ -27,7 +27,8 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 from ..core.instrumentation import ID_ATTRIBUTE
-from .entry import ENTITY, CatalogEntry
+from .entry import CatalogEntry
+from .placeholders import ENTITY
 
 MIN_ACCESSIBILITY = 85
 MIN_LIGHTHOUSE = 85
@@ -114,26 +115,7 @@ def review(candidate: Candidate) -> GateResult:
         findings.append(
             GateFinding(rule="security_reviewed", message="it has not been security-reviewed")
         )
-    if entry.quality.accessibility_score < MIN_ACCESSIBILITY:
-        findings.append(
-            GateFinding(
-                rule="scores",
-                message=(
-                    f"accessibility {entry.quality.accessibility_score} is below the bar of "
-                    f"{MIN_ACCESSIBILITY}"
-                ),
-            )
-        )
-    if entry.quality.lighthouse_score < MIN_LIGHTHOUSE:
-        findings.append(
-            GateFinding(
-                rule="scores",
-                message=(
-                    f"lighthouse {entry.quality.lighthouse_score} is below the bar of "
-                    f"{MIN_LIGHTHOUSE}"
-                ),
-            )
-        )
+    findings += _score_findings(entry)
 
     findings += _generalization_findings(entry)
     findings += _leakage_findings(entry, candidate.project_terms)
@@ -152,6 +134,54 @@ def review(candidate: Candidate) -> GateResult:
     return GateResult(
         verdict=Verdict.rejected if findings else Verdict.accepted, findings=findings
     )
+
+
+def _score_findings(entry: CatalogEntry) -> list[GateFinding]:
+    """Quality, judged on evidence that exists.
+
+    A seed carries Lighthouse and accessibility numbers a person measured, and
+    those must clear the bar. An entry learned from a build has no such numbers —
+    the build does not run Lighthouse yet (B048) — so what it is held to is what
+    the build DID check: every gate it was put through passed. That is a real
+    standard, not a waived one; treating unmeasured scores as zeros would refuse
+    every contribution, and treating them as 85 would be a lie.
+    """
+    quality = entry.quality
+    if not quality.scores_measured:
+        if quality.all_build_gates_passed:
+            return []
+        return [
+            GateFinding(
+                rule="scores",
+                message=(
+                    "nothing measured this: no accessibility or Lighthouse score, and it did "
+                    f"not pass every build gate ({quality.build_gates_passed}/"
+                    f"{quality.build_gates_total})"
+                ),
+            )
+        ]
+
+    findings: list[GateFinding] = []
+    if quality.accessibility_score < MIN_ACCESSIBILITY:
+        findings.append(
+            GateFinding(
+                rule="scores",
+                message=(
+                    f"accessibility {quality.accessibility_score} is below the bar of "
+                    f"{MIN_ACCESSIBILITY}"
+                ),
+            )
+        )
+    if quality.lighthouse_score < MIN_LIGHTHOUSE:
+        findings.append(
+            GateFinding(
+                rule="scores",
+                message=(
+                    f"lighthouse {quality.lighthouse_score} is below the bar of {MIN_LIGHTHOUSE}"
+                ),
+            )
+        )
+    return findings
 
 
 def _generalization_findings(entry: CatalogEntry) -> list[GateFinding]:

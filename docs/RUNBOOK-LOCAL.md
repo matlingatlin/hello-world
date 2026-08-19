@@ -24,7 +24,7 @@ click-through found four real bugs in an hour (see the CHANGELOG for
 |---|---|---|
 | app | <http://127.0.0.1:5173> | Vite dev server, `VITE_DEV_AUTH=1` |
 | api | <http://127.0.0.1:3000> | Nest, `SCIO_DEV_AUTH=1`, `APP_ORIGIN` set, docs at `/docs` |
-| engine | <http://127.0.0.1:8000> | FastAPI, fake providers unless a key is set |
+| engine | <http://127.0.0.1:8000> | FastAPI, fake providers unless a key is set, `SCIO_CATALOG_DB` set |
 | Postgres | `127.0.0.1:55432`, db `scio` | a real PostgreSQL 16 **process** |
 
 Logs are in `.local/*.log` (gitignored). Ports are overridable:
@@ -145,6 +145,30 @@ Check <http://127.0.0.1:8000/health> says `"providers":"real"` and
 what to watch for, and for `SCIO_VERIFY_DATA=1`, which runs the build against a
 real in-process database and drives the generated app.
 
+## The library, growing
+
+Every delivery build offers its work back to the component library (B061), and
+the engine keeps what survives in the same Postgres, in its own `library_*`
+tables:
+
+```bash
+curl -s localhost:8000/library/entries | python3 -m json.tool | head -40
+curl -s -X POST localhost:8000/library/entries/booking.1.1/approve
+curl -s -X POST localhost:8000/library/entries/booking.1.1/reject
+```
+
+`persistent: false` in that listing means `SCIO_CATALOG_DB` is unset — the
+library still matches and assembles from the seeds, it just cannot keep anything
+it learns. `dev-up.sh` sets it for you.
+
+Contributed entries are **provisional** until somebody approves one. They are
+offerable while provisional (they cleared every gate a seed does, plus a
+re-verification a seed never had) — what provisional changes is that the listing
+says so.
+
+A preview build (Level 2) contributes nothing: it is a draft the user is about
+to change.
+
 ## When something is wrong
 
 | symptom | cause |
@@ -156,6 +180,7 @@ real in-process database and drives the generated app.
 | approve is refused with "this spec still needs…" | the gate is genuinely shut — answer what the review screen lists |
 | a correction "doesn't stick" after a wizard turn | it should; extraction refuses to overwrite `corrected-on-review`. If it does, that rule broke |
 | a code change has no effect | something survived `dev-down.sh`; check `ps` — `nest start` forks a child |
+| the library never grows | check `persistent` in `/library/entries`; then read the `library` event in the build log for the refusal reason |
 | "Can't reach the Scio API" on the build screen | the api really is down; a StrictMode abort used to cause this and no longer does |
 | clicking the preview in Mark mode adds nothing | the app is open on a different origin than `APP_ORIGIN` — see Level 2 |
 | the design preview shows "Internal Server Error" | it stopped (usually a later build recreated the workspace) — press *Build the preview again* |

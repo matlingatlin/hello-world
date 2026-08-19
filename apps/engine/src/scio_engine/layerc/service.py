@@ -14,6 +14,7 @@ from ..execution.provider import ProviderRegistry
 from ..layerb.architecture import Architecture
 from ..layerb.playbook import Playbook, default_playbook
 from ..library.matcher import MatchReport, apply_matches, match_plan
+from ..library.store import default_store
 from .contract import assemble_contract, contract_prompt
 from .decompose import build_plan, topological_order
 from .judgment import GroupingAdvice, advise_grouping, apply_advice
@@ -65,8 +66,19 @@ async def run_layer_c(
     # The library is asked before the build, not during it: knowing which parts
     # are assembled is what makes a build's cost and quality predictable rather
     # than discovered (docs/LIBRARY.md, ADR-0014).
+    #
+    # Read from the STORE, not from the seed directory: what earlier builds
+    # contributed is most of what the library knows, and matching only against
+    # the seeds would mean the library could learn and never use what it learned
+    # (B061). The store falls back to the seeds when no catalog database is
+    # configured, so nothing here needs to know which it is talking to.
+    store = default_store()
     library = await match_plan(
-        plan, registry=registry, use_judgment=use_judgment and not registry.is_fake
+        plan,
+        catalog=store.catalog(),
+        categories=store.registry(),
+        registry=registry,
+        use_judgment=use_judgment and not registry.is_fake,
     )
     apply_matches(plan, library)
 

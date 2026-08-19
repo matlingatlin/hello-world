@@ -3,22 +3,28 @@
 The decision is per package and it is deliberately conservative, because the two
 mistakes are not symmetric. Generating something the library already has costs
 money and consistency. *Assembling the wrong thing* ships code that looks
-reviewed and is not what the user asked for — so a match has to be an identity,
-not a resemblance:
+reviewed and is not what the user asked for.
 
-1. the entry must be vetted (tested + security-reviewed);
-2. its entity must be the package's entity, in canonical vocabulary — this is
-   what makes "reservations" find the booking blueprint without anyone teaching
-   the matcher about restaurants;
-3. every operation the package owns must be one the entry provides. An entry
-   that does four of the package's five operations is not a match; the fifth
-   would silently vanish;
-4. the files it would write must be exactly the package's file plan. Anything
-   else and the manifest's package→file map would disagree with the disk, which
-   is the drift the spike punished.
+So the decision is made in two steps that do different jobs (B061):
 
-Only when two vetted entries survive all four is there anything for a model to
-decide, and only then does the relay get asked.
+**The category narrows.** A package about bookings only ever looks at entries in
+the `booking` category. This is a canonical lookup, not free text
+(`library/categories.py`) — which is what stops the library splitting into
+`login`, `auth` and `user-accounts` holding three copies of one thing.
+
+**The contract decides.** A contract is what a thing does with the project's own
+words removed: canonical operations, routes and files, all against `__ENTITY__`
+(`library/identity.py`). Equality of contracts is a match. That is an identity,
+not a resemblance — it still means every operation is covered and the files
+written are exactly the package's file plan, because both are *in* the contract.
+
+It also means "reservations" finds the booking blueprint without anyone teaching
+the matcher about restaurants, and it means an entry contributed by one project
+matches the next project's equivalent package even though neither ever shared a
+word.
+
+Only when two vetted entries survive is there anything for a model to decide,
+and only then does the relay get asked. The relay never decides a match.
 """
 
 from __future__ import annotations
@@ -33,7 +39,17 @@ from ..execution.relay import RelayOptions, run_relay
 from ..layerb.vocabulary import canonical_name
 from ..layerc.plan import BuildPackage, BuildPlan, PackageKind
 from .catalog import Catalog, default_catalog
+from .categories import CategoryRegistry, default_registry
 from .entry import CatalogEntry
+from .identity import Contract
+
+MATCHABLE_KINDS = (PackageKind.feature, PackageKind.auth)
+"""Which packages the library may cover.
+
+Features and auth are the parts that repeat across apps in a shape a blueprint
+can hold. The shell, the schema and the design tokens are project-shaped —
+their content is derived from THIS app's architecture, and an entry claiming to
+cover one would be claiming to know something it cannot."""
 
 
 class Decision(StrEnum):
@@ -48,6 +64,8 @@ class Match(BaseModel):
     decision: Decision
     entry_id: str = ""
     entity: str = ""
+    category: str = ""
+    contract_key: str = ""
     reason: str = ""
     considered: list[str] = Field(default_factory=list)
 
@@ -91,39 +109,79 @@ def package_entity(package: BuildPackage) -> str:
     return canonical_name(entity_of(package))
 
 
-def _covers_operations(entry: CatalogEntry, package: BuildPackage) -> bool:
-    owned = {
-        canonical_name(node.name)
-        for node in package.architecture_slice
-        if node.kind == "operation"
-    }
-    if not owned:
-        return False
-    provided = {canonical_name(op) for op in entry.provides.operations}
-    return owned <= provided
+def package_operations(package: BuildPackage) -> list[str]:
+    """What this package DOES, as the contract's identity.
+
+    Operation nodes when it has them. When it has none — `pkg_auth` owns a
+    single `auth:auth_access` node and no operations — the other non-screen
+    nodes stand in, by their addressable ids. Without this such a package would
+    have an empty contract, which must never match anything, and it could
+    therefore be neither assembled nor learned from. Screens are excluded here
+    because they are already the contract's `routes`.
+    """
+    operations = [node.name for node in package.architecture_slice if node.kind == "operation"]
+    if operations:
+        return operations
+    return [node.id for node in package.architecture_slice if node.kind != "screen"]
 
 
-def _writes_exactly_the_plan(entry: CatalogEntry, package: BuildPackage, entity: str) -> bool:
-    return set(entry.adapted_paths(entity)) == set(planned_files(package))
+def package_routes(package: BuildPackage) -> list[str]:
+    return [node.name for node in package.architecture_slice if node.kind == "screen"]
 
 
-def candidates(package: BuildPackage, catalog: Catalog) -> list[CatalogEntry]:
+def package_contract(package: BuildPackage) -> Contract:
+    """What this package does, in the same shape an entry states it.
+
+    The files come from the file plan rather than from anything written yet:
+    matching happens BEFORE the build, and the plan is the same source the
+    manifest's package→file map uses, so the two cannot disagree.
+    """
+    return Contract.of(
+        operations=package_operations(package),
+        routes=package_routes(package),
+        files=planned_files(package),
+        entity=package_entity(package),
+    )
+
+
+def package_category(package: BuildPackage, registry: CategoryRegistry | None = None) -> str:
+    """Which area of an app this package belongs to, canonically.
+
+    Tried most specific first: the package's own entity, then the words in its
+    id, then its kind. `pkg_auth` lands in `auth` without anyone having taught
+    the registry about package ids.
+    """
+    book = registry or default_registry()
+    return book.resolve(
+        package_entity(package), package.id.removeprefix("pkg_"), package.kind.value
+    )
+
+
+def candidates(
+    package: BuildPackage,
+    catalog: Catalog,
+    *,
+    registry: CategoryRegistry | None = None,
+) -> list[CatalogEntry]:
     """Every vetted entry that could build this package, whole."""
-    if package.kind is not PackageKind.feature:
-        # This slice matches feature blueprints only. The shell, the schema and
-        # the tokens are project-shaped in ways no seed entry can claim yet.
+    if package.kind not in MATCHABLE_KINDS:
         return []
 
-    entity = package_entity(package)
-    if not entity:
+    contract = package_contract(package)
+    if contract.empty:
+        # A package that claims no operations describes nothing, and an empty
+        # contract would otherwise equal every other empty one.
         return []
+
+    category = package_category(package, registry)
 
     return [
         entry
         for entry in catalog.offerable()
-        if entity in entry.provides.canonical_entities()
-        and _covers_operations(entry, package)
-        and _writes_exactly_the_plan(entry, package, entity)
+        # The category narrows. An entry without one is not excluded — a seed
+        # written before categories existed still matches on its contract.
+        if (not entry.category or not category or entry.category == category)
+        and contract.satisfied_by(entry.effective_contract())
     ]
 
 
@@ -164,6 +222,7 @@ async def match_plan(
     catalog: Catalog | None = None,
     registry: ProviderRegistry | None = None,
     use_judgment: bool = True,
+    categories: CategoryRegistry | None = None,
 ) -> MatchReport:
     """Decide assemble-vs-generate for every package in the plan."""
     book = catalog or default_catalog()
@@ -171,7 +230,9 @@ async def match_plan(
 
     for package in plan.packages:
         entity = package_entity(package)
-        options = candidates(package, book)
+        category = package_category(package, categories)
+        contract = package_contract(package)
+        options = candidates(package, book, registry=categories)
         considered = [e.id for e in options]
 
         if not options:
@@ -180,6 +241,8 @@ async def match_plan(
                     package_id=package.id,
                     decision=Decision.generate,
                     entity=entity,
+                    category=category,
+                    contract_key=contract.key,
                     reason="nothing in the library covers this package exactly",
                     considered=considered,
                 )
@@ -187,7 +250,10 @@ async def match_plan(
             continue
 
         chosen = options[0]
-        reason = f"'{entity}' is covered by a vetted entry, files and operations exactly"
+        reason = (
+            f"'{category or entity}' is covered by a vetted entry with exactly this contract "
+            f"({contract.describe()})"
+        )
         if len(options) > 1:
             picked = (
                 await resolve_ambiguity(package, options, registry=registry)
@@ -200,6 +266,8 @@ async def match_plan(
                         package_id=package.id,
                         decision=Decision.generate,
                         entity=entity,
+                        category=category,
+                        contract_key=contract.key,
                         reason=(
                             "several vetted entries fit and none was clearly better — "
                             "generating rather than picking one at random"
@@ -217,6 +285,8 @@ async def match_plan(
                 decision=Decision.assemble,
                 entry_id=chosen.id,
                 entity=entity,
+                category=category,
+                contract_key=contract.key,
                 reason=reason,
                 considered=considered,
             )

@@ -67,7 +67,7 @@
 | B066 | Spec review: let the user edit a field the wizard filed wrongly, without restarting the wizard | PP5 | P1 | done |
 | B067 | Gate 2a: design window backend — preview-mode build (bridge) + directed-change round-trip | PP6 | P0 | done |
 | B068 | Gate 2b: the design window UI — embed + marking selection + prompt + batch + generate-again + approve | PP6 | P0 | done |
-| B061 | Grow the library (more entries; the token/pattern/integration layers) | PP4 | P0 | todo |
+| B061 | Contribute-back: the library grows from real builds (ids/categories/versions) | PP4 | P0 | done |
 | B062 | Wire the cost estimate from the assemble-vs-generate plan       | PP4 | P0 | done |
 | B069 | Design window: routes and per-route markings (the preview has more than one page) | PP6 | P1 | todo        |
 | B070 | "Build it" recreates the workspace, so the design history is lost at the delivery build | PP6 | P0 | todo        |
@@ -85,6 +85,18 @@ new spec version rather than rewriting the security posture (ADR-0001's wedge st
 known cost is that code and posture can drift, and the UI says a deeper change belongs in the
 wizard) — and **versions really restore**, via `git read-tree` forward onto a new commit, refused if
 the restored tree's instrumentation no longer verifies.
+
+**B061 — the library grows from real builds.** It had four hand-written entries and no way
+to get a fifth. Every delivery build now offers its work back: what came FROM the library is
+skipped (assembled packages carry the entry id they came from), what passed every build gate is
+generalized, re-verified against an entity it has never seen, put through the contribute gate,
+and either added under a store-assigned `category.seqno.version` id or discarded as no better
+than what is already there. Categories are canonical with a proposal path, so `login` lands in
+`auth` rather than starting a fifth spelling of it; matching narrows by category and is decided
+by a **contract** (operations, routes and files with the project's words removed), which is also
+what dedup and version-vs-new use. Contributed entries are provisional and reviewable
+(`/library/entries`, approve/reject), and live in Postgres beside the seeds. See ADR-0016.
+Proven live: one build taught `auth.1.1` and `workout.1.1`, and the next build ASSEMBLED both.
 
 **B066 — the review screen is editable.** The wizard's misfilings were visible and unfixable:
 the only remedy was restarting the wizard, so people approved specs they could see were wrong.

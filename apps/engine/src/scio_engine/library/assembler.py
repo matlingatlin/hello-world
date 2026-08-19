@@ -31,8 +31,9 @@ from ..core.stamping import stamp_files
 from ..core.verifier import verify_instrumentation
 from ..layerb.architecture import DesignTokens
 from ..layerc.plan import BuildPackage
-from .catalog import Catalog, default_catalog
+from .catalog import Catalog
 from .entry import CatalogEntry
+from .store import default_store
 
 ASSEMBLY_GATES = ("library", "instrumentation")
 """What an assembled package is checked on. Fewer than a generated package's four
@@ -65,7 +66,11 @@ def assemble_package(
     build_version: int = 1,
 ) -> PackageBuildResult:
     """Write one entry into the app as this package. No model is involved."""
-    book = catalog or default_catalog()
+    # The STORE, not the seed directory: the matcher chose from everything the
+    # library knows, contributions included, and an assembler that could only
+    # see the seeds would abort the build with "entry not in the catalog" for
+    # every entry an earlier build taught it (B061).
+    book = catalog or default_store().catalog()
     chosen = entry or book.get(package.catalog_entry)
     if chosen is None:
         raise AssemblyError(
@@ -119,6 +124,7 @@ def assemble_package(
             checks_passed=1,
             checks_total=len(ASSEMBLY_GATES),
             build_version=build_version,
+            entry_id=chosen.id,
             remainders=[
                 Remainder(what=p, where=package.id, source="instrumentation") for p in problems
             ],
@@ -132,6 +138,7 @@ def assemble_package(
         checks_passed=len(ASSEMBLY_GATES),
         checks_total=len(ASSEMBLY_GATES),
         build_version=build_version,
+        entry_id=chosen.id,
         total_cost_usd=0.0,
         remainders=[],
     )

@@ -32,13 +32,15 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from ..layerb.vocabulary import canonical_name
-
-ENTITY = "__ENTITY__"
-ENTITY_PASCAL = "__ENTITY_PASCAL__"
-ENTITY_TITLE = "__ENTITY_TITLE__"
-ENTITY_PLURAL = "__ENTITY_PLURAL__"
-
-TOKEN_PREFIX = "__TOKEN_"
+from .identity import Contract, EntryId, Status
+from .placeholders import (
+    ENTITY,
+    ENTITY_PASCAL,
+    ENTITY_PLURAL,
+    ENTITY_PLURAL_TITLE,
+    ENTITY_TITLE,
+    TOKEN_PREFIX,
+)
 
 
 class Layer(StrEnum):
@@ -60,17 +62,57 @@ class Quality(BaseModel):
 
     Not decoration: `usable` is what the matcher consults, and an entry that has
     not been tested and security-reviewed is not offered, however good it looks.
+
+    The two scores are only meaningful when something measured them. A seed
+    carries numbers a person put there; an entry learned from a build carries
+    the build's own gate results instead, because Lighthouse and axe do not run
+    in the build yet (B048). Reporting 0 as if it were a measurement — or
+    inventing an 85 — would both be lies, so `scores_measured` says which world
+    this entry is in and the contribute gate reads the right evidence.
     """
 
     tested: bool = False
     security_reviewed: bool = False
     accessibility_score: int = 0  # 0-100
     lighthouse_score: int = 0  # 0-100
+    scores_measured: bool = True
     review_notes: str = ""
+
+    # What the build actually checked, for an entry learned from one (B061).
+    build_gates_passed: int = 0
+    build_gates_total: int = 0
+    test_files: int = 0
+    instrumented_elements: int = 0
 
     @property
     def usable(self) -> bool:
         return self.tested and self.security_reviewed
+
+    @property
+    def all_build_gates_passed(self) -> bool:
+        return self.build_gates_total > 0 and self.build_gates_passed >= self.build_gates_total
+
+    def evidence(self) -> tuple[int, ...]:
+        """The comparable measure of "better", as a tuple of things that were
+        actually counted. Used only to decide whether a candidate improves on an
+        entry the library already has — never to decide a match."""
+        return (
+            self.build_gates_passed,
+            self.test_files,
+            self.instrumented_elements,
+            self.accessibility_score,
+            self.lighthouse_score,
+        )
+
+    def better_than(self, other: Quality) -> bool:
+        """Pareto: no worse on anything measured, and better on something.
+
+        Deliberately strict. "Better" decides whether a working entry that
+        projects already assemble gets REPLACED, and a single-axis improvement
+        that quietly loses a test is not an improvement.
+        """
+        mine, theirs = self.evidence(), other.evidence()
+        return all(a >= b for a, b in zip(mine, theirs, strict=True)) and mine != theirs
 
 
 class Provides(BaseModel):
@@ -95,6 +137,31 @@ class CatalogEntry(BaseModel):
     version: str = "1.0.0"
     provenance: str = "scio-seed"
 
+    # --- how the library finds this, and how much it trusts it (B061) ---
+    category: str = Field(
+        default="",
+        description="The canonical category (library/categories.py). Narrows the search; "
+        "never decides a match.",
+    )
+    hashtags: list[str] = Field(
+        default_factory=list,
+        description="Cross-cutting labels for people browsing. NOT a match key — a hashtag "
+        "is how a human finds things, and hashtags overlap by design.",
+    )
+    contract: Contract | None = Field(
+        default=None,
+        description="What this does, with the project's words removed. Equality of contracts "
+        "IS a match, for assembling and for de-duplication alike.",
+    )
+    status: Status = Field(
+        default=Status.approved,
+        description="Seeds are approved because a person wrote them. Anything learned from a "
+        "build is provisional until someone says otherwise.",
+    )
+    source_project: str = Field(
+        default="", description="Which build this was learned from, when it was learned"
+    )
+
     provides: Provides = Field(default_factory=Provides)
     depends_on: list[str] = Field(default_factory=list)  # other entry ids
     package_dependencies: list[str] = Field(
@@ -118,8 +185,43 @@ class CatalogEntry(BaseModel):
 
     @property
     def offerable(self) -> bool:
-        """Whether the matcher may propose this at all."""
-        return self.quality.usable and bool(self.files)
+        """Whether the matcher may propose this at all.
+
+        A provisional entry IS offerable: it cleared every gate a seed clears
+        plus a re-verification a seed never had, and holding it back until
+        someone clicks approve would mean the library never actually grows.
+        What provisional changes is that it says so, everywhere.
+        """
+        return self.quality.usable and bool(self.files) and self.status is not Status.rejected
+
+    def effective_contract(self) -> Contract:
+        """What this entry does, as a comparable key.
+
+        Derived from `provides` when not stored, so a seed written before
+        contracts existed still matches: its operations name the entity
+        (`create_booking`), and generalising against the entity it declares
+        turns them into the same shape a contributed entry has.
+        """
+        if self.contract is not None:
+            return self.contract
+        entity = next((e for e in self.provides.entities if e.strip()), "")
+        return Contract.of(
+            operations=list(self.provides.operations),
+            routes=list(self.provides.routes),
+            files=list(self.files),
+            entity=entity if entity != ENTITY else "",
+        )
+
+    @property
+    def entry_id(self) -> EntryId | None:
+        """The structured id, when this entry has one. Seeds do not."""
+        return EntryId.parse(self.id)
+
+    @property
+    def line(self) -> str:
+        """The identity that survives improvement: `booking.1` for `booking.1.3`."""
+        parsed = self.entry_id
+        return parsed.line if parsed else self.id
 
     def adapt(self, entity: str, tokens: dict[str, str] | None = None) -> dict[str, str]:
         """This entry as files for one project: paths and bodies, substituted.
@@ -165,11 +267,15 @@ def _entity_forms(entity: str) -> dict[str, str]:
     """Every shape of the project's name an entry might need."""
     name = canonical_name(entity) or "item"
     words = name.split("_")
+    plural = _pluralize(name)
     return {
-        ENTITY: name,
+        # Longest first: substituting __ENTITY__ before __ENTITY_PLURAL__ would
+        # turn the latter into "bookingPLURAL__".
+        ENTITY_PLURAL_TITLE: " ".join(w.capitalize() for w in plural.split("_")),
         ENTITY_PASCAL: "".join(w.capitalize() for w in words),
+        ENTITY_PLURAL: plural,
         ENTITY_TITLE: " ".join(w.capitalize() for w in words),
-        ENTITY_PLURAL: _pluralize(name),
+        ENTITY: name,
     }
 
 

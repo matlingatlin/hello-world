@@ -45,6 +45,9 @@ from .intake.standin import intake_standin_registry
 from .layerb.architecture import Architecture
 from .layerb.service import LayerBResult, NotBuildableError, run_layer_b
 from .layerc.service import LayerCResult, run_layer_c
+from .library.entry import CatalogEntry
+from .library.identity import Status
+from .library.store import default_store
 
 app = FastAPI(
     title="Scio Engine",
@@ -287,6 +290,12 @@ async def build(req: BuildRequest) -> StreamingResponse:
             ):
                 if isinstance(payload, str):
                     yield _sse(event, json.dumps({"text": payload}))
+                elif isinstance(payload, dict):
+                    # Not every event carries a model. The library event does
+                    # not, and when this branch was missing it raised inside the
+                    # generator — which the build view showed as the BUILD
+                    # having failed, on a build that had actually succeeded.
+                    yield _sse(event, json.dumps(payload))
                 else:
                     yield _sse(event, payload.model_dump_json())
         except NotBuildableError as exc:
@@ -378,6 +387,126 @@ def design_restore(req: DesignRestoreRequest) -> RestoreResult:
     return restore_version(app_dir, req.git_sha, package_files=req.package_files)
 
 
+# --------------------------------------------------------------------------
+# The library's curation surface (B061)
+#
+# Deliberately light. The library grows on its own — every build offers its work
+# back — and this is the part that keeps that from being the same thing as
+# growing unattended: what is in there, what is provisional, and two verbs for a
+# person to use. A contributed entry is offerable while provisional, so approving
+# is not a gate on usefulness; it is a record of somebody having looked.
+# --------------------------------------------------------------------------
+
+
+class LibraryEntryView(BaseModel):
+    """One entry, as a curator needs to see it."""
+
+    id: str
+    name: str
+    category: str
+    hashtags: list[str] = Field(default_factory=list)
+    status: str
+    provenance: str
+    source_project: str = ""
+    layer: str
+    files: int
+    element_ids: int
+    contract: str = ""
+    offerable: bool = False
+
+    @classmethod
+    def of(cls, entry: CatalogEntry) -> "LibraryEntryView":
+        return cls(
+            id=entry.id,
+            name=entry.name,
+            category=entry.category,
+            hashtags=entry.hashtags,
+            status=entry.status.value,
+            provenance=entry.provenance,
+            source_project=entry.source_project,
+            layer=entry.layer.value,
+            files=len(entry.files),
+            element_ids=len(entry.element_ids),
+            contract=entry.effective_contract().describe(),
+            offerable=entry.offerable,
+        )
+
+
+class LibraryListing(BaseModel):
+    entries: list[LibraryEntryView] = Field(default_factory=list)
+    categories: list[str] = Field(default_factory=list)
+    proposed_categories: list[str] = Field(default_factory=list)
+    persistent: bool = Field(
+        description="False when no catalog database is configured: the library still matches "
+        "and assembles, but nothing it learns survives this process."
+    )
+
+
+@app.get("/library/entries", response_model=LibraryListing)
+def library_entries(category: str = "", status: str = "") -> LibraryListing:
+    """Everything the library holds, seeds and contributions alike."""
+    store = default_store()
+    registry = store.registry()
+    entries = [
+        e
+        for e in store.catalog().entries
+        if (not category or e.category == category) and (not status or e.status.value == status)
+    ]
+    return LibraryListing(
+        entries=[LibraryEntryView.of(e) for e in sorted(entries, key=lambda e: e.id)],
+        categories=registry.names(),
+        proposed_categories=sorted(c.name for c in registry.categories if not c.confirmed),
+        persistent=store.writable,
+    )
+
+
+class CurationRequest(BaseModel):
+    entry_id: str
+
+
+@app.post("/library/entries/{entry_id}/approve", response_model=LibraryEntryView)
+def library_approve(entry_id: str) -> LibraryEntryView:
+    """A person looked at this and it stays."""
+    entry = default_store().set_status(entry_id, Status.approved)
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"no contributed entry '{entry_id}'")
+    return LibraryEntryView.of(entry)
+
+
+@app.post("/library/entries/{entry_id}/reject", response_model=LibraryEntryView)
+def library_reject(entry_id: str) -> LibraryEntryView:
+    """A person looked at this and it goes.
+
+    Marked rejected rather than deleted: an entry that was offered and refused
+    is a fact about the library worth keeping, and a rejected entry is never
+    offerable or listed as a match candidate.
+    """
+    entry = default_store().set_status(entry_id, Status.rejected)
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"no contributed entry '{entry_id}'")
+    return LibraryEntryView.of(entry)
+
+
+class CategoryProposal(BaseModel):
+    name: str
+    description: str = ""
+
+
+@app.post("/library/categories", response_model=LibraryListing)
+def library_propose_category(body: CategoryProposal) -> LibraryListing:
+    """Record a new category as a question. Unconfirmed, so nothing matches on it."""
+    default_store().propose_category(body.name, body.description)
+    return library_entries()
+
+
+@app.post("/library/categories/{name}/confirm", response_model=LibraryListing)
+def library_confirm_category(name: str) -> LibraryListing:
+    """Confirm a proposed category. This is the only way the registry grows."""
+    if not default_store().confirm_category(name):
+        raise HTTPException(status_code=404, detail=f"no category '{name}'")
+    return library_entries()
+
+
 @app.get("/matrix/tasks")
 def matrix_tasks() -> dict[str, list[str]]:
     """The task types the matrix knows, and the models ranked for each."""
@@ -429,6 +558,12 @@ async def generate(req: GenerateRequest) -> StreamingResponse:
             ):
                 if isinstance(payload, str):
                     yield _sse(event, json.dumps({"text": payload}))
+                elif isinstance(payload, dict):
+                    # Not every event carries a model. The library event does
+                    # not, and when this branch was missing it raised inside the
+                    # generator — which the build view showed as the BUILD
+                    # having failed, on a build that had actually succeeded.
+                    yield _sse(event, json.dumps(payload))
                 else:
                     yield _sse(event, payload.model_dump_json())
         except BudgetExceeded as exc:

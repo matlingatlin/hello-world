@@ -55,6 +55,12 @@ class PackageBuildResult(BaseModel):
     remainders: list[Remainder] = Field(default_factory=list)
     build_version: int | None = None
     git_sha: str = ""
+    entry_id: str = Field(
+        default="",
+        description="The library entry this package was assembled from, when it was. This is "
+        "what lets the contribute step skip a package that CAME from the library instead of "
+        "offering it back as if the build had invented it.",
+    )
     total_cost_usd: float = 0.0
     checks_passed: int = 0
     checks_total: int = 0
