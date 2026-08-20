@@ -1,0 +1,40 @@
+{
+  "name": "Scio — full stack",
+  "build": { "dockerfile": "Dockerfile" },
+
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.11" },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  // dev-up.sh initialises its own cluster: it chowns PGDATA and runs initdb as
+  // the postgres user, both of which need root. Same user the sandbox the stack
+  // was written in runs as, so one script serves both.
+  "remoteUser": "root",
+
+  // The app is the one to open. The api is forwarded because the React app
+  // calls it FROM THE BROWSER — forwarding the app alone gives a white screen.
+  // The engine stays on loopback: only the api talks to it.
+  "forwardPorts": [5173, 3000],
+  "portsAttributes": {
+    "5173": { "label": "app — open this one", "onAutoForward": "notify" },
+    "3000": { "label": "api — must be public for the browser to reach it", "onAutoForward": "silent" },
+    "8000": { "label": "engine (internal)", "onAutoForward": "silent" }
+  },
+
+  "postCreateCommand": "./.devcontainer/post-create.sh",
+  "postStartCommand": "./.devcontainer/post-start.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "Prisma.prisma"
+      ]
+    }
+  }
+}

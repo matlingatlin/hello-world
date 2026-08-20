@@ -203,11 +203,16 @@ would work is a relay speaking WebSocket on 443 — there just isn't a free,
 signup-less one. Note that HTTP/2 must be avoided: negotiate h2 and the upgrade
 silently degrades to a plain `200`.
 
-The conclusion is a deploy, not a tunnel (B079). Whatever hosts it has to expose
-**both** the app and the api, because the browser calls the api directly — and
-`VITE_API_URL`, `CORS_ORIGINS` and `APP_ORIGIN` all have to name the public
-origins rather than `127.0.0.1`. Vite also refuses an unknown `Host` since 5.4.12,
-so a public hostname needs `server.allowedHosts`.
+**The answer is a Codespace** (B080): it runs the stack *and* forwards ports, so
+each one gets an `https://<name>-<port>.app.github.dev` origin openable from a
+phone — no deploy, no hosting decision, no key. `scripts/dev-up.sh` is the same
+command there; it derives the forwarded URLs from `$CODESPACE_NAME` and wires
+`VITE_API_URL`, `CORS_ORIGINS` and `APP_ORIGIN` to them. See
+**`RUNBOOK-CODESPACES.md`**.
+
+A real public deploy — for people who are not you, without a Codespace running —
+is still open (B079). Whatever hosts it has to expose **both** the app and the
+api, because the browser calls the api directly.
 
 ## When something is wrong
 

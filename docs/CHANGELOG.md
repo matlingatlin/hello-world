@@ -4,6 +4,44 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Added
+- 2026-08-20 — **B080: the stack runs in a Codespace, with URLs you can open on a phone.**
+  Yesterday's answer to "let me click it from my phone" was a measured *no* (B079). A Codespace
+  answers it from the other side: it runs the stack **and** forwards ports, so each one gets an
+  `https://<name>-<port>.app.github.dev` origin — no deploy, no hosting decision, no key, and
+  free clicking because the engine falls back to its stand-ins when there is no key.
+
+  `.devcontainer/` builds an image with PostgreSQL 16 + pgvector (the api's first migration begins
+  `CREATE EXTENSION "vector"`) and adds Node 20 and Python 3.11 as features; `post-create.sh`
+  installs the workspace and the engine's venv. `scripts/dev-up.sh` is the **same command** there —
+  it sources `scripts/codespace-env.sh`, which derives `VITE_API_URL`, `CORS_ORIGINS`,
+  `APP_ORIGIN`, the bind hosts and a preview-URL template from `$CODESPACE_NAME`. Nothing is
+  hard-coded and every value goes through `${VAR:-…}`, so the local path is byte-for-byte what it
+  was: `dev-up.sh` with no Codespace still prints `http://127.0.0.1:5173`.
+
+  Two things needed more than config. **Vite** has refused an unknown `Host` since 5.4.12, so
+  `.app.github.dev` is named in `server.allowedHosts` and HMR is pointed at port 443 — verified
+  live: the forwarded host gets `200`, an unknown one still gets *"Blocked request"*. And the
+  **preview** runs on a random loopback port that a phone cannot reach, so
+  `core/public_url.py` translates what the engine *publishes* (`http://127.0.0.1:41337` →
+  `https://<name>-41337.app.github.dev`) while it keeps dialling loopback itself. It rewrites
+  nothing without a template, and never touches a URL that is already public.
+
+  Verified by running the stack with `CODESPACE_NAME` set: the api returns
+  `Access-Control-Allow-Origin` for the forwarded app origin and nothing for a stranger, the app's
+  module graph resolves `VITE_API_URL` to the forwarded api, both servers answer on the
+  container's non-loopback address, and the engine process carries the template. **Not** verified:
+  an actual Codespace boot — this sandbox cannot create one, and the runbook says so rather than
+  implying otherwise.
+
+  The one step that cannot be automated: a forwarded port is **private** by default, and a private
+  port answers a cross-site `fetch` with GitHub's sign-in page, which the app honestly reports as
+  the api being down. `gh codespace ports visibility 3000:public` — port visibility cannot be set
+  from `devcontainer.json`. `dev-up.sh` prints that line when it sees a Codespace.
+
+  engine 592 (+10), api 90, app 74, ruff and typecheck clean.
+  Runbook: `docs/RUNBOOK-CODESPACES.md`.
+
 ### Investigated
 - 2026-08-20 — **The stack cannot be exposed from this sandbox (B079).** The task was a
   phone-openable URL in FAKE mode; the outcome is a measurement, not a URL. The stack came up

@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 
 from ..core.instrumentation import Manifest
 from ..core.manifest_builder import build_manifest
+from ..core.public_url import public_url
 from ..execution.provider import ProviderRegistry
 from ..layerb.architecture import DesignTokens
 from ..layerc.plan import BuildPackage, BuildPlan
@@ -321,7 +322,10 @@ async def stream_build_plan(
                 ),
             )
     finally:
-        app_url = preview.url
+        # The engine drives the preview over loopback; the browser that opens it
+        # may be somewhere else entirely, so what we PUBLISH can differ from
+        # where it runs. Identity locally — see core/public_url.
+        app_url = public_url(preview.url)
         if opts.close_preview:
             await asyncio.to_thread(preview.close)
 

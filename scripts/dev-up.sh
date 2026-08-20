@@ -38,6 +38,21 @@ APP_PORT="${SCIO_APP_PORT:-5173}"
 DATABASE_URL="postgresql://scio@127.0.0.1:$PGPORT/scio?schema=public"
 export DATABASE_URL
 
+# Where the BROWSER reaches things, which is not always where they run. Locally
+# that is loopback and always has been; in a Codespace it is a forwarded https
+# origin per port, derived from $CODESPACE_NAME. One file works that out, and
+# everything below just reads the answer.
+if [ -n "${CODESPACE_NAME:-}" ] && [ -f "$ROOT/scripts/codespace-env.sh" ]; then
+  # shellcheck source=codespace-env.sh
+  . "$ROOT/scripts/codespace-env.sh"
+fi
+
+APP_HOST="${SCIO_APP_HOST:-127.0.0.1}"
+APP_URL="${APP_PUBLIC_URL:-http://127.0.0.1:$APP_PORT}"
+API_URL="${VITE_API_URL:-http://127.0.0.1:$API_PORT}"
+APP_ORIGIN="${APP_ORIGIN:-http://127.0.0.1:$APP_PORT}"
+CORS_ORIGINS="${CORS_ORIGINS:-http://127.0.0.1:$APP_PORT,http://localhost:$APP_PORT}"
+
 mkdir -p "$RUN"
 
 say() { printf '\n\033[36m▸ %s\033[0m\n' "$*"; }
@@ -120,8 +135,8 @@ if curl -fsS -o /dev/null "http://127.0.0.1:$API_PORT/health" 2>/dev/null; then
 else
   (cd "$ROOT/apps/api" && SCIO_DEV_AUTH=1 \
     DATABASE_URL="$DATABASE_URL" \
-    CORS_ORIGINS="http://127.0.0.1:$APP_PORT,http://localhost:$APP_PORT" \
-    APP_ORIGIN="http://127.0.0.1:$APP_PORT" \
+    CORS_ORIGINS="$CORS_ORIGINS" \
+    APP_ORIGIN="$APP_ORIGIN" \
     ENGINE_URL="http://127.0.0.1:$ENGINE_PORT" \
     PORT="$API_PORT" \
     setsid npx nest start >"$RUN/api.log" 2>&1 & echo $! >"$RUN/api.pid")
@@ -136,20 +151,33 @@ if curl -fsS -o /dev/null "http://127.0.0.1:$APP_PORT" 2>/dev/null; then
   printf '  already running on port %s\n' "$APP_PORT"
 else
   (cd "$ROOT/apps/app" && VITE_DEV_AUTH=1 \
-    VITE_API_URL="http://127.0.0.1:$API_PORT" \
-    setsid npx vite --host 127.0.0.1 --port "$APP_PORT" --strictPort >"$RUN/app.log" 2>&1 & echo $! >"$RUN/app.pid")
+    VITE_API_URL="$API_URL" \
+    setsid npx vite --host "$APP_HOST" --port "$APP_PORT" --strictPort >"$RUN/app.log" 2>&1 & echo $! >"$RUN/app.pid")
   wait_for app "http://127.0.0.1:$APP_PORT" 90
 fi
 
 cat <<EOF
 
-  Open  http://127.0.0.1:$APP_PORT
+  Open  $APP_URL
   Sign in with any email — dev auth, no Clerk. A different email is a different workspace.
 
-  api      http://127.0.0.1:$API_PORT      (docs at /docs)
+  api      $API_URL      (docs at /docs)
   engine   http://127.0.0.1:$ENGINE_PORT/health
   postgres 127.0.0.1:$PGPORT  db 'scio'  ($PGDATA)
   logs     $RUN/*.log
 
   Stop everything with scripts/dev-down.sh
 EOF
+
+if [ -n "${CODESPACE_NAME:-}" ]; then
+  cat <<EOF
+  A forwarded port is PRIVATE by default, and a private port answers a browser
+  fetch with GitHub's sign-in page — which the app reads as the api being down.
+  Make the api port public once per Codespace:
+
+    gh codespace ports visibility $API_PORT:public -c \$CODESPACE_NAME
+
+  See docs/RUNBOOK-CODESPACES.md.
+
+EOF
+fi

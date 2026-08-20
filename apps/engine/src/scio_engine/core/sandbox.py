@@ -75,6 +75,20 @@ def free_port(preferred: int = 0) -> int:
         return sock.getsockname()[1]
 
 
+PREVIEW_HOST = "SCIO_PREVIEW_HOST"
+"""Which interface a preview binds. Loopback unless told otherwise.
+
+Loopback is the safe default and the right one whenever the browser is on the
+same machine. A Codespace forwards a port only if something is listening on
+every interface, so there it has to be `0.0.0.0` — a decision for whoever runs
+the engine, never a default we ship.
+"""
+
+
+def preview_host() -> str:
+    return os.getenv(PREVIEW_HOST, "").strip() or "127.0.0.1"
+
+
 def _guard_path(workdir: Path, relative: str) -> Path:
     """Refuse writes that escape the sandbox directory.
 
@@ -122,7 +136,7 @@ class LocalProcessSandbox(SandboxProvider):
         port = port or free_port()
         url = f"http://127.0.0.1:{port}"
         process = subprocess.Popen(
-            ["npm", "run", "dev", "--", "--port", str(port), "--hostname", "127.0.0.1"],
+            ["npm", "run", "dev", "--", "--port", str(port), "--hostname", preview_host()],
             cwd=app_dir,
             env={
                 **os.environ,

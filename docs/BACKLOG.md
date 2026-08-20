@@ -81,6 +81,18 @@
 | B078 | Generated apps render-block on a Google Fonts stylesheet — the app waits on a third party | PP5 | P0 | done |
 | B063 | Decide customer-facing pricing (markup + currency) — the estimate shows build cost, not a price | PP4 | P0 | todo |
 | B079 | The operator cannot open the product from their own device: the sandbox has no inbound path and no free tunnel fits its egress — deploy the app + api somewhere reachable | PP5 | P0 | todo |
+| B080 | Codespaces run mode: the whole stack with forwarded, phone-openable URLs (no deploy) | PP5 | P0 | done |
+
+**B080 — a Codespace is the way in.** It runs the stack *and* forwards ports, so each one gets an
+`https://<name>-<port>.app.github.dev` origin openable from a phone — no deploy, no hosting
+decision, no key. `.devcontainer/` provides Node 20, Python 3.11 and PostgreSQL 16 + pgvector;
+`scripts/dev-up.sh` is the same command there and derives `VITE_API_URL`, `CORS_ORIGINS`,
+`APP_ORIGIN` and a preview-URL template from `$CODESPACE_NAME`. Two things had to change beyond
+config: Vite refuses an unknown `Host` (allowedHosts), and the engine now publishes a preview at
+its forwarded URL rather than the loopback one it dials. One step cannot be automated — a
+forwarded port is private by default and a private port answers a cross-site `fetch` with
+GitHub's sign-in page, so the api port has to be made public by hand. See
+`docs/RUNBOOK-CODESPACES.md`.
 
 **B079 — the product runs, and the person building it still cannot open it.** Everything works
 in the sandbox and nothing works from a phone, because the sandbox has no inbound path and its
