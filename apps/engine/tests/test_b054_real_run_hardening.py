@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import make_booking_spec
+from conftest import complete_reply, make_booking_spec
 from scio_engine.builder.critique import (
     Evidence,
     build_critique_prompt,
@@ -26,7 +26,13 @@ from scio_engine.builder.critique import (
 from scio_engine.builder.file_plan import planned_files
 from scio_engine.builder.loop import BuildOptions, ScriptedPreview, build_package
 from scio_engine.builder.result import PackageStatus
-from scio_engine.builder.validation import Agent, validate_package
+from scio_engine.builder.validation import (
+    Agent,
+    Severity,
+    check_delivered_quality,
+    check_files_complete,
+    validate_package,
+)
 from scio_engine.core.console import classify_console
 from scio_engine.core.instrumentation import Manifest
 from scio_engine.core.manifest_builder import build_manifest
@@ -398,11 +404,17 @@ class TestImportBoundary:
     def test_it_names_the_package_when_the_file_belongs_to_one(self):
         """Reaching into a real package you don't depend on is a different
         mistake from importing a file that does not exist — say which."""
-        finding = validate_package(
-            foundation_package(),
-            {"lib/supabase.ts": "import { booking } from '@/lib/db/booking';\n"},
-            package_files=PLAN_FILES,
-        ).errors[0]
+        # Selected by agent: a partial file set now also produces completeness
+        # findings (B076), and this test is about the import boundary.
+        finding = next(
+            f
+            for f in validate_package(
+                foundation_package(),
+                {"lib/supabase.ts": "import { booking } from '@/lib/db/booking';\n"},
+                package_files=PLAN_FILES,
+            ).errors
+            if f.agent is Agent.import_boundary
+        )
 
         assert "pkg_feature_booking" in finding.message
         assert "not one of this package's dependencies" in finding.message
@@ -508,7 +520,12 @@ class TestImportBoundaryInTheLoop:
             "## Goal\nA guest can book a table.\n",
             tmp_path,
             registry=ProviderRegistry.scripted(
-                [OUT_OF_BOUNDS_CODE, IN_BOUNDS_CODE, CRITIQUE_PASS], loop_last=True
+                [
+                    complete_reply(package, OUT_OF_BOUNDS_CODE),
+                    complete_reply(package, IN_BOUNDS_CODE),
+                    CRITIQUE_PASS,
+                ],
+                loop_last=True,
             ),
             preview=ScriptedPreview([clean()]),
             options=BuildOptions(
@@ -610,7 +627,9 @@ class TestVerifierRequiresBothAttributes:
             package,
             "## Goal\nA guest can book a table.\n",
             tmp_path,
-            registry=ProviderRegistry.scripted([unmarked, CRITIQUE_PASS], loop_last=True),
+            registry=ProviderRegistry.scripted(
+                [complete_reply(package, unmarked), CRITIQUE_PASS], loop_last=True
+            ),
             preview=ScriptedPreview([clean()]),
             options=BuildOptions(
                 max_attempts=1,
@@ -700,3 +719,110 @@ class TestServerActionsHaveAHome:
             architecture_slice=[NodeRef(kind="operation", name="list_menu")],
         )
         assert set(booking) & set(planned_files(menu_package)) == set()
+
+
+# --------------------------------------------------------------------------
+# B076-B078: what the first full real UI run cost us
+# --------------------------------------------------------------------------
+
+
+class TestAPackageCannotBeSilentlyLost:
+    """B076. The run lost `pkg_feature_workout` to the output cap: the reply was
+    cut off, the retry was cut off too, and a whole feature was gone."""
+
+    def test_a_package_too_big_for_one_reply_is_asked_for_in_chunks(self):
+        from scio_engine.builder.loop import CHUNK_TOKEN_BUDGET, file_chunks
+        from scio_engine.estimate import expected_output_tokens
+        from scio_engine.layerc.decompose import decompose
+
+        # The real thing, from the real decomposition — this is the package the
+        # first full run lost, and it is estimated at 16k against a 16k cap.
+        package = next(
+            p for p in decompose(derive_architecture(make_booking_spec()))
+            if p.kind is PackageKind.feature
+        )
+        assert expected_output_tokens(package) > CHUNK_TOKEN_BUDGET  # the case that broke
+
+        chunks = file_chunks(package)
+
+        assert len(chunks) > 1
+        # Every planned file is asked for exactly once, and nothing else is.
+        assert [path for chunk in chunks for path in chunk] == planned_files(package)
+
+    def test_a_small_package_is_still_one_call(self):
+        """Chunking is for packages that do not fit, not a new way to build."""
+        from scio_engine.builder.loop import file_chunks
+
+        package = BuildPackage(
+            id="pkg_auth", kind=PackageKind.auth, goal="sign-in",
+            architecture_slice=[NodeRef(kind="auth", name="auth_access")],
+        )
+
+        assert len(file_chunks(package)) == 1
+
+    def test_a_missing_file_is_named_not_shrugged_at(self):
+        package = booking_package()
+        complete = {path: "export const x = 1;\n" for path in planned_files(package)}
+        short = {k: v for k, v in complete.items() if "validation" not in k}
+
+        findings = check_files_complete(package, short)
+
+        assert [f.file for f in findings] == ["lib/validation/booking.ts"]
+        assert "was not written" in findings[0].message
+        assert check_files_complete(package, complete) == []
+
+    def test_an_empty_file_counts_as_missing(self):
+        """A file that arrived as whitespace is not a file that arrived."""
+        package = booking_package()
+        files = {path: "export const x = 1;\n" for path in planned_files(package)}
+        files["components/booking-form.tsx"] = "\n  \n"
+
+        findings = check_files_complete(package, files)
+
+        assert [f.file for f in findings] == ["components/booking-form.tsx"]
+
+
+class TestADeliveredAppDoesNotWaitOnAThirdParty:
+    """B078. A real build shipped @import url('https://fonts.googleapis.com/…')
+    in globals.css, and the app then blocked 12.7s on a host it could not reach."""
+
+    def test_an_imported_web_font_fails_the_package(self):
+        findings = check_delivered_quality(
+            {"app/globals.css": "@import url('https://fonts.googleapis.com/css2?family=Inter');\n"}
+        )
+
+        assert len(findings) == 1
+        assert findings[0].severity is Severity.error
+        assert "next/font" in findings[0].message
+
+    def test_a_linked_web_font_fails_too(self):
+        findings = check_delivered_quality(
+            {"app/layout.tsx": '<link href="https://fonts.googleapis.com/css2?family=Inter" />'}
+        )
+
+        assert len(findings) == 1
+
+    def test_next_font_is_what_passes(self):
+        assert (
+            check_delivered_quality(
+                {
+                    "app/layout.tsx": (
+                        'import { Inter } from "next/font/google";\n'
+                        'const inter = Inter({ subsets: ["latin"] });\n'
+                    )
+                }
+            )
+            == []
+        )
+
+    def test_the_tokens_package_is_told_how_fonts_are_loaded(self):
+        """A rule nobody is told about is a rule that gets broken every time."""
+        from scio_engine.layerc.decompose import decompose
+
+        tokens = next(
+            p for p in decompose(derive_architecture(make_booking_spec()))
+            if p.kind is PackageKind.design_tokens
+        )
+
+        assert "next/font" in tokens.goal
+        assert any("next/font" in c.text for c in tokens.acceptance_criteria)

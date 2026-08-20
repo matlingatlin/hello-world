@@ -31,12 +31,13 @@ from pathlib import Path
 
 import pytest
 
+from conftest import scripted_codegen
 from scio_engine.builder.critique import (
     interaction_criteria,
     judgeable_criteria,
     unjudged_criteria,
 )
-from scio_engine.builder.loop import BuildOptions, ScriptedPreview, build_package
+from scio_engine.builder.loop import BuildOptions, ScriptedPreview, build_package, file_chunks
 from scio_engine.builder.result import PackageStatus
 from scio_engine.core.interaction import (
     Action,
@@ -426,8 +427,16 @@ def one_attempt_options(max_attempts: int) -> BuildOptions:
     )
 
 
-def registry_for(replies: list[str]):
-    """A fake provider that answers codegen and critique in order."""
+def registry_for(replies: list[str], package=None):
+    """A fake provider that answers codegen and critique in order.
+
+    When a package is given, every codegen reply is padded to the package's full
+    file plan (B076): these tests are about the interaction channel, not about
+    completeness, and a fixture that wrote five of eight files is now correctly
+    told it is missing three.
+    """
+    if package is not None:
+        replies = scripted_codegen(package, replies)
     return ProviderRegistry.scripted(replies)
 
 
@@ -478,7 +487,7 @@ class TestTheLoopUsesIt:
             package,
             "contract",
             tmp_path,
-            registry=registry_for([FEATURE_CODE, PASSING_CRITIQUE]),
+            registry=registry_for([FEATURE_CODE, PASSING_CRITIQUE], package),
             preview=preview,
             options=one_attempt_options(1),
         )
@@ -504,7 +513,7 @@ class TestTheLoopUsesIt:
             package,
             "contract",
             tmp_path,
-            registry=registry_for([FEATURE_CODE, FEATURE_CODE]),
+            registry=registry_for([FEATURE_CODE, FEATURE_CODE], package),
             preview=preview,
             options=one_attempt_options(1),
         )
@@ -524,7 +533,7 @@ class TestTheLoopUsesIt:
                 passed(Script(name="isolation")),
             ],
         )
-        registry = registry_for([FEATURE_CODE, FEATURE_CODE, PASSING_CRITIQUE])
+        registry = registry_for([FEATURE_CODE, FEATURE_CODE, PASSING_CRITIQUE], package)
 
         result = await build_package(
             package,
@@ -544,8 +553,8 @@ class TestTheLoopUsesIt:
         self, tmp_path
     ):
         """A relay costs money to tell us what a browser already proved."""
-        provider = CountingProvider([FEATURE_CODE])
         package = booking_package()
+        provider = CountingProvider(scripted_codegen(package, [FEATURE_CODE]))
         preview = ScriptedPreview(
             [clean_observation()],
             interactions=[failed("create_booking persists", "it was not saved")],
@@ -560,8 +569,11 @@ class TestTheLoopUsesIt:
             options=one_attempt_options(1),
         )
 
-        # One call: the codegen. The critique was never asked.
-        assert provider.calls == 1
+        # The codegen calls and nothing more: the critique was never asked.
+        # A package this size is generated in bounded chunks (B076), so "the
+        # codegen" is one call per chunk — what matters is that no relay was
+        # spent on a verdict the browser had already given.
+        assert provider.calls == len(file_chunks(package))
 
     async def test_every_derived_script_is_run(self, tmp_path):
         package = booking_package()
@@ -574,7 +586,7 @@ class TestTheLoopUsesIt:
             package,
             "contract",
             tmp_path,
-            registry=registry_for([FEATURE_CODE, PASSING_CRITIQUE]),
+            registry=registry_for([FEATURE_CODE, PASSING_CRITIQUE], package),
             preview=preview,
             options=one_attempt_options(1),
         )
@@ -596,7 +608,7 @@ class TestTheLoopUsesIt:
             package,
             "contract",
             tmp_path,
-            registry=registry_for([FEATURE_CODE, FEATURE_CODE]),
+            registry=registry_for([FEATURE_CODE, FEATURE_CODE], package),
             preview=preview,
             options=one_attempt_options(2),
         )

@@ -17,10 +17,13 @@ from pydantic import BaseModel, Field
 
 from ..core.instrumentation import ID_ATTRIBUTE
 from ..layerc.plan import BuildPackage
+from .file_plan import planned_files
 
 
 class Agent(StrEnum):
     code_quality = "code_quality"
+    files_complete = "files_complete"
+    delivered_quality = "delivered_quality"
     tests_present = "tests_present"
     security = "security"
     contract_consistency = "contract_consistency"
@@ -314,6 +317,90 @@ def check_import_boundary(
     return findings
 
 
+_EXTERNAL_FONT = re.compile(
+    r"""(?ix)
+    (?: @import \s+ url\( \s* ['"]? https?://(?:fonts\.googleapis\.com|fonts\.gstatic\.com|use\.typekit\.net)
+      | <link [^>]* href \s* = \s* ['"] https?://(?:fonts\.googleapis\.com|fonts\.gstatic\.com|use\.typekit\.net)
+    )
+    """
+)
+
+
+def check_delivered_quality(files: dict[str, str]) -> list[Finding]:
+    """Things that make a DELIVERED app worse, whatever the code does.
+
+    Currently one rule, and it earned its place by being measured: a generated
+    app loaded its typefaces with `@import url('https://fonts.googleapis.com/…')`
+    in `globals.css`. That is render-blocking — the whole app waits on a third
+    party before it paints. In the sandbox, where that host is unreachable, the
+    wait was **12.7 seconds**; on the open internet it is a Lighthouse penalty
+    and an outage nobody owns.
+
+    Next has built-in font optimisation (`next/font`) that downloads the font at
+    BUILD time and serves it from the app's own origin. Same typeface, no
+    third-party request at runtime. A rule the model is merely asked to follow
+    would be followed most of the time; this fails the package and retries.
+    """
+    findings: list[Finding] = []
+    for path, body in sorted(files.items()):
+        if _EXTERNAL_FONT.search(body):
+            findings.append(
+                Finding(
+                    agent=Agent.delivered_quality,
+                    severity=Severity.error,
+                    message=(
+                        "this loads a font from a third party, which blocks the first paint on "
+                        "somebody else's server. Use next/font (e.g. "
+                        "`import { Inter } from 'next/font/google'` in app/layout.tsx) so the "
+                        "font is downloaded at build time and served from this app."
+                    ),
+                    file=path,
+                )
+            )
+    return findings
+
+
+def check_files_complete(package: BuildPackage, files: dict[str, str]) -> list[Finding]:
+    """Every file the plan promised is actually there, and actually has code in it.
+
+    The file plan is deterministic: `planned_files` says exactly what a package
+    writes, and the manifest's package→file map is built from the same list. A
+    package that comes back with six of its eight files is not a smaller package
+    — it is an app missing a form, and nothing downstream would notice, because
+    every other check only looks at the files that DID arrive.
+
+    The first real run lost `pkg_feature_workout` this way: the reply hit the
+    output-token limit, the retry hit it again, and the part was reported as
+    failed with no file on disk. This turns "some files are missing" into a
+    named, retryable finding rather than a silent shortfall.
+    """
+    findings: list[Finding] = []
+    for path in planned_files(package):
+        body = files.get(path)
+        if body is None:
+            findings.append(
+                Finding(
+                    agent=Agent.files_complete,
+                    severity=Severity.error,
+                    message=(
+                        f"'{path}' is in this package's file plan and was not written. "
+                        "Return it complete."
+                    ),
+                    file=path,
+                )
+            )
+        elif not body.strip():
+            findings.append(
+                Finding(
+                    agent=Agent.files_complete,
+                    severity=Severity.error,
+                    message=f"'{path}' was written empty. Return it complete.",
+                    file=path,
+                )
+            )
+    return findings
+
+
 def validate_package(
     package: BuildPackage,
     files: dict[str, str],
@@ -325,7 +412,9 @@ def validate_package(
         findings=[
             *check_security(files),
             *check_code_quality(files),
+            *check_delivered_quality(files),
             *check_tests_present(package, files),
+            *check_files_complete(package, files),
             *check_contract_consistency(package, files),
             *check_import_boundary(package, files, package_files=package_files),
         ]

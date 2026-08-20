@@ -353,7 +353,11 @@ class TestTruncatedReply:
         assert result.files == []
         assert not list(tmp_path.glob("**/*.tsx"))
         assert any("cut off" in problem for a in result.attempts for problem in a.problems)
-        assert provider.calls == 2  # it was retried, and told what went wrong
+        # Three, not two: the CHUNK is retried on its own first (B076 —
+        # CHUNK_RETRIES), and only when a small chunk still will not fit does
+        # the package fail and get retried as a whole. The point is that
+        # nothing is written either way.
+        assert provider.calls == 3
 
 
 class TestExtraction:

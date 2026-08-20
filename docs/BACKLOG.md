@@ -76,8 +76,9 @@
 | B073 | A build's actual cost is never recorded (usage_event empty, no cost on build_version) — only the estimate exists | PP5 | P0 | done |
 | B074 | Contribute gate: allow RFC 2606 reserved names (example.com, .test, localhost) so test fixtures stop reading as leaks | PP4 | P1 | done |
 | B075 | The app fetches /intake twice per page load (React StrictMode double-mount) — free now, but it doubled the old cost | PP5 | P2 | todo |
-| B076 | A feature package can fail purely on the 16k codegen output cap — the reply is cut off and the part is lost | PP5 | P0 | todo |
-| B077 | The estimate is optimistic on time: 14–33 min predicted, 46 min actual on a 7-part build | PP5 | P1 | todo |
+| B076 | A feature package can fail purely on the 16k codegen output cap — the reply is cut off and the part is lost | PP5 | P0 | done |
+| B077 | The estimate is optimistic on time: 14–33 min predicted, 46 min actual on a 7-part build | PP5 | P1 | done |
+| B078 | Generated apps render-block on a Google Fonts stylesheet — the app waits on a third party | PP5 | P0 | done |
 | B063 | Decide customer-facing pricing (markup + currency) — the estimate shows build cost, not a price | PP4 | P0 | todo |
 
 **Gate 2b is done** (B068) — **the design window exists and has been clicked**. Approving a spec
@@ -92,6 +93,16 @@ new spec version rather than rewriting the security posture (ADR-0001's wedge st
 known cost is that code and posture can drift, and the UI says a deeper change belongs in the
 wizard) — and **versions really restore**, via `git read-tree` forward onto a new commit, refused if
 the restored tree's instrumentation no longer verifies.
+
+**B076–B078 are closed (2026-08-20).** A package can no longer be silently lost: every file in the
+deterministic file plan must be present and non-empty or the package fails and retries
+(`check_files_complete`), and a package too big for one reply is now generated in **bounded chunks**
+rather than being asked, twice, to be "shorter" — which is how the first real run lost
+`pkg_feature_workout` entirely. The estimate range is recalibrated against the builds we actually
+measured (it excluded both of them). And generated apps no longer load typefaces from a font CDN:
+guidance says `next/font`, and a build gate fails a package that ships an `@import` or `<link>` to
+one. Writing the completeness check immediately found that the test fixtures had never matched the
+file plan either — `feature_code` wrote five of eight files.
 
 **B071–B074 are closed (2026-08-20).** The kickoff's remaining definition-of-done landed on top of
 the work already proven live: `build_version.cost_usd`/`tokens` so a build's cost is readable from

@@ -366,7 +366,9 @@ def _tokens_package(arch: Architecture) -> BuildPackage:
         kind=PackageKind.design_tokens,
         goal=(
             "Encode the design tokens (palette, typography, radius) as CSS variables and a "
-            "Tailwind theme, so every screen styles from tokens rather than ad-hoc values."
+            "Tailwind theme, so every screen styles from tokens rather than ad-hoc values. "
+            "Load typefaces with next/font so they are served from this app, never with an "
+            "@import or <link> to a font CDN."
         ),
         architecture_slice=[NodeRef(kind="tokens", name="design_tokens")],
         dependencies=[FOUNDATION_ID],
@@ -386,6 +388,14 @@ def _tokens_package(arch: Architecture) -> BuildPackage:
             ),
             checked(
                 "No hard-coded colours or font families outside the token definitions.",
+                "app/globals.css",
+            ),
+            # Measured, not theoretical: a real build shipped
+            # `@import url('https://fonts.googleapis.com/…')` here, and the app
+            # then waited 12.7s on a host the network would not reach.
+            checked(
+                "Typefaces load via next/font, not an @import or <link> to a font CDN — "
+                "a third-party font request blocks the first paint.",
                 "app/globals.css",
             ),
         ],

@@ -5,6 +5,42 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Fixed
+- 2026-08-20 — **B076–B078: no silent package loss, a calibrated range, and fonts we serve ourselves.**
+
+  **B076 — a package cannot be lost any more.** Two rules, both deterministic. First,
+  `check_files_complete` judges what a package wrote against `planned_files`, the same file plan the
+  manifest's package→file map is built from: a missing or empty file is a named, retryable finding.
+  A package that comes back with six of its eight files is not a smaller package, it is an app
+  missing a form — and every other gate only ever looked at the files that *did* arrive. Second,
+  a package whose files will not fit in one reply is generated in **bounded chunks**
+  (`file_chunks`, `CHUNK_TOKEN_BUDGET = 11000`), each chunk retried on its own before the package
+  fails. The first real run proved the old approach could not work: the reply hit the 16k cap, the
+  model was told to "return the files complete, and shorter", it hit the cap again, and
+  `pkg_feature_workout` was gone. Eight files of real code do not become five files of real code
+  because the prompt asked nicely. Chunk two is handed chunk one's code verbatim so exports and
+  names line up.
+
+  Writing the check found the same bug in our own tests: `feature_code` had always written **five of
+  the eight files** a feature package plans, and the docstring said so out loud. The fixtures are
+  complete now, and `conftest.complete_reply` / `scripted_codegen` let a focused test stay focused
+  without describing an impossible build.
+
+  **B077 — the estimate range now contains the builds it claims to predict.** Calibrated, not
+  chosen: 5 generated + 1 assembled took 10.8 min against a 13.6 min point (ratio 0.79); 7 generated
+  took 45.9 min and $2.69 against 18.5 min / $1.39 (ratios 2.48 and 1.93). The old band of
+  0.75–1.8 excluded *both* real measurements — it advertised "up to 33 minutes" for a 46-minute
+  build and "up to $2.51" for one that cost $2.69. Now 0.7–2.6, with a test pinning all three
+  observations inside it and a second test keeping the band under 4.5× so it still says something.
+
+  **B078 — a delivered app no longer waits on a font CDN.** A real build wrote
+  `@import url('https://fonts.googleapis.com/…')` into `globals.css`; the app then blocked its first
+  paint on a host the sandbox refuses, for **12,692 ms**. The design-tokens contract and the codegen
+  house rules now say to use `next/font` (downloaded at build time, served from the app), and
+  `check_delivered_quality` fails any package that ships an `@import` or `<link>` to a font CDN —
+  because a rule the model is merely asked to follow is followed most of the time.
+
+  engine 572 (+10), api 90, app 74, typecheck and ruff clean.
+
 - 2026-08-20 — **B071–B074 closed: the build's own cost, estimated-vs-spent, and a cache with a key.**
   Three gaps between what shipped earlier and what the kickoff's definition of done literally asks
   for.

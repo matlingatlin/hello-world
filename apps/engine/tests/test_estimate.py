@@ -26,7 +26,7 @@ from scio_engine.estimate import (
 from scio_engine.execution.provider import ProviderRegistry, Vendor
 from scio_engine.layerb.derive import derive_architecture
 from scio_engine.layerc.decompose import build_plan
-from scio_engine.layerc.plan import BuildPackage, NodeRef, PackageKind
+from scio_engine.layerc.plan import BuildPackage, BuildPlan, NodeRef, PackageKind
 from scio_engine.layerc.service import run_layer_c
 
 
@@ -164,6 +164,32 @@ class TestHonestFraming:
         assert estimate.composition.describe() == "nothing to build"
 
 
+def plan_of(*, generated: int, assembled: int = 0) -> BuildPlan:
+    """A plan of N feature packages, for calibrating against builds we measured.
+
+    Shaped by COUNT rather than rebuilt from a spec on purpose: what was observed
+    is "seven generated packages took 45.9 minutes", and reconstructing the exact
+    architecture behind them would pin the test to a spec instead of to the
+    measurement.
+    """
+    packages: list[BuildPackage] = []
+    for i in range(generated + assembled):
+        package = BuildPackage(
+            id=f"pkg_feature_thing{i}",
+            kind=PackageKind.feature,
+            goal="a feature",
+            architecture_slice=[
+                NodeRef(kind="operation", name=f"create_thing{i}"),
+                NodeRef(kind="screen", name=f"/thing{i}"),
+            ],
+        )
+        if i >= generated:
+            package.source = "assemble"
+            package.catalog_entry = "feature-thing"
+        packages.append(package)
+    return BuildPlan(packages=packages, order=[p.id for p in packages])
+
+
 class TestTheHeuristic:
     def test_more_in_a_package_costs_more(self):
         small = BuildPackage(
@@ -214,6 +240,38 @@ class TestTheHeuristic:
 
         assert estimate.cost_usd.low <= 1.4210 <= estimate.cost_usd.high
 
+    def test_the_range_contains_the_real_builds_it_was_calibrated_on(self, monkeypatch):
+        """B077: the top of the range must not be somewhere the real world walks past.
+
+        Two builds were run end to end on Sonnet 5 at two passes:
+
+            5 generated + 1 assembled   took 10.8 min
+            7 generated                 took 45.9 min and cost $2.69
+
+        The old range said "up to 33 minutes" for the second and "up to $2.51"
+        for its cost — both wrong, and wrong in the direction that matters,
+        because the estimate is what someone decides on.
+        """
+        monkeypatch.setenv("SCIO_MODEL", "claude-sonnet-5")
+        monkeypatch.setenv("SCIO_MODEL_PASSES", "1")  # 1 -> generate + self-review
+
+        short = estimate_plan(plan_of(generated=5, assembled=1))
+        long = estimate_plan(plan_of(generated=7))
+
+        assert short.minutes.low <= 10.8 <= short.minutes.high, short.minutes
+        assert long.minutes.low <= 45.9 <= long.minutes.high, long.minutes
+        assert long.cost_usd.low <= 2.688465 <= long.cost_usd.high, long.cost_usd
+
+    def test_the_range_is_not_so_wide_it_says_nothing(self, monkeypatch):
+        """A range that spans an order of magnitude is not an estimate."""
+        monkeypatch.setenv("SCIO_MODEL", "claude-sonnet-5")
+        monkeypatch.setenv("SCIO_MODEL_PASSES", "1")
+
+        estimate = estimate_plan(plan_of(generated=7))
+
+        assert estimate.minutes.high / estimate.minutes.low < 4.5
+        assert estimate.cost_usd.high / estimate.cost_usd.low < 4.5
+
     def test_the_default_profile_is_dearer_than_the_cheap_one(self, monkeypatch):
         """Not a bug when the number looks big: the shipped default is the full
         relay over the ranked matrix, which is Opus at four passes."""
@@ -225,7 +283,12 @@ class TestTheHeuristic:
         monkeypatch.delenv("SCIO_MODEL_PASSES")
         default = estimate_plan(booking_plan())
 
-        assert default.cost_usd.low > cheap.cost_usd.high
+        # Compared band to band rather than extreme to extreme. Since B077
+        # widened the range to contain the builds we actually measured, a cheap
+        # model having a bad day can cost more than an expensive one having a
+        # good day — which is true, and not what this test is about.
+        assert default.cost_usd.low > cheap.cost_usd.low
+        assert default.cost_usd.high > cheap.cost_usd.high
 
     def test_more_passes_cost_more(self, monkeypatch):
         monkeypatch.setenv("SCIO_MODEL_PASSES", "1")  # 1 -> two passes

@@ -213,6 +213,23 @@ CODEGEN_MAX_TOKENS = 16000
 the third one in half. Generous rather than exact: output tokens are only billed
 when used, and a truncated reply costs a whole extra attempt."""
 
+CHUNK_TOKEN_BUDGET = 11000
+"""How much one codegen call is allowed to be asked for.
+
+Below `CODEGEN_MAX_TOKENS` on purpose: the estimate of how big a file is, is an
+estimate, and a chunk that lands slightly over its guess must still fit in the
+reply rather than being cut off. The gap is the safety margin.
+
+This exists because a package that does not fit cannot be made to fit by asking
+again. The first real run proved it: `pkg_feature_workout` hit the limit, was
+told to "return the files complete, and shorter", hit it again, and the part was
+lost. Eight files of real code do not become five files of real code because the
+prompt asked nicely."""
+
+CHUNK_RETRIES = 2
+"""Attempts per chunk before the whole package is failed and retried. A chunk is
+small; if it will not fit twice, the problem is not the size."""
+
 CODEGEN_TIMEOUT_S = 900.0
 """Writing that much code takes minutes, not seconds. The relay's 120s default is
 sized for short calls (a question, a critique verdict); using it for codegen made
@@ -296,6 +313,56 @@ def _files_on_disk(app_dir: Path, paths: list[str]) -> dict[str, str]:
     return {p: (app_dir / p).read_text() for p in paths if (app_dir / p).exists()}
 
 
+def file_chunks(package: BuildPackage, budget: int = CHUNK_TOKEN_BUDGET) -> list[list[str]]:
+    """The package's planned files, grouped so no single call must exceed `budget`.
+
+    The split is deterministic — same package, same groups — because the whole
+    point is that WHAT gets built does not depend on how it was emitted. Sizing
+    reuses the estimate's own per-package token model (`estimate.py`), which is
+    the one place in the engine that holds an opinion about how big a package is;
+    a second opinion here would drift from it silently.
+
+    One file per chunk is the floor. A single file bigger than the budget cannot
+    be split without inventing a way to stitch half-files together, which is
+    exactly the thing that must never happen — it is reported as truncation and
+    retried instead.
+    """
+    from ..estimate import expected_output_tokens
+
+    files = planned_files(package)
+    if not files:
+        return []
+    per_file = max(1, expected_output_tokens(package) // len(files))
+    per_chunk = max(1, budget // per_file)
+    return [files[i : i + per_chunk] for i in range(0, len(files), per_chunk)]
+
+
+async def _generate_chunk(
+    package: BuildPackage,
+    contract: str,
+    paths: list[str],
+    *,
+    registry: ProviderRegistry,
+    options: BuildOptions,
+    written: dict[str, str],
+) -> tuple[str, float, int, bool]:
+    """One chunk of a package's files, with what is already written for context."""
+    prompt = build_prompt(package, contract, only=paths, already_written=written)
+    result = await run_relay(
+        "codegen",
+        prompt,
+        registry=registry,
+        options=RelayOptions(
+            passes=options.codegen_passes,
+            system=CODEGEN_SYSTEM,
+            budget_usd=options.budget_usd,
+            max_tokens=CODEGEN_MAX_TOKENS,
+            timeout_s=CODEGEN_TIMEOUT_S,
+        ),
+    )
+    return result.final_text, result.total_cost_usd, result.total_tokens, result.truncated
+
+
 async def _generate(
     package: BuildPackage,
     contract: str,
@@ -304,30 +371,61 @@ async def _generate(
     options: BuildOptions,
     current_files: dict[str, str],
     problems: list[str],
-) -> tuple[str, float, bool]:
-    """One codegen relay — a first draft, or a repair with the code in hand.
+) -> tuple[str, float, int, bool]:
+    """A first draft, or a repair with the code in hand.
 
-    Returns the reply, what it cost, and whether it was cut off.
+    Returns the reply, what it cost, how many tokens it took, and whether it was
+    cut off. A first draft of a package too big for one reply is emitted in
+    bounded chunks and concatenated — every FILE block is still a complete file,
+    so nothing downstream needs to know it arrived in pieces.
     """
-    first = not problems
-    prompt = (
-        build_prompt(package, contract)
-        if first
-        else fix_prompt(package, contract, current_files, problems)
-    )
-    result = await run_relay(
-        "codegen",
-        prompt,
-        registry=registry,
-        options=RelayOptions(
-            passes=options.codegen_passes,
-            system=CODEGEN_SYSTEM if first else FIX_SYSTEM,
-            budget_usd=options.budget_usd,
-            max_tokens=CODEGEN_MAX_TOKENS,
-            timeout_s=CODEGEN_TIMEOUT_S,
-        ),
-    )
-    return result.final_text, result.total_cost_usd, result.total_tokens, result.truncated
+    if problems:
+        result = await run_relay(
+            "codegen",
+            fix_prompt(package, contract, current_files, problems),
+            registry=registry,
+            options=RelayOptions(
+                passes=options.codegen_passes,
+                system=FIX_SYSTEM,
+                budget_usd=options.budget_usd,
+                max_tokens=CODEGEN_MAX_TOKENS,
+                timeout_s=CODEGEN_TIMEOUT_S,
+            ),
+        )
+        return result.final_text, result.total_cost_usd, result.total_tokens, result.truncated
+
+    chunks = file_chunks(package)
+    replies: list[str] = []
+    written: dict[str, str] = {}
+    total_cost = 0.0
+    total_tokens = 0
+
+    for paths in chunks:
+        for attempt in range(1, CHUNK_RETRIES + 1):
+            text, cost, tokens, truncated = await _generate_chunk(
+                package, contract, paths, registry=registry, options=options, written=written
+            )
+            total_cost += cost
+            total_tokens += tokens
+            if not truncated:
+                break
+            if attempt == CHUNK_RETRIES:
+                # Out of retries for this chunk. Reported as truncation so the
+                # package fails and retries as a whole, rather than being
+                # written with a hole in it.
+                return "\n".join([*replies, text]), total_cost, total_tokens, True
+        replies.append(text)
+        try:
+            # What the next chunk is told already exists, so imports and names
+            # line up across a package that was written in pieces.
+            for path, body in extract_files(text, allowed=paths).files.items():
+                written[path] = body
+        except CodeExtractionError:
+            # Nothing usable in this chunk. The completeness check will name
+            # exactly which files are missing; there is nothing to add here.
+            continue
+
+    return "\n".join(replies), total_cost, total_tokens, False
 
 
 def _check_instrumentation(

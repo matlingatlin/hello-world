@@ -101,6 +101,10 @@ def extract_files(text: str, allowed: list[str] | None = None) -> ExtractedCode:
 CODEGEN_SYSTEM = f"""You are Scio's builder. You write one build package at a time: \
 complete, working, professional code that satisfies its contract exactly.
 
+Never load a font, stylesheet or script from a third-party CDN. Typefaces come from \
+next/font, which serves them from this app; an external font request blocks the first \
+paint on somebody else's server.
+
 You are given a contract — the goal, the architecture slice you own, the interfaces \
 of what already exists, why it exists, the house rules, and the acceptance criteria \
 you will be judged against. Build exactly that. Do not build what other packages own, \
@@ -123,15 +127,53 @@ complete files you changed.
 {FILE_FORMAT_RULES}"""
 
 
-def build_prompt(package: BuildPackage, contract: str) -> str:
-    """The generation prompt: the contract, plus what to hand back."""
+def build_prompt(
+    package: BuildPackage,
+    contract: str,
+    *,
+    only: list[str] | None = None,
+    already_written: dict[str, str] | None = None,
+) -> str:
+    """The generation prompt: the contract, plus what to hand back.
+
+    `only` asks for part of the package. A package whose files will not fit in
+    one reply is emitted in bounded chunks (builder/loop.file_chunks), because a
+    reply cut off at the output limit cannot be fixed by asking for it again —
+    the first real run lost a whole feature that way.
+
+    `already_written` is the code from earlier chunks, verbatim. Without it the
+    second chunk invents its own names for what the first one exported, and the
+    package does not compile — the same reason the repair prompt hands the model
+    its own code back rather than describing it.
+    """
+    owned = planned_files(package)
+    wanted = only or owned
+    listing = "\n".join(f"- {path}" for path in wanted)
+
+    context = ""
+    if already_written:
+        blocks = "\n\n".join(
+            f"FILE: {path}\n```\n{body}```" for path, body in sorted(already_written.items())
+        )
+        context = (
+            f"\n## Already written for this package — do not return these again, "
+            f"and match their exports and names exactly\n\n{blocks}\n"
+        )
+
+    scope = (
+        f"Write the complete code for `{package.id}`."
+        if only is None
+        else (
+            f"Write the complete code for these files of `{package.id}`. The rest of the "
+            "package is being written separately — return ONLY the files listed here."
+        )
+    )
     return (
         f"{contract}\n\n"
         "---\n\n"
-        f"Write the complete code for `{package.id}`. Every file you return must be one "
-        "this package owns:\n"
-        + "\n".join(f"- {path}" for path in planned_files(package))
-        + "\n"
+        f"{context}\n"
+        f"{scope} Every file you return must be one this package owns:\n"
+        f"{listing}\n"
     )
 
 

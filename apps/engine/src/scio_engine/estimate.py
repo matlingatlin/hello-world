@@ -80,11 +80,26 @@ validation and a test, a screen is a page, a table is a few lines of migration."
 CRITIQUE_OUTPUT_TOKENS = 400
 """The judgment call at the end of each package. Short — it answers per criterion."""
 
-LOW_MULTIPLIER = 0.75
-HIGH_MULTIPLIER = 1.8
+LOW_MULTIPLIER = 0.7
+HIGH_MULTIPLIER = 2.6
 """The range. Low is every package passing first time with tight output; high is
-about half of them needing one repair round. The second real run landed between
-the two, which is what a range is for."""
+a build where the feature packages need repair rounds and the model is verbose.
+
+Calibrated against every real build we have, not chosen (B077):
+
+    5 generated + 1 assembled   point 13.6 min   took 10.8 min   ratio 0.79
+    7 generated                 point 18.5 min   took 45.9 min   ratio 2.48
+    7 generated                 point  $1.39     cost   $2.69    ratio 1.93
+
+The old high of 1.8 excluded BOTH of the figures we later measured — a 46-minute
+build was advertised as "up to 33 minutes", and $2.69 as "up to $2.51". A range
+whose top the real world walks past is not a range, it is an underestimate with
+error bars. `tests/test_estimate.py` pins all three observations inside the band,
+so tightening these constants without new evidence fails the suite.
+
+The spread is genuinely this wide because one feature package can need two full
+repair rounds while another passes first time; B076's chunking narrows the worst
+tail (a package can no longer be lost to the output cap) but does not remove it."""
 
 ASSEMBLE_SECONDS = 3
 """An assembled package is a file copy and a verifier pass."""

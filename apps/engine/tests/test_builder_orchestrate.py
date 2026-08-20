@@ -193,7 +193,12 @@ export default { theme: { colors: { ink: "var(--ink)", paper: "var(--paper)" } }
 
 
 def feature_code(entity: str, route: str, operation: str, *, form_id: str = "") -> str:
-    """The five files a feature package owns, instrumented per the contract."""
+    """Every file a feature package owns, instrumented per the contract.
+
+    All eight of them: the file plan is what the completeness check judges a
+    package against (B076), and a fixture that quietly wrote five was describing
+    a build that would now — correctly — be told it is missing three.
+    """
     package = f"pkg_feature_{entity}"
     form = form_id or f"{entity}-form"
     return f"""FILE: app{route}/page.tsx
@@ -251,6 +256,41 @@ FILE: tests/{entity}.test.ts
 test("{operation} works", async () => {{
   expect(await {operation}({{}})).toBeTruthy();
 }});
+```
+
+FILE: app{route}/new/page.tsx
+```tsx
+export default function New{entity.title()}Page() {{
+  return (
+    <main data-scio-id="{entity}-new-page" data-scio-package="{package}">
+      <{entity.title()}Form />
+    </main>
+  );
+}}
+```
+
+FILE: app/actions/{entity}.ts
+```ts
+"use server";
+
+import {{ {operation} }} from "../../lib/db/{entity}";
+import {{ parse{entity.title()} }} from "../../lib/validation/{entity}";
+
+export async function {operation}Action(formData) {{
+  const input = parse{entity.title()}(Object.fromEntries(formData));
+  return await {operation}(input);
+}}
+```
+
+FILE: lib/validation/{entity}.ts
+```ts
+import {{ z }} from "zod";
+
+export const {entity}Schema = z.object({{ name: z.string().min(1) }});
+
+export function parse{entity.title()}(input) {{
+  return {entity}Schema.parse(input);
+}}
 ```
 """
 
