@@ -5,6 +5,17 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-20 — **The first real Codespace run: `dev-up.sh` gave up on the api while it was
+  still building.** `✗ api did not come up in 120s`, and nothing was wrong — a fresh Codespace
+  compiles the whole Nest api from scratch on two cores, which takes longer than that. The 120s
+  was measured in one sandbox and quietly assumed everywhere. A timeout only bounds *failure*
+  (`wait_for` returns the moment the health check passes), so waiting longer costs a healthy
+  start nothing: engine 120s, api 420s, app 180s, each overridable (`SCIO_WAIT_API=900 …`).
+  A timeout now also prints the tail of that server's own log and the knob to turn, because
+  "did not come up" is a dead end and the log is a diagnosis. Documented in
+  `RUNBOOK-CODESPACES.md`; found by the operator on the first real run, which is the only place
+  it could have been found.
+
 - 2026-08-20 — **B080: the stack runs in a Codespace, with URLs you can open on a phone.**
   Yesterday's answer to "let me click it from my phone" was a measured *no* (B079). A Codespace
   answers it from the other side: it runs the stack **and** forwards ports, so each one gets an

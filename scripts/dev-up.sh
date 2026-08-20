@@ -58,12 +58,30 @@ mkdir -p "$RUN"
 say() { printf '\n\033[36m▸ %s\033[0m\n' "$*"; }
 die() { printf '\n\033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 
+# How long to wait for each server. A timeout only bounds FAILURE — wait_for
+# returns the moment the health check passes — so being generous costs a healthy
+# start nothing. The old 120s for the api was measured in one sandbox and was
+# wrong everywhere else: the first `nest start` compiles the whole project, and
+# on a 2-core Codespace that takes longer than two minutes. Nothing was broken;
+# the script just stopped watching.
+ENGINE_TIMEOUT="${SCIO_WAIT_ENGINE:-120}"
+API_TIMEOUT="${SCIO_WAIT_API:-420}"
+APP_TIMEOUT="${SCIO_WAIT_APP:-180}"
+
 wait_for() { # wait_for <name> <url> <seconds>
   local name=$1 url=$2 timeout=$3 waited=0
   while ! curl -fsS -o /dev/null "$url" 2>/dev/null; do
     sleep 1
     waited=$((waited + 1))
-    [ "$waited" -ge "$timeout" ] && die "$name did not come up in ${timeout}s — see $RUN/$name.log"
+    if [ "$waited" -ge "$timeout" ]; then
+      # A dead end is not a diagnosis: show what the server itself said.
+      printf '\n\033[31m✗ %s did not come up in %ss\033[0m\n' "$name" "$timeout" >&2
+      printf '  the last lines of %s:\n\n' "$RUN/$name.log" >&2
+      tail -n 20 "$RUN/$name.log" 2>/dev/null | sed 's/^/  /' >&2
+      printf '\n  Still building? Give it longer: SCIO_WAIT_%s=900 scripts/dev-up.sh\n' \
+        "$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')" >&2
+      exit 1
+    fi
   done
   printf '  %s is up (%s)\n' "$name" "$url"
 }
@@ -122,7 +140,7 @@ else
   (cd "$ROOT/apps/engine" && SCIO_CATALOG_DB="$DATABASE_URL" \
     setsid .venv/bin/python -m uvicorn scio_engine.main:app \
     --host 127.0.0.1 --port "$ENGINE_PORT" >"$RUN/engine.log" 2>&1 & echo $! >"$RUN/engine.pid")
-  wait_for engine "http://127.0.0.1:$ENGINE_PORT/health" 60
+  wait_for engine "http://127.0.0.1:$ENGINE_PORT/health" "$ENGINE_TIMEOUT"
 fi
 printf '  %s\n' "$(curl -fsS "http://127.0.0.1:$ENGINE_PORT/health")"
 
@@ -140,7 +158,7 @@ else
     ENGINE_URL="http://127.0.0.1:$ENGINE_PORT" \
     PORT="$API_PORT" \
     setsid npx nest start >"$RUN/api.log" 2>&1 & echo $! >"$RUN/api.pid")
-  wait_for api "http://127.0.0.1:$API_PORT/health" 120
+  wait_for api "http://127.0.0.1:$API_PORT/health" "$API_TIMEOUT"
 fi
 
 # --------------------------------------------------------------------------
@@ -153,7 +171,7 @@ else
   (cd "$ROOT/apps/app" && VITE_DEV_AUTH=1 \
     VITE_API_URL="$API_URL" \
     setsid npx vite --host "$APP_HOST" --port "$APP_PORT" --strictPort >"$RUN/app.log" 2>&1 & echo $! >"$RUN/app.pid")
-  wait_for app "http://127.0.0.1:$APP_PORT" 90
+  wait_for app "http://127.0.0.1:$APP_PORT" "$APP_TIMEOUT"
 fi
 
 cat <<EOF

@@ -85,6 +85,22 @@ Vite is the other half: it has refused an unknown `Host` header since 5.4.12, so
 points HMR's websocket at port 443. Without that the forwarded URL answers
 *"Blocked request. This host is not allowed."*
 
+## When dev-up.sh gives up on the api
+
+The first `nest start` in a fresh Codespace compiles the whole api from scratch
+on two cores, which takes several minutes — longer than the 120s the script used
+to wait, so it announced a failure while the api was quietly still building.
+The waits are now 420s for the api (120s engine, 180s app) and a timeout prints
+the tail of the server's own log plus the knob to turn:
+
+```bash
+SCIO_WAIT_API=900 scripts/dev-up.sh
+```
+
+`dev-up.sh` is idempotent — if the api came up after the script stopped watching,
+just run it again and it carries on to the app. Check first with
+`curl -s localhost:3000/health`.
+
 ## The design window (Level 2)
 
 The preview is a second server on a **random** port. Codespaces auto-forwards it
