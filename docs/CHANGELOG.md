@@ -5,6 +5,30 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-20 — **Three source files had never been committed, and a .gitignore rule was why.**
+  The third Codespace run failed on `Cannot find module './modules/workspace/workspace.module'`.
+  The file was there on this machine and had never been in the repo: `.gitignore` carried a bare
+  `workspace/` for scratch directories, and an unanchored pattern matches at **every** level — so
+  it also matched `apps/api/src/modules/workspace`, and quietly excluded the controller, the module
+  and the service. The rule one line above it already carried the comment explaining exactly this,
+  written when a bare `build/` excluded `src/modules/build`. The lesson was in the file and the
+  next rule did not learn it. Now `/workspace/`, anchored, and the three files are committed.
+
+  Guarded, because twice is a pattern: `apps/api/test/tracked-sources.spec.ts` compares what is on
+  disk under `apps/api/src`, `apps/app/src` and `packages/shared/src` against `git ls-files` and
+  names anything missing. It reads what a **clone** gets, which is the thing no other test does —
+  every suite and every dev run reads the working tree, where the file is right there. Proven to
+  fail by un-tracking one file, then restored. Verified separately that all **169** relative
+  imports across api, app and shared resolve inside `git archive` of the tree.
+
+  **Also: an empty venv is not a missing dependency.** The run before that died on
+  `No module named uvicorn` — the venv directory existed and held nothing, because the directory is
+  created first and the packages land second. `dev-up.sh` now checks by *importing* rather than by
+  looking for the directory, and installs when the import fails. `post-create.sh` was rewritten to
+  match: every step reports its own failure and the script keeps going, instead of aborting halfway
+  and leaving a machine that looks set up. Verified by emptying the venv here and running from that
+  state.
+
 - 2026-08-20 — **`dev-up.sh` now repairs a half-built machine instead of trusting one.** The
   second Codespace failed with `No module named uvicorn`: the venv had been created and never
   filled, because `post-create.sh` died somewhere before its pip install and said nothing. Two

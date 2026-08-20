@@ -26,8 +26,11 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Scratch
-workspace/
+# Scratch. Anchored, for the same reason `/build/` above is: a bare `workspace/`
+# also matched apps/api/src/modules/workspace, so three real source files were
+# never committed and a fresh clone could not compile the api. The lesson was
+# already written one rule higher and this line did not learn it.
+/workspace/
 
 # Engine run artifacts
 apps/engine/out/
