@@ -5,6 +5,16 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-20 — **`dev-up.sh` now repairs a half-built machine instead of trusting one.** The
+  second Codespace failed with `No module named uvicorn`: the venv had been created and never
+  filled, because `post-create.sh` died somewhere before its pip install and said nothing. Two
+  changes, one principle — **a fresh clone has to work anywhere, not only where setup happened to
+  succeed**. `dev-up.sh` checks the venv by importing `uvicorn, fastapi` (a directory is not an
+  install) and rebuilds it if that fails; `post-create.sh` no longer aborts on the first bad step
+  but runs them all, names the ones that failed, and says dev-up will retry. Verified by emptying
+  the venv here and starting from that state: `installing scio-engine … installed`, then engine,
+  api and app all `200`.
+
 - 2026-08-20 — **A fresh clone could not build the api at all: nobody had ever started from one.**
   The second Codespace run died with 30 × `Cannot find module '@scio/shared'`. The shared package
   is the API contract both sides compile against, its `main`/`types` point at `dist/`, and `dist/`

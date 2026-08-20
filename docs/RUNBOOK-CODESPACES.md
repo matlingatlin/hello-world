@@ -90,6 +90,11 @@ points HMR's websocket at port 443. Without that the forwarded URL answers
 Two things went wrong on the first real runs, both fixed, both worth knowing about
 because they are what a fresh machine looks like.
 
+**`No module named uvicorn`.** The venv existed and was empty — a directory is
+created first and the packages land second, so an install that dies in between
+leaves exactly that. `dev-up.sh` now checks by *importing*, not by looking for
+the directory, and rebuilds when the import fails.
+
 **`Cannot find module '@scio/shared'` (× 30).** The shared package is the API
 contract, its `main`/`types` point at `dist/`, and `dist/` is gitignored — so a
 fresh clone has none, and `pnpm install` does not build workspace packages.

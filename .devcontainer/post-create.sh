@@ -1,29 +1,50 @@
 #!/usr/bin/env bash
 #
-# Once per Codespace: everything scripts/dev-up.sh assumes is already there.
+# Once per Codespace: the slow, one-time setup, done up front so the first
+# `scripts/dev-up.sh` is quick.
 #
-# It does NOT start anything and does not touch the database — dev-up.sh owns
-# the cluster (initdb, pg_ctl, `prisma migrate deploy`) and is idempotent, so
-# migrations are applied by the same code path here as on a laptop rather than
-# by a second one that could drift.
-set -euo pipefail
+# Nothing here is REQUIRED. dev-up.sh builds @scio/shared and repairs the
+# engine's venv itself, because both have to work on any fresh clone, not only
+# on a machine where this script happened to succeed. So a step that fails here
+# is reported and the rest still runs — a half-finished setup that says nothing
+# is what produced "No module named uvicorn" on a Codespace whose venv had been
+# created and never filled.
+#
+# It does not touch the database: dev-up.sh owns the cluster and the migrations,
+# and one code path for that is better than two that can drift.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
+cd "$ROOT" || exit 1
 
-echo "▸ pnpm"
-corepack enable
-corepack prepare "$(node -p "require('./package.json').packageManager")" --activate
-pnpm install --frozen-lockfile
+failed=()
+step() { # step <name> <command...>
+  printf '\n▸ %s\n' "$1"
+  shift
+  if "$@"; then return 0; fi
+  printf '  ✗ failed — scripts/dev-up.sh will try again\n' >&2
+  failed+=("$1")
+}
 
-echo "▸ engine venv"
-python3 -m venv apps/engine/.venv
-apps/engine/.venv/bin/pip install --quiet --upgrade pip
-# db: the library's Postgres catalog. providers: the real model SDKs, so that
-# adding a key to apps/engine/.env is the only step a real build needs.
-apps/engine/.venv/bin/pip install --quiet -e "./apps/engine[dev,db,providers]"
+step "pnpm" bash -c '
+  corepack enable &&
+  corepack prepare "$(node -p "require(\"./package.json\").packageManager")" --activate &&
+  pnpm install --frozen-lockfile'
 
-echo "▸ prisma client"
-(cd apps/api && npx prisma generate >/dev/null)
+step "shared types" bash -c 'cd packages/shared && npx tsc -p tsconfig.json'
 
-echo "▸ ready — run scripts/dev-up.sh"
+step "engine venv" bash -c '
+  python3 -m venv apps/engine/.venv &&
+  apps/engine/.venv/bin/pip install --upgrade pip &&
+  apps/engine/.venv/bin/pip install -e "./apps/engine[dev,db,providers]" &&
+  apps/engine/.venv/bin/python -c "import uvicorn, fastapi"'
+
+step "prisma client" bash -c 'cd apps/api && npx prisma generate'
+
+printf '\n'
+if [ ${#failed[@]} -eq 0 ]; then
+  printf '▸ ready — run scripts/dev-up.sh\n'
+else
+  printf '▸ these did not finish: %s\n' "${failed[*]}"
+  printf '  Run scripts/dev-up.sh anyway — it repairs both of the ones that matter\n'
+  printf '  and prints the real error if it cannot.\n'
+fi

@@ -142,6 +142,33 @@ else
 fi
 
 # --------------------------------------------------------------------------
+# 1c. The engine's venv — present, and actually populated
+# --------------------------------------------------------------------------
+# A venv can exist and be empty: the directory is created first and the packages
+# land second, so an install that dies in between leaves exactly that. The first
+# Codespace got one, and the engine failed with "No module named uvicorn" — a
+# message about a missing module, for a machine that had simply never finished
+# setting up. Repaired here rather than trusted from postCreate, so a fresh
+# clone anywhere is self-healing.
+say "Engine deps"
+VENV="$ROOT/apps/engine/.venv"
+if [ ! -x "$VENV/bin/python" ]; then
+  printf '  creating the venv\n'
+  python3 -m venv "$VENV" || die "python3 -m venv failed — is python3-venv installed?"
+fi
+if "$VENV/bin/python" -c "import uvicorn, fastapi" >/dev/null 2>&1; then
+  printf '  present\n'
+else
+  printf '  installing scio-engine — a minute or two, once per machine\n'
+  "$VENV/bin/pip" install --quiet --upgrade pip
+  # db: the library's Postgres catalog. providers: the real model SDKs, so that
+  # adding a key to apps/engine/.env is the only step a real build needs.
+  "$VENV/bin/pip" install --quiet -e "$ROOT/apps/engine[dev,db,providers]" ||
+    die "the engine's dependencies did not install — pip's error is above"
+  printf '  installed\n'
+fi
+
+# --------------------------------------------------------------------------
 # 2. The engine — fake providers unless a key is in the environment
 # --------------------------------------------------------------------------
 say "Engine"
