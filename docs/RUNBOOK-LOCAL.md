@@ -169,6 +169,46 @@ says so.
 A preview build (Level 2) contributes nothing: it is a draft the user is about
 to change.
 
+## Reaching it from another device — you can't, and here is why
+
+The stack binds loopback inside a sandbox that has **no inbound path at all**: no
+platform port-forward, no preview URL, nothing that can dial in. So the only way
+to open the product on a phone is an outbound tunnel, and every free tunnel fails
+on the same rule.
+
+Outbound, measured against `example.com`:
+
+| port | result |
+|---|---|
+| 80 | open |
+| 443 | open |
+| 22 | blocked |
+| 8080 | blocked |
+
+Only 80 and 443 leave, and 443 is TLS-terminated and re-issued by the egress
+gateway (`O = Anthropic, CN = Egress Gateway SDS Issuing CA`), which also
+allowlists by host. Every tunnel wants a port that is not 443:
+
+| tool | needs | result |
+|---|---|---|
+| `cloudflared` (quick tunnel) | TCP/UDP **7844** to the Cloudflare edge | its own pre-check: `UDP … FAIL`, `TCP … FAIL`, `Cloudflare API 443 PASS`. `--protocol http2` does not help — http2 is the transport, 7844 is still the port |
+| `localtunnel` | a random high port (**25105** on the run we tried) | control plane over 443 answers and hands out the port; connecting to it times out |
+| `tunnelmole` | `wss://service.tunnelmole.com:**8083**` | client hangs with no socket ever opened |
+| `ngrok` | an account token, and `tunnel.ngrok.com:443` | `/root/.ccr/README.md` names ngrok as unsupported through this proxy; no token can be created from in here anyway |
+| `serveo`, `localhost.run`, `pinggy` | SSH | no `ssh` binary, port 22 blocked, and SSH-on-443 gets no banner — the interceptor is waiting for a ClientHello |
+
+What *does* pass is an ordinary WebSocket on 443: an `Upgrade: websocket` over
+HTTP/1.1 returns `101 Switching Protocols` through the gateway. So the shape that
+would work is a relay speaking WebSocket on 443 — there just isn't a free,
+signup-less one. Note that HTTP/2 must be avoided: negotiate h2 and the upgrade
+silently degrades to a plain `200`.
+
+The conclusion is a deploy, not a tunnel (B079). Whatever hosts it has to expose
+**both** the app and the api, because the browser calls the api directly — and
+`VITE_API_URL`, `CORS_ORIGINS` and `APP_ORIGIN` all have to name the public
+origins rather than `127.0.0.1`. Vite also refuses an unknown `Host` since 5.4.12,
+so a public hostname needs `server.allowedHosts`.
+
 ## When something is wrong
 
 | symptom | cause |

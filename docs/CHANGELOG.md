@@ -4,6 +4,34 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Investigated
+- 2026-08-20 — **The stack cannot be exposed from this sandbox (B079).** The task was a
+  phone-openable URL in FAKE mode; the outcome is a measurement, not a URL. The stack came up
+  free and correct (`/health`: `"providers":"fake"`, `"builder":"standin"` — forced with
+  `SCIO_FAKE_PROVIDERS=1`, so the operator key already in `apps/engine/.env` could not be used
+  by accident), and then every route out failed on the same rule: **only ports 80 and 443 leave
+  this sandbox**, 443 is TLS-terminated and re-issued by the egress gateway, and there is no
+  inbound path or platform preview at all.
+
+  Four tunnels, four different ports: `cloudflared` needs **7844** and said so itself
+  (`UDP … FAIL`, `TCP … FAIL`, `Cloudflare API 443 PASS`; `--protocol http2` changes the
+  transport, not the port); `localtunnel`'s control plane answered over 443 and handed out port
+  **25105**, which times out; `tunnelmole` dials `wss://…:**8083**` and hangs without ever
+  opening a socket; the SSH services (`serveo`, `localhost.run`, `pinggy`) need port 22, and
+  there is no `ssh` binary. `ngrok` is named as unsupported through this proxy in
+  `/root/.ccr/README.md` and needs an account token that cannot be created from in here.
+
+  The one useful positive: a plain `Upgrade: websocket` over HTTP/1.1 on 443 returns **101
+  Switching Protocols** through the gateway, so a WebSocket relay on 443 is the shape that
+  *would* work — there is no signup-less service offering it. Negotiating h2 silently degrades
+  the upgrade to a `200`, which is worth knowing for whatever we deploy.
+
+  No code changed: with no public origin to point at, the `VITE_API_URL` / `CORS_ORIGINS` /
+  `APP_ORIGIN` overrides the kickoff allowed would have been config nothing exercises. Recorded
+  in `docs/RUNBOOK-LOCAL.md` ("Reaching it from another device") with the port matrix, and as
+  **B079**: deploy the app *and* the api — the browser calls the api directly — and note that
+  Vite refuses an unknown `Host` since 5.4.12, so a public hostname needs `server.allowedHosts`.
+
 ### Fixed
 - 2026-08-20 — **B076–B078: no silent package loss, a calibrated range, and fonts we serve ourselves.**
 

@@ -80,6 +80,18 @@
 | B077 | The estimate is optimistic on time: 14–33 min predicted, 46 min actual on a 7-part build | PP5 | P1 | done |
 | B078 | Generated apps render-block on a Google Fonts stylesheet — the app waits on a third party | PP5 | P0 | done |
 | B063 | Decide customer-facing pricing (markup + currency) — the estimate shows build cost, not a price | PP4 | P0 | todo |
+| B079 | The operator cannot open the product from their own device: the sandbox has no inbound path and no free tunnel fits its egress — deploy the app + api somewhere reachable | PP5 | P0 | todo |
+
+**B079 — the product runs, and the person building it still cannot open it.** Everything works
+in the sandbox and nothing works from a phone, because the sandbox has no inbound path and its
+outbound egress is ports 80 and 443 only, TLS-terminated by the egress gateway. Every free
+tunnel was tried and every one wants a different port: cloudflared 7844 (its own pre-check says
+so), localtunnel a random high port, tunnelmole 8083, the SSH services port 22. ngrok is named
+as unsupported through this proxy and needs an account token besides. A WebSocket on 443 *does*
+pass, so the shape that would work exists — there is just no signup-less service offering it.
+The answer is a deploy, and it has to host **both** the app and the api, because the browser
+calls the api itself. Measurements and the exact failures are in `docs/RUNBOOK-LOCAL.md`,
+"Reaching it from another device".
 
 **Gate 2b is done** (B068) — **the design window exists and has been clicked**. Approving a spec
 now asks one question (build it, or shape the design first), and Level 2 is a real screen: the
