@@ -87,6 +87,15 @@ points HMR's websocket at port 443. Without that the forwarded URL answers
 
 ## When dev-up.sh gives up on the api
 
+Two things went wrong on the first real runs, both fixed, both worth knowing about
+because they are what a fresh machine looks like.
+
+**`Cannot find module '@scio/shared'` (× 30).** The shared package is the API
+contract, its `main`/`types` point at `dist/`, and `dist/` is gitignored — so a
+fresh clone has none, and `pnpm install` does not build workspace packages.
+`dev-up.sh` now builds it when it is missing or older than its sources.
+
+
 The first `nest start` in a fresh Codespace compiles the whole api from scratch
 on two cores, which takes several minutes — longer than the 120s the script used
 to wait, so it announced a failure while the api was quietly still building.

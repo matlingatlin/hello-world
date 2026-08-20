@@ -5,6 +5,19 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-20 — **A fresh clone could not build the api at all: nobody had ever started from one.**
+  The second Codespace run died with 30 × `Cannot find module '@scio/shared'`. The shared package
+  is the API contract both sides compile against, its `main`/`types` point at `dist/`, and `dist/`
+  is gitignored — so a fresh clone has none and `pnpm install` does not build workspace packages.
+  It worked here only because somebody built it once, weeks ago, and every run since has been
+  standing on that. `dev-up.sh` now builds `@scio/shared` when it is missing **or older than its
+  sources**, which also closes the quieter version of the same bug: editing the contract and
+  compiling against yesterday's types. Verified by deleting `dist/` and starting from scratch.
+
+  Worth naming: both Codespace failures were invisible to every test suite, because tests run
+  where the artefacts already exist. The environment that had never been used is the one that
+  found them — same lesson as the first click-through (B064).
+
 - 2026-08-20 — **The first real Codespace run: `dev-up.sh` gave up on the api while it was
   still building.** `✗ api did not come up in 120s`, and nothing was wrong — a fresh Codespace
   compiles the whole Nest api from scratch on two cores, which takes longer than that. The 120s

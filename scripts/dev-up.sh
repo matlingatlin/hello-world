@@ -125,6 +125,23 @@ say "Migrations"
 (cd "$ROOT/apps/api" && npx prisma migrate deploy) | sed 's/^/  /'
 
 # --------------------------------------------------------------------------
+# 1b. @scio/shared — the API contract both sides compile against
+# --------------------------------------------------------------------------
+# `main` and `types` point at dist/, and dist/ is gitignored. So a fresh clone
+# has none, `pnpm install` does not build workspace packages, and the api dies
+# with 30 x "Cannot find module '@scio/shared'" — which is what the first real
+# Codespace run did. It only ever worked here because someone built it once.
+say "Shared types"
+SHARED_DIST="$ROOT/packages/shared/dist/index.js"
+if [ ! -f "$SHARED_DIST" ] || [ -n "$(find "$ROOT/packages/shared/src" -newer "$SHARED_DIST" -print -quit 2>/dev/null)" ]; then
+  printf '  building @scio/shared\n'
+  (cd "$ROOT/packages/shared" && npx tsc -p tsconfig.json) || die "@scio/shared did not build"
+  printf '  built\n'
+else
+  printf '  up to date\n'
+fi
+
+# --------------------------------------------------------------------------
 # 2. The engine — fake providers unless a key is in the environment
 # --------------------------------------------------------------------------
 say "Engine"
