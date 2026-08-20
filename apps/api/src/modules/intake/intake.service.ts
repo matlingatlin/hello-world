@@ -1,5 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { createHash } from "node:crypto";
 import type {
   CorrectSpecFieldRequest,
   CorrectSpecFieldResponse,
@@ -87,11 +88,16 @@ export class IntakeService {
 
     let whole = (project.draftWhole ?? null) as string | null;
     let estimate = readEstimate(project.draftEstimate);
-    // Keyed on the whole, not on both: it is what the screen is waiting for,
-    // and "stored but empty" must not read as "already computed".
-    if (gate.buildable && spec && !whole) {
+    // The cache is keyed on the spec it describes. Invalidation is by
+    // construction — every writer of draftSpec writes these too — and the hash
+    // is what keeps that true if a fourth writer ever appears: a mismatch is
+    // treated exactly like "nothing stored", rather than showing a confident
+    // summary of a spec that no longer exists.
+    const describes = spec ? specHash(spec) : "";
+    const stale = Boolean(spec) && project.draftConfirmationHash !== describes;
+    if (gate.buildable && spec && (!whole || stale)) {
       ({ whole, estimate } = await this.confirmation(spec, engine));
-      await this.storeConfirmation(workspaceId, projectId, whole, estimate);
+      await this.storeConfirmation(workspaceId, projectId, whole, estimate, describes);
     }
 
     return {
@@ -157,6 +163,7 @@ export class IntakeService {
         draftSpec: corrected.updated_spec as object,
         draftWhole: whole,
         draftEstimate: estimate ?? Prisma.DbNull,
+        draftConfirmationHash: specHash(corrected.updated_spec),
       },
     });
 
@@ -186,10 +193,15 @@ export class IntakeService {
     projectId: string,
     whole: string | null,
     estimate: BuildEstimate | null,
+    describes: string,
   ): Promise<void> {
     await this.client(workspaceId).project.update({
       where: { id: projectId },
-      data: { draftWhole: whole, draftEstimate: estimate ?? Prisma.DbNull },
+      data: {
+        draftWhole: whole,
+        draftEstimate: estimate ?? Prisma.DbNull,
+        draftConfirmationHash: describes,
+      },
     });
   }
 
@@ -252,6 +264,7 @@ export class IntakeService {
         draftSpec: step.updated_spec as object,
         draftWhole: whole,
         draftEstimate: estimate ?? Prisma.DbNull,
+        draftConfirmationHash: specHash(step.updated_spec),
       },
     });
 
@@ -339,4 +352,27 @@ export class IntakeService {
 function readEstimate(value: unknown): BuildEstimate | null {
   if (!value || typeof value !== "object") return null;
   return "parts" in (value as Record<string, unknown>) ? (value as BuildEstimate) : null;
+}
+
+/** A stable fingerprint of a spec.
+ *
+ * Keys sorted at every level, so two objects that mean the same thing hash the
+ * same however they were assembled — otherwise the cache would miss on nothing
+ * more than a reordered key and quietly cost a model call per page load, which
+ * is the exact bug it exists to fix.
+ */
+export function specHash(spec: unknown): string {
+  return createHash("sha256").update(stableJson(spec)).digest("hex").slice(0, 32);
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => `${JSON.stringify(k)}:${stableJson(v)}`);
+    return `{${entries.join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
 }

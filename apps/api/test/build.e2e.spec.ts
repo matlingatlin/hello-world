@@ -313,6 +313,36 @@ describe("Build (e2e): stream + persistence", () => {
     expect(scope.projects[0].status).toBe("error");
   });
 
+  it("the build's own record carries what it cost", async () => {
+    // usage_event is the per-workspace metering ledger; a build_version is the
+    // record of ONE build and should be readable on its own without a join.
+    await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+    const version = scope.buildVersions[0];
+    expect(Number(version.costUsd)).toBe(0.83);
+    expect(version.tokens).toBe(41234);
+
+    const res = await request(http).get("/projects/p1/build/latest").set(w1).expect(200);
+    expect(res.body.buildVersion.costUsd).toBe(0.83);
+    expect(res.body.buildVersion.tokens).toBe(41234);
+  });
+
+  it("the reveal can compare spend against the estimate that was approved", async () => {
+    // Against the estimate the user approved AGAINST — frozen with the spec —
+    // not whatever the draft says by the time the build finishes.
+    scope.specVersions[0].assumptions = {
+      assumed: [],
+      whole: "You're building a table-booking app.",
+      estimate: { parts: 5, cost_usd: { low: 0.4, high: 1.1 }, minutes: { low: 8, high: 20 } },
+    };
+    await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+    const res = await request(http).get("/projects/p1/build/latest").set(w1).expect(200);
+
+    expect(res.body.estimate.cost_usd).toEqual({ low: 0.4, high: 1.1 });
+    expect(res.body.spend.costUsd).toBe(0.83);
+  });
+
   it("records what the build actually cost", async () => {
     // Until this existed the engine computed a cost, the api passed it to the
     // browser, and it was dropped there — so the product could predict a cost

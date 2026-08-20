@@ -111,6 +111,12 @@ export class SpecService {
           assumed: assumedFields(spec),
           // What was on screen when they pressed the button.
           ...(body.whole ? { whole: body.whole } : {}),
+          // The estimate too, read from the project rather than trusted from
+          // the client — the same reason `assumed` is extracted here. The
+          // reveal compares what a build SPENT against this, so it has to be
+          // the figure that was on screen at approval, not whatever the draft
+          // says by then.
+          ...(project.draftEstimate ? { estimate: project.draftEstimate } : {}),
         },
         isCurrent: true,
       },

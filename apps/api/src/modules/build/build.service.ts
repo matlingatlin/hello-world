@@ -83,7 +83,12 @@ export class BuildService {
       orderBy: { number: "desc" },
     });
     const spec = specs.find((s: { isCurrent: boolean }) => s.isCurrent) ?? specs[0];
-    const whole = (spec?.assumptions as { whole?: string } | undefined)?.whole ?? null;
+    const frozen = (spec?.assumptions ?? {}) as { whole?: string; estimate?: unknown };
+    const whole = frozen.whole ?? null;
+    // The estimate the user approved AGAINST, frozen with the spec — not
+    // whatever the draft says now. Comparing spend to a figure that has since
+    // moved would be worse than showing no comparison at all.
+    const estimate = (frozen.estimate ?? null) as LatestBuildResponse["estimate"];
 
     // What the build actually cost, read back from the metering record rather
     // than recomputed. The estimate on the review screen says what a build
@@ -103,12 +108,15 @@ export class BuildService {
             gitSha: current.gitSha,
             isCurrent: current.isCurrent,
             createdAt: new Date(current.createdAt).toISOString(),
+            costUsd: current.costUsd === null ? null : Number(current.costUsd),
+            tokens: current.tokens ?? null,
           }
         : null,
       previewUrl: (project.previewUrl ?? null) as string | null,
       projectStatus: project.status as string,
       honestStatus: (current?.honestStatus ?? null) as LatestBuildResponse["honestStatus"],
       whole,
+      estimate,
       spend: spend
         ? {
             costUsd: Number(spend.cost),
@@ -220,6 +228,10 @@ export class BuildService {
           remainders: finished.remainders,
           standin: finished.standin,
         },
+        // The build's own provenance. usage_event below is the metering ledger
+        // for a workspace; this is what one build cost, readable from the build.
+        costUsd: finished.total_cost_usd || null,
+        tokens: finished.total_tokens || null,
         specVersionId,
         isCurrent: true,
       },

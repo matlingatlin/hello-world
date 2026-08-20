@@ -170,6 +170,42 @@ describe("Build view", () => {
 });
 
 describe("Reveal", () => {
+  it("puts what the build spent next to what it was estimated at", async () => {
+    // An estimate alone is a promise; a spend alone is a number with nothing to
+    // judge it by. Together, an estimate becomes something you can trust the
+    // second time — or knowingly distrust. The first real build spent $2.69
+    // against an estimate topping out at $2.51.
+    mockApi({
+      latestBuild: vi.fn().mockResolvedValue(
+        latest({
+          estimate: { parts: 7, cost_usd: { low: 1.05, high: 2.51 }, minutes: { low: 14, high: 33 } },
+          spend: { costUsd: 2.688465, tokens: 248952, model: "claude-sonnet-5", at: "2026-08-20T01:22:34Z" },
+        } as never),
+      ),
+    });
+    renderAt("/projects/p1/reveal", <RevealPage />);
+
+    const line = await screen.findByTestId("build-provenance");
+    expect(line.textContent).toContain("estimated ~$1.05–$2.51");
+    expect(line.textContent).toContain("$2.69 spent");
+    expect(line.textContent).toContain("249k tokens");
+  });
+
+  it("shows the spend alone rather than inventing an estimate to compare it to", async () => {
+    mockApi({
+      latestBuild: vi.fn().mockResolvedValue(
+        latest({
+          spend: { costUsd: 0.42, tokens: 1200, model: "claude-sonnet-5", at: "2026-08-20T01:22:34Z" },
+        } as never),
+      ),
+    });
+    renderAt("/projects/p1/reveal", <RevealPage />);
+
+    const line = await screen.findByTestId("build-provenance");
+    expect(line.textContent).toContain("$0.42 spent");
+    expect(line.textContent).not.toContain("estimated");
+  });
+
   it("embeds the running app", async () => {
     mockApi({});
     renderAt("/projects/p1/reveal", <RevealPage />);

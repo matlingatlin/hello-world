@@ -475,6 +475,41 @@ describe("Gate 1 (e2e): wizard turn + spec freeze", () => {
     expect(res.body.estimate.parts).toBe(2);
   });
 
+  it("a spec changed behind the service's back invalidates the cache", async () => {
+    // Invalidation is by construction: every writer of draftSpec writes the
+    // confirmation too. The hash is what keeps that true the day a fourth
+    // writer appears — the failure it prevents is the worst kind, a confident
+    // summary of a spec that no longer exists.
+    engine.validateReply = {
+      result: { buildable: true, missing_core: [], unresolved_conditionals: [], contradictions: [] },
+      triggered: [],
+      still_needed: [],
+    };
+    scope.projects[0].draftSpec = specWith({
+      users_and_roles: { value: ["guests"], source: "stated", confidence: "high", provenance: [] },
+    });
+    engine.architectureCalls = 0;
+    await request(http).get(`/projects/${projectId}/intake`).set(w1).expect(200);
+    expect(engine.architectureCalls).toBe(1);
+
+    // A writer that knows nothing about the cache.
+    scope.projects[0].draftSpec = specWith({
+      users_and_roles: { value: ["guests", "staff"], source: "stated", confidence: "high", provenance: [] },
+    });
+    engine.architectureReply = {
+      whole: { narrative: "Now it is about staff too.", assumptions: [], grounding: {}, models_used: [], generated: false },
+      architecture: { nodes: [] },
+    };
+
+    const res = await request(http).get(`/projects/${projectId}/intake`).set(w1).expect(200);
+
+    expect(engine.architectureCalls).toBe(2); // recomputed, exactly once
+    expect(res.body.whole).toContain("staff too");
+    // …and stored again, so the NEXT load is free like every other.
+    await request(http).get(`/projects/${projectId}/intake`).set(w1).expect(200);
+    expect(engine.architectureCalls).toBe(2);
+  });
+
   it("a new answer refreshes what is stored, so it cannot describe an older spec", async () => {
     scope.projects[0].draftSpec = specWith({
       users_and_roles: { value: ["guests"], source: "stated", confidence: "high", provenance: [] },

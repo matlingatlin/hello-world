@@ -20,6 +20,15 @@ function spent(value: number): string {
   return `$${Math.max(0, value).toFixed(2)}`;
 }
 
+/** "estimated ~$1.05–$2.51 · " — or nothing, when there is no estimate to
+ *  compare against. Inventing one to fill the gap is the failure this whole
+ *  line exists to prevent. */
+function estimated(estimate: LatestBuildResponse["estimate"]): string {
+  const cost = estimate?.cost_usd;
+  if (!cost) return "";
+  return `estimated ~${spent(cost.low)}–${spent(cost.high)} · `;
+}
+
 function tokens(value: number): string {
   return value >= 1000 ? `${Math.round(value / 1000)}k` : String(value);
 }
@@ -151,12 +160,14 @@ export function RevealPage() {
           {build?.buildVersion && (
             <p className="font-mono text-[11px] text-muted" data-testid="build-provenance">
               version {build.buildVersion.number} · {build.buildVersion.gitSha.slice(0, 12)}
-              {/* What it ACTUALLY cost. The review screen estimated before the
-                  build; until this existed nothing ever said what was spent,
-                  which makes an estimate impossible to trust twice. */}
+              {/* Estimated against actual. The estimate alone is a promise; the
+                  spend alone is a number with nothing to judge it by. Shown
+                  together, an estimate becomes something you can trust the
+                  second time — or knowingly distrust. */}
               {build.spend && (
                 <>
                   {" · "}
+                  {estimated(build.estimate)}
                   {spent(build.spend.costUsd)} spent
                   {build.spend.tokens > 0 && ` · ${tokens(build.spend.tokens)} tokens`}
                 </>

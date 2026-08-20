@@ -289,6 +289,10 @@ export interface LatestBuildResponse {
     gitSha: string;
     isCurrent: boolean;
     createdAt: string;
+    /** What this build cost, on the build's own record. Null for builds
+     *  recorded before this existed — 0 would be a claim, not an absence. */
+    costUsd?: number | null;
+    tokens?: number | null;
   } | null;
   previewUrl: string | null;
   projectStatus: string;
@@ -303,6 +307,9 @@ export interface LatestBuildResponse {
     standin: boolean;
   } | null;
   whole: string | null;
+  /** The estimate the user approved against, frozen with the spec. Comparing
+   *  spend to a figure that has since moved would be worse than no comparison. */
+  estimate?: BuildEstimate | null;
   /** What this build actually cost, read back from the metering record.
    *  The estimate says what a build should cost; this says what it did. Null
    *  when nothing was metered — which is the truthful answer for a build that

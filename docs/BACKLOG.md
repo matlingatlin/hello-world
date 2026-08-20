@@ -93,6 +93,13 @@ known cost is that code and posture can drift, and the UI says a deeper change b
 wizard) — and **versions really restore**, via `git read-tree` forward onto a new commit, refused if
 the restored tree's instrumentation no longer verifies.
 
+**B071–B074 are closed (2026-08-20).** The kickoff's remaining definition-of-done landed on top of
+the work already proven live: `build_version.cost_usd`/`tokens` so a build's cost is readable from
+the build itself, the approved estimate frozen into the spec version so the reveal can say
+*"estimated ~$1.05–$2.51 · $2.69 spent · 249k tokens"*, and the cached whole/estimate now keyed on a
+spec hash so a future writer of `draft_spec` cannot serve a summary of a spec that no longer exists.
+Measured after: `GET /intake` answers in **7–16 ms** and makes no model call.
+
 **The keep-alive was proven on a real build (2026-08-20).** A 7-part build ran 45m51s and survived
 a **24-minute silence** between two parts — five times the limit that had killed the two builds
 before it. It also closed B073 with a real number: `usage_event` recorded **$2.69 / 248,952 tokens /

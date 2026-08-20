@@ -131,6 +131,11 @@ model Project {
   /// Written by every path that writes draftSpec, so they cannot drift from it.
   draftWhole     String? @map("draft_whole")
   draftEstimate  Json?   @map("draft_estimate")
+  /// Which spec the two above describe. Invalidation is by construction today —
+  /// every writer of draft_spec writes them together — and this is what keeps
+  /// that true if a fourth writer ever appears: a mismatch means recompute,
+  /// rather than showing a confident summary of a spec that no longer exists.
+  draftConfirmationHash String? @map("draft_confirmation_hash")
   /// Where the current build is being served (a sandbox URL). Points at a
   /// running preview, so it is expected to go stale — the build_version is the
   /// durable record, this is only what to embed right now.
@@ -207,6 +212,12 @@ model BuildVersion {
   description     String
   gitSha          String   @map("git_sha")
   honestStatus    Json     @map("honest_status") // { passed, needs_look[] }
+  /// What this build actually cost, and on how many tokens. Nullable because a
+  /// build recorded before these existed genuinely has no figure, and 0 would
+  /// be a claim rather than an absence. usage_event remains the per-workspace
+  /// metering ledger; this is the build's own provenance, readable without it.
+  costUsd         Decimal? @map("cost_usd")
+  tokens          Int?
   specVersionId   String   @map("spec_version_id") @db.Uuid
   designVersionId String?  @map("design_version_id") @db.Uuid
   isCurrent       Boolean  @default(false) @map("is_current")

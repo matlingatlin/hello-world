@@ -5,6 +5,41 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Fixed
+- 2026-08-20 — **B071–B074 closed: the build's own cost, estimated-vs-spent, and a cache with a key.**
+  Three gaps between what shipped earlier and what the kickoff's definition of done literally asks
+  for.
+
+  **A build's cost is on the build.** `build_version.cost_usd` and `tokens` (migration `0005`),
+  written in `persist()` beside the honest status. `usage_event` keeps being the per-workspace
+  metering ledger; the columns are the build's own provenance, readable without a join. Both
+  nullable, because a build recorded before they existed genuinely has no figure and `0` would be a
+  claim rather than an absence.
+
+  **The reveal compares.** `approve()` now freezes the estimate into the spec version's
+  `assumptions` beside the whole — read server-side from the project, never trusted from the client,
+  the same reason `assumed` is extracted there. So the reveal shows the estimate the user actually
+  approved against rather than whatever the draft says by the time a build finishes. On the build
+  from last night that reads: **`version 1 · b3699f8e66bc · estimated ~$1.05–$2.51 · $2.69 spent ·
+  249k tokens`**. With no estimate to compare against it shows the spend alone rather than inventing
+  one.
+
+  **The cache has a key.** `draft_confirmation_hash` — a sha256 over stable-sorted JSON of the spec
+  the cached whole and estimate describe. Invalidation was already correct by construction (every
+  writer of `draft_spec` writes them together); the hash is what keeps it correct the day a fourth
+  writer appears, and the failure it prevents is the worst kind — a confident summary of a spec that
+  no longer exists. A test writes `draft_spec` behind the service's back and asserts exactly one
+  recompute, a fresh whole, and a free load after it.
+
+  engine 562 (+1), api 90 (+3), app 74 (+2), typecheck and ruff clean.
+
+  **Measured live, and one measurement corrected.** `GET /intake` answers in **7–16 ms** with no
+  model call. The browser, however, took 12.7 s to render the review screen — and that turned out to
+  be nothing to do with the product: the page blocks on a Google Fonts stylesheet this sandbox
+  refuses, which fails after **12,692 ms**. Of the 33 requests a full page load makes, the api
+  accounts for 43 ms and Vite for 101 ms. Worth knowing on its own — a render-blocking external font
+  means the whole app waits on a third party — but it is not B071, and reporting it as B071 would
+  have been wrong.
+
 - 2026-08-20 — **the keep-alive, B073 and the estimate, all measured on one real 7-part build.**
   45m51s, `claude-sonnet-5`, one pass.
 
