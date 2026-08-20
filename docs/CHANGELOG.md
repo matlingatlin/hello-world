@@ -5,6 +5,31 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Fixed
+- 2026-08-20 — **the keep-alive, B073 and the estimate, all measured on one real 7-part build.**
+  45m51s, `claude-sonnet-5`, one pass.
+
+  **The keep-alive works.** The build survived a **24-minute silence** between
+  `pkg_connector_notifications` and `pkg_feature_general` — five times the 300-second limit that
+  had torn down the two builds before it. Proven on the wire beforehand as well: 4 keep-alive
+  frames in 75 seconds from the live engine while Layer B was thinking.
+
+  **B073 is closed with a real number.** `usage_event` has its first row ever: **$2.69,
+  248,952 tokens, claude-sonnet-5**, and the reveal shows what the build actually spent beside the
+  version it produced. Before this the figure was computed, passed to the browser, and dropped.
+
+  **What the build produced**, honestly: 5 of 7 parts work, `pkg_feature_general` needs a look (it
+  has operations and no test file), and `pkg_feature_workout` **failed** — *"the reply hit the
+  output-token limit and was cut off"*. That is a part lost for a purely mechanical reason: a
+  feature package writes eight files and `CODEGEN_MAX_TOKENS` is 16,000. Recorded as **B076**.
+
+  **The estimate is optimistic on time.** It predicted 13.9–33.3 minutes and $1.05–$2.51; the build
+  took **45m51s** and cost **$2.69**. Cost was 7% over the top of its range, which is defensible for
+  a range; time was 38% over, which is not. Recorded as **B077**.
+
+  One promise verified by accident: the watching client died six minutes before the end (its own
+  timeout), and the api still consumed the rest of the stream and persisted the build version, the
+  honest status and the usage row. "You can leave this page — the build keeps running" is true.
+
 - 2026-08-20 — **a real build was being killed by a five-minute timeout.** A build is silent while
   Layer B runs, then Layer C, then the first package — minutes before a single `progress` event
   exists. Node's `fetch` (undici) gives up on a response body after **300 seconds** without a
