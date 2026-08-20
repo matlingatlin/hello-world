@@ -75,6 +75,7 @@
 | B072 | The wizard shows "Nothing yet — 0 of 6" while that GET is in flight — a false statement, not a spinner | PP5 | P0 | done |
 | B073 | A build's actual cost is never recorded (usage_event empty, no cost on build_version) — only the estimate exists | PP5 | P0 | done |
 | B074 | Contribute gate: allow RFC 2606 reserved names (example.com, .test, localhost) so test fixtures stop reading as leaks | PP4 | P1 | done |
+| B075 | The app fetches /intake twice per page load (React StrictMode double-mount) — free now, but it doubled the old cost | PP5 | P2 | todo |
 | B063 | Decide customer-facing pricing (markup + currency) — the estimate shows build cost, not a price | PP4 | P0 | todo |
 
 **Gate 2b is done** (B068) — **the design window exists and has been clicked**. Approving a spec
@@ -89,6 +90,13 @@ new spec version rather than rewriting the security posture (ADR-0001's wedge st
 known cost is that code and posture can drift, and the UI says a deeper change belongs in the
 wizard) — and **versions really restore**, via `git read-tree` forward onto a new commit, refused if
 the restored tree's instrumentation no longer verifies.
+
+**A real build was being killed by a five-minute timeout (2026-08-20).** A build is silent while
+Layer B, then Layer C, then the first package run — and Node's `fetch` (undici) gives up on a
+response body after **300 seconds** of silence. A build whose first event took **313 seconds** was
+cut off mid-flight and the user was told *"The build stopped"* about a build that was working. It
+could only ever appear on a real run: with fake providers nothing is quiet for five minutes. The
+engine now sends an SSE keep-alive comment every 15s, which every client already ignores.
 
 **B071–B074 are fixed, and re-measured against the same project.** `GET /intake` went from
 **12.7s to 0.008s** and now makes no model call at all — the whole and the estimate are stored

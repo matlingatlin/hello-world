@@ -5,6 +5,30 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Fixed
+- 2026-08-20 — **a real build was being killed by a five-minute timeout.** A build is silent while
+  Layer B runs, then Layer C, then the first package — minutes before a single `progress` event
+  exists. Node's `fetch` (undici) gives up on a response body after **300 seconds** without a
+  chunk, so a build whose first event took **313 seconds** had its stream torn down mid-flight, and
+  the build view told the user *"The build stopped"* about a build that was working perfectly. The
+  api logged `produced no result: terminated`, the engine logged nothing at all, and the app it had
+  been writing was thrown away.
+
+  Only a real run could surface it: with fake providers nothing is ever quiet for five minutes, so
+  every test and every free click-through passed. The engine now emits an SSE keep-alive comment
+  every 15 seconds while a stream is thinking (`main.with_heartbeat`). A comment frame carries no
+  `data:`, so both the api's `parseFrame` and the app's `streamSse` already drop it — and it stops
+  proxies dropping idle connections for the same reason. The pending step is *shielded*, so the
+  timeout is a moment to speak rather than a reason to cancel the work in flight.
+
+  Also recorded (B075): the app issues **two** `GET /intake` per page load, because React
+  StrictMode mounts twice. Harmless now that the response is a database read; before B071 it
+  doubled the cost of opening a page.
+
+  A correction to yesterday's note: the browser timings in that run measured the **Vite dev server**,
+  not the api. Every page in this sandbox takes ~12.7s to render, including the projects list, which
+  calls nothing. The api numbers stand and were re-measured directly: `GET /intake` 12.7s → 0.007s,
+  with **zero `/architecture` calls** across three browser page loads.
+
 - 2026-08-19 — **B071–B074: what the first real run surfaced.** Each was measured, not guessed.
 
   **B071 — a page load no longer costs a model call.** `GET /projects/:id/intake` re-derived the

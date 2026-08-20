@@ -5,6 +5,7 @@ capability matrix, multi-pass relay). Requirements extraction, Layer B's
 architecture logic, and codegen build on top of this — later kickoffs.
 """
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -312,7 +313,7 @@ async def build(req: BuildRequest) -> StreamingResponse:
         except Exception as exc:  # a build must never sever the stream silently
             yield _sse("error", json.dumps({"type": "build_failed", "message": str(exc)}))
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(with_heartbeat(event_stream()), media_type="text/event-stream")
 
 
 class DesignChangeRequest(BaseModel):
@@ -540,6 +541,40 @@ def generate_plan(req: GenerateRequest) -> PlanResponse:
 
 def _sse(event: str, data: str) -> str:
     return f"event: {event}\ndata: {data}\n\n"
+
+
+KEEPALIVE_SECONDS = 15.0
+
+
+async def with_heartbeat(source, every: float = KEEPALIVE_SECONDS):
+    """Emit an SSE comment while the source is thinking.
+
+    A real build is silent for minutes at a time: Layer B, then Layer C, then
+    the first package, before a single `progress` event exists. Node's fetch
+    (undici) gives up on a response body after **300 seconds** of silence, so a
+    build whose first event took 313 seconds was killed mid-flight and the user
+    was told "The build stopped" about a build that was working perfectly. It
+    only showed up on a real run: with fake providers nothing is ever quiet for
+    five minutes.
+
+    A comment frame is the standard answer, costs nothing, and every SSE client
+    ignores it — including proxies, which drop idle connections for the same
+    reason.
+    """
+    iterator = source.__aiter__()
+    pending = asyncio.ensure_future(iterator.__anext__())
+    while True:
+        try:
+            # Shielded: the timeout must not cancel the work in flight, only
+            # give us a moment to say the connection is still alive.
+            item = await asyncio.wait_for(asyncio.shield(pending), timeout=every)
+        except TimeoutError:
+            yield ": keep-alive\n\n"
+            continue
+        except StopAsyncIteration:
+            return
+        yield item
+        pending = asyncio.ensure_future(iterator.__anext__())
 
 
 @app.post("/generate")
