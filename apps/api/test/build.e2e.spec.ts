@@ -443,5 +443,30 @@ describe("Build (e2e): stream + persistence", () => {
     });
   });
 
+
+  describe("the ceiling the user approved against", () => {
+    /**
+     * `budget_usd` had been plumbed through BuildOptions since the first
+     * version and set by nothing, so an estimate was a prediction with no
+     * consequence: one real build was quoted $1.05-$2.51 and spent $2.69, and
+     * nothing intervened.
+     */
+    it("sends the approved estimate's high end, with a margin", async () => {
+      scope.specVersions[0].assumptions = { estimate: { cost_usd: { low: 1.05, high: 2.51 } } };
+
+      await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+      expect(engine.seen[0].budget_usd).toBeCloseTo(3.76, 2); // 2.51 * 1.5
+    });
+
+    it("sends no ceiling when no estimate was frozen — rather than inventing one", async () => {
+      scope.specVersions[0].assumptions = {};
+
+      await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+      expect(engine.seen[0].budget_usd).toBeUndefined();
+    });
+  });
+
 });
 

@@ -148,6 +148,7 @@ async def stream_full_build(
     codegen_passes: int | None = None,
     close_preview: bool = False,
     shell_origin: str = "",
+    budget_usd: float | None = None,
 ) -> AsyncIterator[tuple[str, BaseModel | str]]:
     """Run the whole path, yielding events as they happen.
 
@@ -235,6 +236,11 @@ async def stream_full_build(
                 max_attempts=max_attempts,
                 codegen_passes=passes,
                 critique_passes=1,
+                # The ceiling the user approved against. Plumbed since the first
+                # version and never set by anything, so an estimate was a
+                # prediction with nothing behind it: one real build was quoted
+                # $1.05-$2.51 and spent $2.69 with nothing to intervene.
+                budget_usd=budget_usd,
             ),
             build_version=build_version,
             # Assembled parts take their look from the project's tokens.

@@ -97,6 +97,10 @@ export interface EngineBuildRequest {
   /** Level 2 only. Set it and the build carries the design window's marking
    *  bridge, pinned to this origin. Absent = a delivery build, with no bridge. */
   shell_origin?: string;
+  /** The ceiling this build may spend, from the estimate the user approved
+   *  against. The relay refuses the call that would cross it, so the build
+   *  stops with what it has instead of running past what was agreed. */
+  budget_usd?: number;
 }
 
 /** A batch of markings, on their way to the engine's directed change. */

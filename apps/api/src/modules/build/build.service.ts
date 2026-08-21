@@ -200,6 +200,24 @@ export class BuildService {
     );
   }
 
+  /**
+   * What this build is allowed to spend.
+   *
+   * The high end of the estimate the user approved against — frozen into the
+   * spec version at approval, so it is the figure that was on screen — with a
+   * margin, because an estimate that stops a build the moment it is 1c over is
+   * worse than no ceiling at all. A spec with no estimate gets none: a ceiling
+   * invented here would be a number nobody agreed to.
+   */
+  private static readonly CEILING_MARGIN = 1.5;
+
+  private ceilingFor(spec: { assumptions: unknown }): number | undefined {
+    const frozen = (spec.assumptions ?? {}) as { estimate?: { cost_usd?: { high?: unknown } } };
+    const high = Number(frozen.estimate?.cost_usd?.high);
+    if (!Number.isFinite(high) || high <= 0) return undefined;
+    return Number((high * BuildService.CEILING_MARGIN).toFixed(2));
+  }
+
   async run(
     workspaceId: string,
     projectId: string,
@@ -244,6 +262,7 @@ export class BuildService {
           spec: current.content as IntakeSpec,
           project_id: projectId,
           build_version: number,
+          budget_usd: this.ceilingFor(current),
         },
         async (event, data) => {
           if (event === "finished") finished = data as unknown as BuildFinished;

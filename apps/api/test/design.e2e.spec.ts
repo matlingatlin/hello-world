@@ -39,6 +39,7 @@ class FakeScope {
   projects: any[] = [];
   specVersions: any[] = [];
   designVersions: any[] = [];
+  usageEvents: any[] = [];
   private seq = 0;
 
   forWorkspace(workspaceId: string) {
@@ -86,6 +87,12 @@ class FakeScope {
       // Not atomic — a fake cannot be — but it keeps the call shape honest.
       async $transaction(operations: any[]) {
         return Promise.all(operations);
+      },
+      usageEvent: {
+        async create({ data }: any) {
+          store.usageEvents.push({ id: randomUUID(), ...data });
+          return data;
+        },
       },
       project: {
         async findFirst({ where }: any) {

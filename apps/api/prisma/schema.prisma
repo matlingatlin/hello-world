@@ -67,6 +67,10 @@ enum ReferenceKind {
 
 enum UsageKind {
   generation
+  /// A preview build for the design window — a real build, real model calls.
+  preview
+  /// One applied batch of markings. The cheap, frequent kind.
+  design_change
   critique
   sandbox
   storage

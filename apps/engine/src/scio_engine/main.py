@@ -271,6 +271,13 @@ class BuildRequest(BaseModel):
         "the marking bridge, pinned to that origin. Empty means a delivery build, which "
         "has no bridge at all.",
     )
+    budget_usd: float | None = Field(
+        default=None,
+        description="The ceiling this build may spend. The relay refuses a call that would "
+        "cross it, so the build stops with what it has rather than running past what the "
+        "user approved. None means no ceiling — the old behaviour, and only for callers "
+        "that have no estimate to enforce.",
+    )
 
 
 @app.post("/build")
@@ -295,6 +302,7 @@ async def build(req: BuildRequest) -> StreamingResponse:
                 build_version=req.build_version,
                 max_attempts=req.max_attempts,
                 shell_origin=req.shell_origin,
+                budget_usd=req.budget_usd,
             ):
                 if isinstance(payload, str):
                     yield _sse(event, json.dumps({"text": payload}))

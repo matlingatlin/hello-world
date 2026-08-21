@@ -122,6 +122,37 @@ export class DesignService {
    * rather than re-deriving it is deliberate — a manifest that has drifted from
    * the code is exactly how a marking targets the wrong package (B039).
    */
+
+  /**
+   * The design window spends real money too, and none of it was counted.
+   *
+   * `usage_event` was written by exactly one place — the delivery build — while
+   * a preview build and every directed change make the same model calls. The
+   * engine returned `total_cost_usd` for both and the api dropped it on the
+   * floor, so a ledger that billing will rest on could not see the interaction
+   * the product expects people to spend most of their time in.
+   *
+   * Never allowed to fail the work it is recording: a bookkeeping error must not
+   * undo a preview the user is looking at.
+   */
+  private async meter(
+    workspaceId: string,
+    projectId: string,
+    kind: "preview" | "design_change",
+    cost: number,
+    tokens = 0,
+    model: string | null = null,
+  ): Promise<void> {
+    if (!(cost > 0) && !(tokens > 0)) return;
+    try {
+      await this.client(workspaceId).usageEvent.create({
+        data: { workspaceId, projectId, kind, model, amount: tokens, cost },
+      });
+    } catch (err) {
+      this.logger.warn(`could not meter ${kind} for ${projectId}: ${(err as Error).message}`);
+    }
+  }
+
   private async record(
     workspaceId: string,
     projectId: string,
@@ -247,6 +278,14 @@ export class DesignService {
     }
 
     const result = finished as BuildFinished;
+    await this.meter(
+      workspaceId,
+      projectId,
+      "preview",
+      result.total_cost_usd ?? 0,
+      result.total_tokens ?? 0,
+      result.model ?? null,
+    );
     const version = await this.record(workspaceId, projectId, {
       workspace: result.workspace ?? "",
       previewUrl: result.app_url ?? "",
@@ -338,6 +377,8 @@ export class DesignService {
     // Only an applied change is a new version. A conflict changed nothing, so
     // recording one would put a version in the history that nobody can see the
     // difference of.
+    await this.meter(workspaceId, projectId, "design_change", result.total_cost_usd ?? 0);
+
     let version: DesignVersion | null = design ? this.asDto(design) : null;
     if (result.applied) {
       version = await this.record(workspaceId, projectId, {
