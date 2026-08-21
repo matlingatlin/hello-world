@@ -4,6 +4,39 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Reviewed
+- 2026-08-21 — **Full code review → `docs/REVIEW-2026-08-21.md`** (B081–B086 raised).
+  Read against what Scio claims to be, after the first end-to-end real build driven from outside
+  the sandbox. What is missing clusters in two places, both load-bearing for the pitch: **cost is
+  measured but never enforced or fully counted**, and **the product ends at the reveal**.
+
+  Four correctness findings. `budget_usd` is plumbed through `BuildOptions` and enforced in the
+  relay, but the only construction on the real path leaves it `None` — there is no spend ceiling on
+  any build, and chunking multiplies how many calls a stuck package can make. `usageEvent.create`
+  exists in exactly one place, the delivery build: a preview build and every directed change are
+  real model calls whose `total_cost_usd` the engine returns and the api drops, so the majority of
+  spend is invisible to the ledger billing will rest on. `build.service.run` refuses nothing when a
+  build is already running, and the engine keys its workspace by project id and wipes it
+  (`fresh=True`) — two builds double-spend and delete each other's files, triggered by the most
+  natural reaction there is, pressing Build again when the stream looks dead. And
+  `applyWorkspaceScope` fails *open* for `upsert`/`createMany` — no caller today, but a trap in the
+  one file whose job is making tenancy impossible to get wrong.
+
+  The product finding is blunter: the reveal's three buttons lead to `/live` and `/ship`, and both
+  are `PlaceholderPage`. After a build that cost real money, every next step says "This screen is
+  being ported from the prototype next" — and ownership, the MVP promise, is the screen that does
+  not exist. `/settings` is a placeholder too, which is why this session's cost lever was only
+  reachable by hand-editing `apps/engine/.env`.
+
+  Also recorded: prompt caching is still unimplemented while chunking has made it worth more (the
+  static prefix is now paid once per chunk, not once per package), and the quality gate at the
+  reveal (B048) remains the differentiator nobody has started.
+
+  What is good was worth writing down too — the gates genuinely refuse, tenancy is done correctly
+  and consistently, and `unjudged` (a criterion nobody could check rides along rather than being
+  dropped) is this codebase's best instinct; the spend ceiling should report the same way.
+
+
 ### Fixed
 - 2026-08-21 — **B076 fixed this for packages and repeated the mistake for chunks.**
   The first real build driven from a Codespace — the whole product, against Claude, from the

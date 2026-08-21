@@ -82,6 +82,12 @@
 | B063 | Decide customer-facing pricing (markup + currency) — the estimate shows build cost, not a price | PP4 | P0 | todo |
 | B079 | The operator cannot open the product from their own device: the sandbox has no inbound path and no free tunnel fits its egress — deploy the app + api somewhere reachable | PP5 | P0 | todo |
 | B080 | Codespaces run mode: the whole stack with forwarded, phone-openable URLs (no deploy) | PP5 | P0 | done |
+| B081 | A build has no spend ceiling — budget_usd is plumbed through and never set | PP4 | P0 | todo |
+| B082 | Design-window spend is never metered — preview + change costs are returned and dropped | PP4 | P0 | todo |
+| B083 | Two builds can run on one project and share (and wipe) one workspace directory | PP5 | P0 | todo |
+| B084 | The reveal's actions all lead to placeholders — /ship (own it), /live (refine), /settings | PP8 | P0 | todo |
+| B085 | applyWorkspaceScope fails OPEN for upsert/createMany — make it throw instead | PP9 | P1 | todo |
+| B086 | A dropped connection still reads as "the build stopped" — reconnect, do not declare | PP5 | P1 | todo |
 
 **B080 — a Codespace is the way in.** It runs the stack *and* forwards ports, so each one gets an
 `https://<name>-<port>.app.github.dev` origin openable from a phone — no deploy, no hosting
