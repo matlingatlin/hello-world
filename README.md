@@ -1,7 +1,20 @@
 # AI App Builder (working name)
 
 A web-based AI app builder — a competitor to Lovable — targeting 2026-and-beyond
-capabilities. This repository is in planning; application code arrives in later phases.
+capabilities.
+
+**Status:** the core loop runs end to end against real models. Describe an app in
+conversation, approve a frozen spec and a cost estimate, optionally shape the
+design by marking the running preview, and get a Next.js app built package by
+package behind real gates. Roughly 26k lines across four workspaces; engine 590
+tests, api 104, app 76. What is *not* built is the platform under it and the
+screens after the reveal — see `docs/REVIEW-PRODUCTION-READINESS.md` for exactly
+what, and `docs/ROADMAP.md` for the phase.
+
+(This paragraph used to say the repo was in planning with application code
+arriving later. It stopped being true some months and 26,000 lines ago, and a
+reviewer who reads the docs first — as they should — would have started from a
+false premise.)
 
 ## How this repo works
 Planning and decisions are made in dedicated PM/architecture sessions and executed

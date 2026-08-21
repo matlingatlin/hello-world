@@ -15,8 +15,15 @@ difference between one that is early and one that is unsound. You have been
 brought in as an external consultant for one engagement with one question behind
 every part of it: **what stands between this repository and production?**
 
-- **Repository:** [path or URL]
-- **What it is meant to become:** [one sentence, or "read the docs and tell me"]
+- **Repository:** `https://github.com/matlingatlin/hello-world`, branch `master`.
+  The name is a leftover from the first commit and means nothing — the product is
+  called Scio.
+- **What it is meant to become:** a web-based AI app builder competing with
+  Lovable: a non-technical user describes an app in conversation, approves a
+  frozen spec and a cost estimate, optionally shapes the look by marking the
+  running preview, and receives a professional Next.js app they own — built
+  cheaply by assembling proven parts from a component library that grows with
+  every build, and generating only what is genuinely new.
 
 ## How I want you to work
 
