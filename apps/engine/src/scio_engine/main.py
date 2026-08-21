@@ -388,6 +388,12 @@ class DesignChangeRequest(BaseModel):
         default_factory=dict, description="package -> files, from the build that produced it"
     )
     passes: int = Field(default=1, description="Relay passes per changed package (1-4)")
+    budget_usd: float | None = Field(
+        default=None,
+        description="What this batch of markings may spend, across every package it "
+        "touches. A directed change is cheap and frequent, which is exactly why it "
+        "needed a ceiling: nothing capped it before.",
+    )
     allowances: list[str] = Field(
         default_factory=list,
         description="Conflicts the user has already answered yes to, quoted by the exact "
@@ -427,6 +433,7 @@ async def design_change(req: DesignChangeRequest) -> DesignChangeResult:
         registry=standin_registry() if registry.is_fake else registry,
         package_files=package_files,
         passes=req.passes,
+        budget_usd=req.budget_usd,
         allowances=req.allowances,
     )
 

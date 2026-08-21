@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
-import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { WorkspaceThrottlerGuard } from "./common/workspace-throttler.guard";
 import { ConfigModule } from "@nestjs/config";
 import { EngineModule } from "./engine/engine.module";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -44,6 +45,6 @@ import { WorkspaceModule } from "./modules/workspace/workspace.module";
     NotificationModule,
     StreamModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [{ provide: APP_GUARD, useClass: WorkspaceThrottlerGuard }],
 })
 export class AppModule {}

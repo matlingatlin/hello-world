@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from ..core.console import ConsoleReport
 from ..execution.provider import ProviderRegistry
-from ..execution.relay import RelayOptions, run_relay
+from ..execution.relay import BudgetExceeded, RelayOptions, Spend, run_relay
 from ..layerc.criteria import Criterion, interacting, judgeable, scoped_out
 from ..layerc.plan import BuildPackage
 from .file_plan import planned_files
@@ -188,6 +188,7 @@ async def critique_package(
     *,
     registry: ProviderRegistry,
     passes: int = 1,
+    spend: Spend | None = None,
 ) -> Critique:
     """Ask the relay to judge the package.
 
@@ -220,8 +221,16 @@ async def critique_package(
                 # It reads a whole package before answering; the relay's default
                 # is sized for a one-line reply.
                 timeout_s=300.0,
+                # The critique costs money too, and until now it was the one
+                # model call in a build with no ceiling over it at all.
+                spend=spend,
             ),
         )
+    except BudgetExceeded:
+        # Never swallowed into "the critique failed". Hitting the ceiling is a
+        # decision the user made, not a fault in the package being judged, and
+        # the loop above turns it into an honest stop.
+        raise
     except Exception as exc:
         return Critique(
             verdict="fail",

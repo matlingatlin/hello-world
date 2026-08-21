@@ -4,6 +4,46 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Fixed
+- 2026-08-22 — **Everything the consultant pass raised** (B106–B114), including the two findings
+  that were in the previous day's fixes.
+
+  **The spend ceiling now spans the build.** `Spend` (`execution/relay.py`) is one mutable
+  accumulator created where a build starts and shared by every relay call in it —
+  codegen, each chunk, and the critique, which had no ceiling of any kind before. `budget_usd`
+  survives as what it always was, a per-call limit, and is documented as such. Hitting the ceiling
+  is now an honest outcome rather than a package failure: a `Remainder` saying *"stopped at the
+  cost ceiling you approved — this part was not built, and nothing beyond it was attempted"*, and
+  the critique no longer swallows `BudgetExceeded` into "the critique could not run". The test that
+  matters proves the thing the old design could not do: a second `run_relay` with a **fresh**
+  `RelayResult` and the **same** `Spend` is refused.
+
+  **The Docker sandbox honours its contract.** `LocalDockerSandbox.start()` now passes the
+  allow-listed environment as `-e` flags — it used to accept `env` and drop it, which silently
+  disabled the marking bridge on the host `choose_sandbox()` prefers. Its containers are in a
+  class-level registry and are torn down at shutdown alongside local previews. Both bugs came from
+  the same root, so the fix is a **conformance suite** (`test_sandbox_conformance.py`): one set of
+  assertions parametrised over every provider — it passes the caller's env, it leaks no secret, and
+  shutdown reaches it.
+
+  Also: the engine has a pinned `requirements.lock`, used by CI, post-create and dev-up, so the
+  three of them stop resolving three different dependency sets; a marking batch has one shared
+  ceiling; the wizard is metered (migration 0009 adds the `intake` kind — the cost was computed all
+  along and thrown away); `usage_event` is indexed by `(workspace_id, created_at)` because every
+  billing question is a period; and the throttler is keyed by workspace rather than IP, so one
+  office NAT is no longer one bucket.
+
+  **B112 was mostly wrong, and is corrected rather than quietly dropped.** I reported "5 labels, 13
+  aria, 0 role" from a line-based grep; every control in fact already carries an `aria-label`, on
+  the line after the tag. That is the **fourth** measurement this week defeated by multi-line JSX or
+  by reading a caller instead of an implementation. What was real: nothing announced itself. Build
+  progress is now `role="status" aria-live="polite"` — a build runs for tens of minutes and moves on
+  its own — and `StateCard` announces as `alert` when it carries an error and `status` when it does
+  not.
+
+  engine 600 (+10), api 104, app 78 (+2), ruff and typecheck clean.
+
+
 ### Reviewed
 - 2026-08-22 — **External-style review → `docs/REVIEW-CONSULTANT-2026-08-22.md`** (B106–B114).
   Weighted deliberately toward the code nobody has reviewed — yesterday's platform batch — and the

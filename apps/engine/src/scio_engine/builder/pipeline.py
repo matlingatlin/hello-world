@@ -25,6 +25,7 @@ from ..core.manifest_builder import build_manifest
 from ..core.sandbox import SandboxProvider, choose_sandbox
 from ..execution.profile import run_profile
 from ..execution.provider import ProviderRegistry
+from ..execution.relay import Spend
 from ..intake.schema import AppSpec
 from ..layerb.service import run_layer_b
 from ..layerc.service import run_layer_c
@@ -236,11 +237,12 @@ async def stream_full_build(
                 max_attempts=max_attempts,
                 codegen_passes=passes,
                 critique_passes=1,
-                # The ceiling the user approved against. Plumbed since the first
-                # version and never set by anything, so an estimate was a
-                # prediction with nothing behind it: one real build was quoted
-                # $1.05-$2.51 and spent $2.69 with nothing to intervene.
-                budget_usd=budget_usd,
+                # ONE accumulator for the whole build, not a number handed to
+                # each call. The first attempt at this passed `budget_usd` into
+                # every codegen and every critique, which granted the ceiling
+                # once per call — a seven-package build makes at least fourteen,
+                # so a $3.76 "build ceiling" licensed nearer $50.
+                spend=Spend(ceiling_usd=budget_usd),
             ),
             build_version=build_version,
             # Assembled parts take their look from the project's tokens.

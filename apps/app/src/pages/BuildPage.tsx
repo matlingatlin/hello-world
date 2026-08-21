@@ -164,7 +164,15 @@ export function BuildPage() {
 
         <aside className="bg-surface border border-line rounded-card p-[18px] relative self-start">
           <span className="absolute top-3 left-3 w-2.5 h-2.5 border-t-[1.5px] border-l-[1.5px] border-line-strong" />
-          <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-3.5">
+          {/* A build runs for tens of minutes and changes on its own. Without a
+              live region a screen-reader user has no way to know it moved —
+              they would have to keep re-reading the page to find out. Polite,
+              not assertive: it is progress, not an emergency. */}
+          <div
+            className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-3.5"
+            role="status"
+            aria-live="polite"
+          >
             {total ? `${done} of ${total} parts done` : "Planning…"}
           </div>
 

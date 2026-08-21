@@ -42,7 +42,7 @@ from ..core.sandbox import SandboxHandle, SandboxProvider
 from ..core.stamping import stamp_files
 from ..core.verifier import ids_in_source, verify_instrumentation
 from ..execution.provider import ProviderRegistry
-from ..execution.relay import BudgetExceeded, RelayOptions, run_relay
+from ..execution.relay import BudgetExceeded, RelayOptions, Spend, run_relay
 from ..layerc.plan import BuildPackage
 from .codegen import (
     CODEGEN_SYSTEM,
@@ -251,7 +251,15 @@ class BuildOptions:
     max_attempts: int = 3
     codegen_passes: int = 4  # the full relay for code; clamped to MAX_PASSES
     critique_passes: int = 1
-    budget_usd: float | None = None  # the metering hook (ADR-0009) attaches here
+    budget_usd: float | None = None
+    """A ceiling on ONE relay call. Rarely what you want — see `spend`."""
+    spend: Spend | None = None
+    """The build's running total and its ceiling, shared by every call in it.
+
+    `budget_usd` was handed to each codegen and each critique separately, which
+    granted the same ceiling once per call rather than once per build. This is
+    the object that makes it mean what the reveal says it means.
+    """
     build_version: int = 1
     persist: bool = True
     package_files: dict[str, list[str]] | None = None  # the plan's file map, when known
@@ -364,6 +372,7 @@ async def _generate_chunk(
             passes=options.codegen_passes,
             system=CODEGEN_SYSTEM,
             budget_usd=options.budget_usd,
+            spend=options.spend,
             max_tokens=CODEGEN_MAX_TOKENS,
             timeout_s=CODEGEN_TIMEOUT_S,
         ),
@@ -396,6 +405,7 @@ async def _generate(
                 passes=options.codegen_passes,
                 system=FIX_SYSTEM,
                 budget_usd=options.budget_usd,
+                spend=options.spend,
                 max_tokens=CODEGEN_MAX_TOKENS,
                 timeout_s=CODEGEN_TIMEOUT_S,
             ),
@@ -578,7 +588,22 @@ async def build_package(
                     problems=problems,
                 )
             except BudgetExceeded as exc:
+                # Not a fault in the package. The user set a ceiling and the
+                # build reached it, so it is recorded as a remainder — the same
+                # shape as everything else nobody could finish — and the loop
+                # stops rather than retrying, because a retry costs money it has
+                # already been told it does not have.
                 attempt.problems = [f"[budget] {exc}"]
+                result.remainders.append(
+                    Remainder(
+                        what=(
+                            "stopped at the cost ceiling you approved — this part was "
+                            "not built, and nothing beyond it was attempted"
+                        ),
+                        where=package.id,
+                        source="budget",
+                    )
+                )
                 result.attempts.append(attempt)
                 problems = attempt.problems
                 last_gate = _Gate(problems=list(problems))
@@ -693,7 +718,11 @@ async def build_package(
                     extra=[f"Page title: {observation.title}"] if observation.title else [],
                 )
                 critique = await critique_package(
-                    package, evidence, registry=registry, passes=opts.critique_passes
+                    package,
+                    evidence,
+                    registry=registry,
+                    passes=opts.critique_passes,
+                    spend=opts.spend,
                 )
                 gate.critique_passed = critique.passed
                 # A criterion nobody could observe never fails the build — but it

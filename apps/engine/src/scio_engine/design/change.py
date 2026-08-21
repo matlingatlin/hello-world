@@ -33,7 +33,7 @@ from ..core.persistence import ManifestStore
 from ..core.regenerate import PackageRegenerator, directed_regenerate
 from ..core.stamping import stamp_files
 from ..execution.provider import ProviderRegistry
-from ..execution.relay import RelayOptions, run_relay
+from ..execution.relay import RelayOptions, Spend, run_relay
 from ..layerb.architecture import Architecture
 from .conflicts import Conflict, detect_conflicts
 from .markings import ChangeBatch, MarkingOutcome, ResolvedBatch, resolve_batch
@@ -169,6 +169,7 @@ async def _edits_for(
     *,
     registry: ProviderRegistry,
     passes: int,
+    spend: Spend | None = None,
 ) -> tuple[dict[str, str], float]:
     """One package's new code, from the relay."""
     result = await run_relay(
@@ -180,6 +181,10 @@ async def _edits_for(
             system=FIX_SYSTEM,
             max_tokens=CHANGE_MAX_TOKENS,
             timeout_s=CHANGE_TIMEOUT_S,
+            # One accumulator for the whole batch. A directed change is the
+            # cheap, frequent interaction, which is precisely why an unbounded
+            # one is dangerous: nothing capped it at all before.
+            spend=spend,
         ),
     )
     if result.truncated:
@@ -219,10 +224,12 @@ async def apply_change(
     contracts: dict[str, str] | None = None,
     package_files: dict[str, list[str]] | None = None,
     passes: int = 1,
+    budget_usd: float | None = None,
     allowances: Sequence[str] = (),
 ) -> DesignChangeResult:
     """The whole guarded round trip. Never raises for a bad marking or a conflict."""
     app_dir = Path(app_dir).resolve()
+    spend = Spend(ceiling_usd=budget_usd)
     resolved: ResolvedBatch = resolve_batch(batch, manifest)
 
     result = DesignChangeResult(
@@ -255,6 +262,7 @@ async def apply_change(
                 instruction,
                 registry=registry,
                 passes=passes,
+                spend=spend,
             )
             change.cost_usd = cost
             result.total_cost_usd += cost

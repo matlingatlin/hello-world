@@ -34,6 +34,9 @@ class IntakeStep(BaseModel):
     gate: BuildableResult
     triggered: list[str] = Field(default_factory=list)
     extraction: ExtractionReport = Field(default_factory=ExtractionReport)
+    cost_usd: float = 0.0
+    """What this exchange cost — extraction plus, when one was written, the
+    question. A wizard is one relay per message and was never metered."""
 
     @property
     def done(self) -> bool:
@@ -99,6 +102,9 @@ async def run_intake_step(
         buildable=gate.buildable,
         next_question=question,
         contradictions=open_conflicts,
+        # Extraction is the only priced part today; a question is written by the
+        # same relay and its cost rides in the same report when it is added.
+        cost_usd=report.cost_usd,
         gate=gate,
         triggered=triggered_conditionals(working),
         extraction=report,

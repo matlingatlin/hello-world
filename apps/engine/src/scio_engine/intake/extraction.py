@@ -75,6 +75,10 @@ class ExtractionReport(BaseModel):
     signals_set: list[str] = Field(default_factory=list)
     parsed: bool = True
     raw: str = ""
+    cost_usd: float = 0.0
+    """What this extraction cost. Available all along and discarded, which is why
+    a wizard conversation — one relay per message — was the one spend the ledger
+    could not see at all."""
 
 
 def _extract_json(text: str) -> dict | None:
@@ -320,5 +324,10 @@ async def extract(
             parsed=False,
             raw=result.final_text[:2000],
             rejected=[Rejection(field="*", reason="the reply was not usable JSON")],
+            cost_usd=result.total_cost_usd,
         )
-    return apply_extraction(spec, data, evidence_ids=conversation.evidence_ids)
+    updated, report = apply_extraction(spec, data, evidence_ids=conversation.evidence_ids)
+    # The model was paid whether or not the JSON was usable, so the cost is
+    # attached on every path out of here, not only the happy one.
+    report.cost_usd = result.total_cost_usd
+    return updated, report

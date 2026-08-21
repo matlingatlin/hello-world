@@ -87,7 +87,14 @@ export function StateCard({
         ? "bg-attention/15 text-attention"
         : "bg-surface-2 text-muted border border-line";
   return (
-    <div className="bg-surface border border-line rounded-card p-[22px] text-center flex flex-col items-center gap-[9px] max-w-md mx-auto">
+    // An error card appears because something happened, not because the user
+    // clicked — a build stopped, a preview would not build. Announced, so it is
+    // not a silent change on a page somebody is not looking at. `alert` for an
+    // error because it interrupts; `status` for the rest because it does not.
+    <div
+      role={tone === "error" ? "alert" : "status"}
+      className="bg-surface border border-line rounded-card p-[22px] text-center flex flex-col items-center gap-[9px] max-w-md mx-auto"
+    >
       <div className={`w-[42px] h-[42px] rounded-btn flex items-center justify-center text-[19px] ${toneCls}`}>
         {icon}
       </div>

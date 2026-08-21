@@ -49,11 +49,15 @@ jobs:
       - name: Build the shared contract
         run: pnpm --filter @scio/shared build
 
-      - name: Install the engine from its declared extras
+      # The lock first, then the package. pyproject declares ranges, and a
+      # service that resolves "whatever is newest today" in CI is testing a
+      # different system from the one that deploys.
+      - name: Install the engine from the pinned set
         run: |
           python -m venv apps/engine/.venv
           apps/engine/.venv/bin/pip install --quiet --upgrade pip
-          apps/engine/.venv/bin/pip install --quiet -e "./apps/engine[dev,db,providers,vision]"
+          apps/engine/.venv/bin/pip install --quiet -r apps/engine/requirements.lock
+          apps/engine/.venv/bin/pip install --quiet --no-deps -e "./apps/engine"
 
       - name: Typecheck
         run: pnpm -r lint

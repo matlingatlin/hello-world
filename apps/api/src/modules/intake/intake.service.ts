@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException, Logger } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { createHash } from "node:crypto";
 import type {
@@ -30,6 +30,8 @@ import { EngineClient } from "../../engine/engine.client";
  */
 @Injectable()
 export class IntakeService {
+  private readonly logger = new Logger(IntakeService.name);
+
   constructor(
     private readonly scope: WorkspaceScope,
     private readonly engine: EngineClient,
@@ -235,6 +237,26 @@ export class IntakeService {
       })),
       spec: (project.draftSpec ?? null) as IntakeSpec | null,
     });
+
+    // The wizard is one model call per message, and it was the last spend in the
+    // product the ledger could not see. Never allowed to fail the exchange: a
+    // bookkeeping error must not lose the answer the user just typed.
+    if ((step.cost_usd ?? 0) > 0) {
+      try {
+        await this.client(workspaceId).usageEvent.create({
+          data: {
+            workspaceId,
+            projectId,
+            kind: "intake",
+            model: null,
+            amount: 0,
+            cost: step.cost_usd ?? 0,
+          },
+        });
+      } catch (err) {
+        this.logger.warn(`could not meter intake for ${projectId}: ${(err as Error).message}`);
+      }
+    }
 
     const question = step.next_question;
     if (question) {

@@ -67,6 +67,8 @@ enum ReferenceKind {
 
 enum UsageKind {
   generation
+  /// One wizard exchange — a relay call per user message.
+  intake
   /// A preview build for the design window — a real build, real model calls.
   preview
   /// One applied batch of markings. The cheap, frequent kind.
@@ -313,6 +315,7 @@ model UsageEvent {
   @@index([workspaceId])
   @@index([projectId])
   @@map("usage_event")
+  @@index([workspaceId, createdAt])
 }
 
 model Notification {

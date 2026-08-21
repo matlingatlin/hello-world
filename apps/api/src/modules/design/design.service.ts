@@ -135,6 +135,9 @@ export class DesignService {
    * Never allowed to fail the work it is recording: a bookkeeping error must not
    * undo a preview the user is looking at.
    */
+  /** What one batch of markings may spend. Deliberately generous and finite. */
+  private static readonly CHANGE_CEILING_USD = 2.0;
+
   private async meter(
     workspaceId: string,
     projectId: string,
@@ -364,6 +367,11 @@ export class DesignService {
         prompt: body.prompt ?? "",
       },
       package_files: (ref.packageFiles as Record<string, string[]>) ?? {},
+      // A directed change is the cheap, frequent interaction, and until now the
+      // only one in the product with no ceiling of any kind. Flat rather than
+      // derived from the estimate: the estimate prices a BUILD, and a change is
+      // a different unit of work that nobody has quoted.
+      budget_usd: DesignService.CHANGE_CEILING_USD,
       // Questions the user has already answered. They live on the frozen spec,
       // so the engine keeps deciding what a conflict is — this only tells it
       // which ones were settled in writing.

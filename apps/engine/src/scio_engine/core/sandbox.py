@@ -240,13 +240,18 @@ CMD ["npm", "run", "dev", "--", "--hostname", "0.0.0.0"]
 
 
 class LocalDockerSandbox(SandboxProvider):
+    _live: dict[str, str] = {}
+
     """A real container boundary, locally. Runs when a Docker daemon is reachable."""
 
     name = "local-docker"
 
     def __init__(self, image: str = "scio-sandbox") -> None:
         self.image = image
-        self._containers: dict[str, str] = {}
+        # Class-level, for the same reason the local provider's registry is:
+        # a container belongs to the HOST, not to whichever provider object
+        # started it, and shutdown has to be able to find it.
+        self._containers: dict[str, str] = LocalDockerSandbox._live
 
     @property
     def isolated(self) -> bool:
@@ -282,8 +287,19 @@ class LocalDockerSandbox(SandboxProvider):
             raise SandboxError(f"docker build failed:\n{build.stderr[-2000:]}")
 
         port = port or free_port()
+        # The env the caller asked for, as -e flags. It used to accept `env` and
+        # drop it on the floor: the parameter was the only place the word
+        # appeared in this method. That silently disabled the design window on
+        # every Docker host, because the marking bridge arrives ONLY as
+        # SCIO_PREVIEW_MODE + NEXT_PUBLIC_SCIO_SHELL_ORIGIN through this
+        # argument — and choose_sandbox() prefers Docker when it is available,
+        # so the failure was reserved for the environment closest to production.
+        flags: list[str] = []
+        for name, value in child_environment(3000, env).items():
+            flags += ["-e", f"{name}={value}"]
+
         run = subprocess.run(
-            ["docker", "run", "-d", "-p", f"{port}:3000", self.image],
+            ["docker", "run", "-d", "-p", f"{port}:3000", *flags, self.image],
             capture_output=True,
             text=True,
             check=False,
@@ -355,12 +371,29 @@ def choose_sandbox() -> SandboxProvider:
 
 
 def close_all_previews() -> int:
-    """Stop every preview this process started. Returns how many.
+    """Stop every preview this process started, of either kind. Returns how many.
 
     Called from the engine's shutdown. Best-effort by design: a preview that
     will not die must not stop the service from stopping.
+
+    Covers both providers. The first version walked only the local one, so on a
+    Docker host — the one `choose_sandbox` prefers — it reported success and
+    leaked every container.
     """
     stopped = 0
+    for url, container in list(LocalDockerSandbox._live.items()):
+        try:
+            subprocess.run(
+                ["docker", "rm", "-f", container],
+                capture_output=True,
+                timeout=15,
+                check=False,
+            )
+            stopped += 1
+        except Exception:  # noqa: BLE001 - shutdown must not raise
+            pass
+        LocalDockerSandbox._live.pop(url, None)
+
     for url, process in list(LocalProcessSandbox._live.items()):
         try:
             if process.poll() is None:

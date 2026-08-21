@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 
 from pydantic import BaseModel, Field
 
@@ -49,6 +50,9 @@ class RelayOptions(BaseModel):
     timeout_s: float = 120.0
     retries: int = 1
     budget_usd: float | None = None
+    """A ceiling on THIS relay call. Per-invocation by construction — see Spend."""
+    spend: Spend | None = None
+    """The build's running total, shared across calls. This is the real ceiling."""
 
 
 class PassResult(BaseModel):
@@ -86,6 +90,38 @@ class RelayResult(BaseModel):
         "no usable files" is a mystifying way to report "ask for less at a time".
         """
         return bool(self.passes) and self.passes[-1].stop_reason == "max_tokens"
+
+
+@dataclass
+class Spend:
+    """What one BUILD has spent, shared across every relay call inside it.
+
+    `RelayOptions.budget_usd` is a ceiling on a single relay invocation, and that
+    is all it ever was: `run_relay` creates its `RelayResult` fresh per call, so
+    the comparison below only ever saw one call's passes. Handing the same number
+    to every codegen and every critique therefore authorised it once per call —
+    a seven-package build makes at least fourteen, so a $3.76 "build ceiling"
+    licensed something closer to $50.
+
+    This is the object that makes a build-scoped ceiling possible: one instance,
+    created where the build starts, incremented by every call, checked before
+    each one. Mutable and shared on purpose — that IS the feature.
+    """
+
+    ceiling_usd: float | None = None
+    spent_usd: float = 0.0
+
+    def would_exceed(self, cost: float) -> bool:
+        return self.ceiling_usd is not None and self.spent_usd + cost > self.ceiling_usd
+
+    def add(self, cost: float) -> None:
+        self.spent_usd += cost
+
+    @property
+    def remaining_usd(self) -> float | None:
+        if self.ceiling_usd is None:
+            return None
+        return max(0.0, self.ceiling_usd - self.spent_usd)
 
 
 class BudgetExceeded(RuntimeError):
@@ -213,6 +249,16 @@ async def stream_relay(
             raise BudgetExceeded(
                 f"Relay for '{task}' would exceed its budget of ${opts.budget_usd:.2f}"
             )
+        if opts.spend is not None and opts.spend.would_exceed(cost):
+            raise BudgetExceeded(
+                f"This build has spent ${opts.spend.spent_usd:.2f} of its "
+                f"${opts.spend.ceiling_usd:.2f} ceiling, and '{task}' would cross it"
+            )
+        if opts.spend is not None:
+            # Recorded even though the pass is about to be counted into `result`
+            # too: `result` dies with this call, and the ceiling is about the
+            # build. The model has already been paid for the tokens either way.
+            opts.spend.add(cost)
 
         pass_result = PassResult(
             index=index,

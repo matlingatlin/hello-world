@@ -85,7 +85,8 @@ export function CreatePage() {
         <span className="absolute top-3 left-3 w-2.5 h-2.5 border-t-[1.5px] border-l-[1.5px] border-line-strong" />
         <textarea
           className="w-full border-none bg-transparent resize-none font-sans text-base text-ink min-h-[64px] p-1.5 focus:outline-none placeholder:text-muted"
-          placeholder="e.g. an app where customers book a table and pick a time"
+          aria-label="e.g. an app where customers book a table and pick a time"
+              placeholder="e.g. an app where customers book a table and pick a time"
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {

@@ -205,3 +205,60 @@ class TestProviders:
         ):
             with pytest.raises(ProviderError, match="not set"):
                 await provider.complete("m", [Message(role="user", content="x")])
+
+
+class TestABuildScopedCeiling:
+    """`budget_usd` is per relay CALL, and that was mistaken for per build.
+
+    `run_relay` builds its `RelayResult` fresh each invocation, so the ceiling
+    only ever saw one call's passes. Handing the same number to every codegen and
+    every critique granted it once per call — a seven-package build makes at
+    least fourteen, so a $3.76 "build ceiling" licensed nearer $50. `Spend` is
+    the object that spans them.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_ceiling_reached_in_an_earlier_call_stops_a_later_one(
+        self, fake_registry
+    ) -> None:
+        from scio_engine.execution.relay import Spend
+
+        spend = Spend(ceiling_usd=0.0000001)
+
+        # First call: trips, as a per-call ceiling would too.
+        with pytest.raises(BudgetExceeded):
+            await run_relay(
+                "codegen", "one", registry=fake_registry, options=RelayOptions(spend=spend)
+            )
+
+        # Second call with a FRESH RelayResult but the SAME Spend. Under the old
+        # per-call budget this was a clean slate and ran happily; that is exactly
+        # how fourteen calls each got the whole build's ceiling.
+        with pytest.raises(BudgetExceeded):
+            await run_relay(
+                "codegen", "two", registry=fake_registry, options=RelayOptions(spend=spend)
+            )
+
+    @pytest.mark.asyncio
+    async def test_spend_accumulates_across_calls_the_way_a_build_does(self) -> None:
+        from scio_engine.execution.relay import Spend
+
+        spend = Spend(ceiling_usd=1.00)
+        spend.add(0.40)
+        spend.add(0.40)
+
+        assert spend.spent_usd == pytest.approx(0.80)
+        assert spend.remaining_usd == pytest.approx(0.20)
+        # 0.30 would cross 1.00 — the per-call view would have allowed it twice
+        assert spend.would_exceed(0.30) is True
+        assert spend.would_exceed(0.10) is False
+
+    @pytest.mark.asyncio
+    async def test_no_ceiling_means_no_refusal(self) -> None:
+        from scio_engine.execution.relay import Spend
+
+        spend = Spend()
+        spend.add(1000.0)
+
+        assert spend.would_exceed(1000.0) is False
+        assert spend.remaining_usd is None

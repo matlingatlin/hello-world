@@ -31,6 +31,9 @@ export interface EngineIntakeStepResponse {
     about: "field" | "contradiction";
     written_by: "model" | "guide";
   } | null;
+  /** What this exchange cost. One relay call per user message, and the last
+   *  spend in the product the ledger could not see. */
+  cost_usd?: number;
   contradictions: Array<{ fields: string[]; description: string; resolved: boolean }>;
   gate: {
     buildable: boolean;
@@ -125,6 +128,9 @@ export interface EngineDesignChangeRequest {
   };
   package_files: Record<string, string[]>;
   passes?: number;
+  /** What this batch may spend, across every package it touches. A directed
+   *  change is the cheap, frequent interaction and had no ceiling at all. */
+  budget_usd?: number;
   /** Conflicts the user has already answered yes to, quoted by the exact
    *  `spec_says` the question used. Frozen on the spec, not a request flag. */
   allowances?: string[];

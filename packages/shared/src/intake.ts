@@ -141,6 +141,8 @@ export interface IntakeStepResponse {
   estimate?: BuildEstimate | null;
   /** What the engine could and couldn't do for this turn — never hidden. */
   engine: EngineStatus;
+  /** What this exchange cost. A wizard is one model call per message. */
+  cost_usd?: number;
 }
 
 /**

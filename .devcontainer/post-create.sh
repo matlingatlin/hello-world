@@ -35,7 +35,8 @@ step "shared types" bash -c 'cd packages/shared && npx tsc -p tsconfig.json'
 step "engine venv" bash -c '
   python3 -m venv apps/engine/.venv &&
   apps/engine/.venv/bin/pip install --upgrade pip &&
-  apps/engine/.venv/bin/pip install -e "./apps/engine[dev,db,providers,vision]" &&
+  apps/engine/.venv/bin/pip install -r apps/engine/requirements.lock &&
+  apps/engine/.venv/bin/pip install --no-deps -e "./apps/engine" &&
   apps/engine/.venv/bin/python -c "import uvicorn, fastapi"'
 
 # The browser Playwright drives. Its own step because it is the big download and

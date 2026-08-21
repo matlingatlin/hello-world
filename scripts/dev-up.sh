@@ -165,7 +165,8 @@ else
   # adding a key to apps/engine/.env is the only step a real build needs.
   # vision: Playwright, the preview's senses — without it a build still runs and
   # says nobody looked, which is honest but blind.
-  "$VENV/bin/pip" install --quiet -e "$ROOT/apps/engine[dev,db,providers,vision]" ||
+  "$VENV/bin/pip" install --quiet -r "$ROOT/apps/engine/requirements.lock" &&
+  "$VENV/bin/pip" install --quiet --no-deps -e "$ROOT/apps/engine" ||
     die "the engine's dependencies did not install — pip's error is above"
   printf '  installed\n'
 fi
