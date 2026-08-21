@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Res } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
+import { openStream } from "../../common/sse";
 import type {
   ApplyDesignChangeRequest,
   ApplyDesignChangeResponse,
@@ -41,15 +42,12 @@ export class DesignController {
     @Param("projectId") projectId: string,
     @Res() res: Response,
   ): Promise<void> {
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache, no-transform");
-    res.setHeader("Connection", "keep-alive");
-    res.flushHeaders?.();
-
-    await this.designs.generate(workspaceId, projectId, (event, data) => {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-    });
-    res.end();
+    const { emit, close } = openStream(res);
+    try {
+      await this.designs.generate(workspaceId, projectId, emit);
+    } finally {
+      close();
+    }
   }
 
   @Post("change")

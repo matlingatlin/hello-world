@@ -2,6 +2,7 @@ import { Controller, Get, HttpCode, Param, Post, Res } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { BuildVersionListResponse, LatestBuildResponse } from "@scio/shared";
 import type { Response } from "express";
+import { openStream } from "../../common/sse";
 import { CurrentWorkspace } from "../../auth/auth-context";
 import { BuildService } from "./build.service";
 
@@ -46,14 +47,7 @@ export class BuildController {
     @Param("projectId") projectId: string,
     @Res() res: Response,
   ): Promise<void> {
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache, no-transform");
-    res.setHeader("Connection", "keep-alive");
-    res.flushHeaders?.();
-
-    const emit = (event: string, data: Record<string, unknown>) => {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-    };
+    const { emit, close } = openStream(res);
 
     try {
       await this.builds.run(workspaceId, projectId, emit);
@@ -66,7 +60,7 @@ export class BuildController {
         message: error.message ?? "The build could not start.",
       });
     } finally {
-      res.end();
+      close();
     }
   }
 }

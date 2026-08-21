@@ -5,6 +5,26 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Fixed
+- 2026-08-20 — **"The build stopped — network error", about a build that was running fine.**
+  The first real build from a Codespace died in the browser after a minute or two, twice: once on
+  the design preview, once on the delivery build at "0 of 5 parts done". Nothing was wrong with
+  either — the api logged no failure, and `design.service` never reached its
+  *"preview … produced nothing"* warning, so `finished` had arrived. What broke was the **stream**.
+
+  A real build is silent for minutes at a time. The engine learned this on its own hop, where
+  undici gives up after 300s of quiet, and fixed it with a comment frame every 15s — and its
+  comment names the next victim exactly: *"every SSE client ignores it — including proxies, which
+  drop idle connections for the same reason"*. The api → browser hop never got one. On localhost
+  nothing sits in between, so it could not show up here; put a Codespace's port forwarder in the
+  middle and a quiet minute kills it.
+
+  `apps/api/src/common/sse.ts` now opens every stream with the same heartbeat, used by both the
+  build and the design-preview controllers, plus `X-Accel-Buffering: no` for proxies that would
+  otherwise hold a stream until it is "big enough". The timer is cleared when the client leaves —
+  the build itself keeps running, which is the promise the build screen already makes.
+
+  api 97 (+4).
+
 - 2026-08-20 — **A design build died on an optional dependency that was never declared.**
   Clicking "shape the design" in the Codespace returned `No module named 'playwright'`. Playwright
   is the preview's senses — screenshot, classified console, click resolution — and `preview.py`
