@@ -4,6 +4,50 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Fixed
+- 2026-08-21 — **The platform, in four batches** (B081–B083, B085, B088, B091–B093, B095–B099,
+  B101–B102). Everything the production review named that had no open product decision behind it.
+
+  **Secrets and delivery.** The preview no longer inherits the engine's environment — the child
+  gets an allow-list, so `ANTHROPIC_API_KEY` and the catalog database URL are simply not there for
+  model-authored code to read. A CI workflow clones fresh, installs only what the repo declares,
+  and runs everything; three of this week's four Codespace bugs were exactly what it catches. The
+  local sandbox now refuses to start under `SCIO_ENV=production` — it has said in its own docstring
+  since it was written that it must never be the production provider, and nothing enforced it.
+
+  **Data.** Migration 0006 indexes `project.workspace_id` (injected by the workspace scope on every
+  request, until now a sequential scan) and nine other foreign keys, and adds a partial unique index
+  per version table so the database refuses a second `is_current` row. The four "make this current"
+  sites are one `updateMany` + one `create` inside a transaction. `applyWorkspaceScope` throws on an
+  operation it cannot scope instead of passing it through unscoped.
+
+  **Cost.** `budget_usd` is finally set: the api sends the high end of the estimate frozen at
+  approval × 1.5, so a build stops at a ceiling the user agreed to rather than running past it.
+  Migration 0007 adds `preview` and `design_change` usage kinds, and the design window's spend —
+  which the engine had always returned and the api had always dropped — is now metered.
+
+  **The platform.** One build at a time per project, refused before the stream opens so it is a 409
+  and not an event inside a 200 (a lock older than 90 minutes is assumed crashed and taken). The
+  engine authenticates its caller when `SCIO_ENGINE_TOKEN` is set, compared with `compare_digest`.
+  It has logging for the first time, and a lifespan that stops every preview it started instead of
+  orphaning them. Prisma disconnects on shutdown. A throttler caps every route. The Clerk webhook
+  refuses an unsigned request when a secret is configured, and refuses entirely in production
+  without one — the refusal lands *before* the handler is implemented, which is the whole point.
+  The app has an error boundary, so a thrown render says what happened instead of blanking the page
+  after a build somebody paid for.
+
+  **Two corrections to the reviews above, both found by implementing them.** The dependency cache
+  does not race — `_install_into_cache` builds in a pid-scoped scratch, renames, and handles the
+  loser explicitly. And `user.clerk_user_id` was already indexed by a field-level `@unique`; my
+  schema scan only read block attributes.
+
+  **And one new finding:** `design.test.tsx` is flaky — two different tests failed on two runs and
+  three later runs were clean (B105). A flaky test in the CI just added is worse than no CI,
+  because it teaches people to ignore red.
+
+  engine 590 (+3), api 104 (+7), app 76 (+2), ruff and typecheck clean.
+
+
 ### Reviewed
 - 2026-08-21 — **Production-readiness review → `docs/REVIEW-PRODUCTION-READINESS.md`** (B091–B104).
   A second pass asking a different question: not "is this code good" but "what happens the day a

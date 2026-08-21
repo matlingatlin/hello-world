@@ -89,6 +89,18 @@ export interface EngineArchitectureResponse {
   [key: string]: unknown;
 }
 
+/**
+ * The shared secret, when one is configured.
+ *
+ * The engine authenticated nobody until now. Unset here and there means the
+ * local stack, where there is no secret to share; set it in both and every call
+ * carries it.
+ */
+function engineAuth(): Record<string, string> {
+  const token = process.env.SCIO_ENGINE_TOKEN ?? "";
+  return token ? { "x-scio-engine-token": token } : {};
+}
+
 export interface EngineBuildRequest {
   spec: IntakeSpec;
   project_id: string;
@@ -241,7 +253,8 @@ export class EngineClient {
     try {
       const res = await fetch(`${this.baseUrl}${path}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json",
+        ...engineAuth() },
         body: JSON.stringify(body),
         signal: controller.signal,
       });
@@ -351,7 +364,8 @@ export class EngineClient {
     try {
       res = await fetch(`${this.baseUrl}/build`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        headers: { "Content-Type": "application/json",
+        ...engineAuth(), Accept: "text/event-stream" },
         body: JSON.stringify(body),
       });
     } catch (err) {

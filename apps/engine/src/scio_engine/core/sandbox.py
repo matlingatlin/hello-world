@@ -144,9 +144,18 @@ class LocalProcessSandbox(SandboxProvider):
 
     name = "local-process"
 
+    # Every live preview on this host, across provider instances.
+    #
+    # A preview is a `npm run dev` child. Nothing used to stop them when the
+    # engine stopped: they outlived it, holding their ports, forever. A class-
+    # level registry is what lets shutdown find them, and it is honest about the
+    # shape of the problem — the processes belong to the HOST, not to whichever
+    # provider object happened to start them.
+    _live: dict[str, subprocess.Popen] = {}
+
     def __init__(self, *, ready_timeout_s: float = 180.0) -> None:
         self.ready_timeout_s = ready_timeout_s
-        self._processes: dict[str, subprocess.Popen] = {}
+        self._processes: dict[str, subprocess.Popen] = LocalProcessSandbox._live
 
     def is_available(self) -> bool:
         return shutil.which("npm") is not None
@@ -332,4 +341,36 @@ def choose_sandbox() -> SandboxProvider:
     docker = LocalDockerSandbox()
     if docker.is_available():
         return docker
+    # The local provider says in its own docstring that it must never be the
+    # production provider, and until now nothing enforced that. The same fence
+    # dev auth already has: a flag that is only safe in development refuses to
+    # run where it is not.
+    if os.getenv("SCIO_ENV", "").lower() == "production":
+        raise SandboxError(
+            "SCIO_ENV=production and no isolating sandbox is available. The local "
+            "process provider shares the host with the code it runs and must not "
+            "serve real users — configure Docker or the Azure provider."
+        )
     return LocalProcessSandbox()
+
+
+def close_all_previews() -> int:
+    """Stop every preview this process started. Returns how many.
+
+    Called from the engine's shutdown. Best-effort by design: a preview that
+    will not die must not stop the service from stopping.
+    """
+    stopped = 0
+    for url, process in list(LocalProcessSandbox._live.items()):
+        try:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                stopped += 1
+        except Exception:  # noqa: BLE001 - shutdown must not raise
+            pass
+        LocalProcessSandbox._live.pop(url, None)
+    return stopped

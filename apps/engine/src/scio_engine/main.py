@@ -7,11 +7,15 @@ architecture logic, and codegen build on top of this — later kickoffs.
 
 import asyncio
 import json
+import logging
+import os
+import secrets
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from .builder.pipeline import stream_full_build
@@ -19,6 +23,7 @@ from .builder.standin import standin_registry
 from .builder.workspace import WorkspaceUnavailable
 from .config import LOADED_FROM_ENV_FILE, build_registry, use_fake_providers
 from .core.manifest_builder import build_manifest
+from .core.sandbox import close_all_previews
 from .design import ChangeBatch, DesignChangeResult, RestoreResult, apply_change, restore_version
 from .estimate import BuildEstimate, estimate_plan
 from .execution.matrix import UnknownTaskError, default_matrix
@@ -50,11 +55,60 @@ from .library.entry import CatalogEntry
 from .library.identity import Status
 from .library.store import default_store
 
+# Structured enough to answer a question in production.
+#
+# The engine had no logging at all: 17,000 lines running 46-minute jobs that
+# cost dollars, and the only record was uvicorn's access line. Every debugging
+# session so far has depended on a dev script redirecting stdout to a file.
+logging.basicConfig(
+    level=os.getenv("SCIO_LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+log = logging.getLogger("scio.engine")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    log.info(
+        "engine starting providers=%s", "fake" if use_fake_providers() else "real"
+    )
+    yield
+    stopped = close_all_previews()
+    log.info("engine stopping, stopped %d preview(s)", stopped)
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="Scio Engine",
     description="Intake layers + the capability matrix and multi-pass relay.",
     version="0.0.2",
 )
+
+
+ENGINE_TOKEN = "SCIO_ENGINE_TOKEN"
+"""The shared secret between the api and this service.
+
+The engine has never authenticated anybody. That was survivable while it
+listened on loopback and only the api could reach it, and it stops being
+survivable the moment it is a separate service — or the moment generated code
+runs on the same host, which is exactly what the local sandbox does.
+
+Unset means open, because the local dev stack has no secret to share and
+refusing to start would be worse than the risk it removes. Set it and every
+request must carry it: fail closed where it matters, loud where it does not.
+"""
+
+
+@app.middleware("http")
+async def require_engine_token(request: Request, call_next):
+    expected = os.getenv(ENGINE_TOKEN, "")
+    if expected:
+        offered = request.headers.get("x-scio-engine-token", "")
+        # compare_digest: a token check that leaks its answer through timing is
+        # not a token check.
+        if not secrets.compare_digest(offered, expected):
+            return JSONResponse({"detail": "engine token missing or wrong"}, status_code=401)
+    return await call_next(request)
 
 
 class HealthResponse(BaseModel):

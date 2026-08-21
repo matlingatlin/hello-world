@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { ConfigModule } from "@nestjs/config";
 import { EngineModule } from "./engine/engine.module";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -19,6 +21,11 @@ import { WorkspaceModule } from "./modules/workspace/workspace.module";
 
 @Module({
   imports: [
+    // A ceiling on requests, because every expensive path — intake, a preview
+    // build, a directed change — is one authenticated loop away from an
+    // unbounded bill. Generous per minute: this is a bill guard and a crude DoS
+    // guard, not a UX constraint.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     EngineModule,
@@ -37,5 +44,6 @@ import { WorkspaceModule } from "./modules/workspace/workspace.module";
     NotificationModule,
     StreamModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

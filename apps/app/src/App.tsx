@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AuthGate, SignInScreen } from "./lib/auth";
 import { CreatePage } from "./pages/CreatePage";
 import { DesignPage } from "./pages/DesignPage";
@@ -34,7 +35,9 @@ export function App() {
       <Route
         element={
           <AuthGate>
-            <AppShell />
+            <ErrorBoundary>
+              <AppShell />
+            </ErrorBoundary>
           </AuthGate>
         }
       >

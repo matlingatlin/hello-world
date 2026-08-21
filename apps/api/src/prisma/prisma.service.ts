@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 
 /**
@@ -6,7 +6,7 @@ import { PrismaClient } from "@prisma/client";
  * (health then reports db: "not_configured" instead of crashing).
  */
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit {
+export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
   private connected = false;
 
@@ -30,4 +30,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
       this.logger.error(`Could not connect to the database: ${String(err)}`);
     }
   }
+
+  /**
+   * On SIGTERM the pool used to drop mid-query. A deploy is a normal event and
+   * should not look like a database failure to whoever was mid-request.
+   */
+  async onModuleDestroy(): Promise<void> {
+    await this.$disconnect();
+  }
+
 }

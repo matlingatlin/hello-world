@@ -1,4 +1,12 @@
-import { Body, Controller, Headers, HttpCode, Logger, Post } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Headers,
+  HttpCode,
+  Logger,
+  Post,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Public } from "./public.decorator";
 
@@ -20,8 +28,24 @@ export class ClerkWebhookController {
     @Body() event: { type?: string; data?: { id?: string } },
     @Headers("svix-signature") signature?: string,
   ): { received: boolean } {
-    // TODO(3.3 follow-up): verify the svix signature (CLERK_WEBHOOK_SIGNING_SECRET)
-    // before trusting the payload; reject unsigned requests in production.
+    // Fail closed, in the right order.
+    //
+    // The handler is inert today — it logs — so an unsigned POST is noise
+    // rather than account manipulation. The danger is the sequence: the moment
+    // somebody implements `user.deleted` cleanup behind an unverified
+    // signature, an anonymous request deletes accounts. So the refusal lands
+    // FIRST, and whoever implements the handler inherits it.
+    const secret = process.env.CLERK_WEBHOOK_SIGNING_SECRET ?? "";
+    if (secret && !signature) {
+      throw new UnauthorizedException("unsigned webhook");
+    }
+    if (!secret && process.env.NODE_ENV === "production") {
+      throw new UnauthorizedException(
+        "CLERK_WEBHOOK_SIGNING_SECRET is not set, so this request cannot be trusted",
+      );
+    }
+    // TODO(3.3 follow-up): verify the svix signature itself, not merely its
+    // presence — `svix` is the library, and this refusal is already in place.
     switch (event?.type) {
       case "user.created":
         // Lazy provisioning covers this; log for observability.

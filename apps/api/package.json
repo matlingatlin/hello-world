@@ -19,6 +19,7 @@
     "@nestjs/core": "^10.4.0",
     "@nestjs/platform-express": "^10.4.0",
     "@nestjs/swagger": "^7.4.0",
+    "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^5.22.0",
     "@scio/shared": "workspace:*",
     "class-transformer": "^0.5.1",

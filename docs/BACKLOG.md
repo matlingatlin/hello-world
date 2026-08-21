@@ -82,30 +82,31 @@
 | B063 | Decide customer-facing pricing (markup + currency) — the estimate shows build cost, not a price | PP4 | P0 | todo |
 | B079 | The operator cannot open the product from their own device: the sandbox has no inbound path and no free tunnel fits its egress — deploy the app + api somewhere reachable | PP5 | P0 | todo |
 | B080 | Codespaces run mode: the whole stack with forwarded, phone-openable URLs (no deploy) | PP5 | P0 | done |
-| B081 | A build has no spend ceiling — budget_usd is plumbed through and never set | PP4 | P0 | todo |
-| B082 | Design-window spend is never metered — preview + change costs are returned and dropped | PP4 | P0 | todo |
-| B083 | Two builds can run on one project and share (and wipe) one workspace directory | PP5 | P0 | todo |
+| B081 | A build has no spend ceiling — budget_usd is plumbed through and never set | PP4 | P0 | done |
+| B082 | Design-window spend is never metered — preview + change costs are returned and dropped | PP4 | P0 | done |
+| B083 | Two builds can run on one project and share (and wipe) one workspace directory | PP5 | P0 | done |
 | B084 | The reveal's actions all lead to placeholders — /ship (own it), /live (refine), /settings | PP8 | P0 | todo |
-| B085 | applyWorkspaceScope fails OPEN for upsert/createMany — make it throw instead | PP9 | P1 | todo |
+| B085 | applyWorkspaceScope fails OPEN for upsert/createMany — make it throw instead | PP9 | P1 | done |
 | B086 | A dropped connection still reads as "the build stopped" — reconnect, do not declare | PP5 | P1 | todo |
 | B087 | build_package is 226 lines doing six jobs — split the attempt body out of the loop | PP6 | P1 | todo |
-| B088 | "Make this the current version" is written 4x, none transactional — one helper + a partial unique index | PP3 | P0 | todo |
+| B088 | "Make this the current version" is written 4x, none transactional — one helper + a partial unique index | PP3 | P0 | done |
 | B089 | Type the SSE events in packages/shared — the build stream is the one path that opts out | PP5 | P1 | todo |
 | B090 | DesignPage: 19 useState is a state machine — make the impossible combinations unrepresentable | PP6 | P1 | todo |
-| B091 | BLOCKING: the generated app inherits the engine's whole environment (ANTHROPIC_API_KEY, SCIO_CATALOG_DB) — allow-list it | PP9 | P0 | todo |
-| B092 | BLOCKING: no CI — a clean-clone workflow would have caught 3 of this week's 4 Codespace bugs | PP10 | P0 | todo |
-| B093 | Refuse to boot with LocalProcessSandbox when NODE_ENV=production — it disqualifies itself in its own docstring and nothing enforces it | PP9 | P0 | todo |
+| B091 | BLOCKING: the generated app inherits the engine's whole environment (ANTHROPIC_API_KEY, SCIO_CATALOG_DB) — allow-list it | PP9 | P0 | done |
+| B092 | BLOCKING: no CI — a clean-clone workflow would have caught 3 of this week's 4 Codespace bugs | PP10 | P0 | done |
+| B093 | Refuse to boot with LocalProcessSandbox when NODE_ENV=production — it disqualifies itself in its own docstring and nothing enforces it | PP9 | P0 | done |
 | B094 | Builds must become jobs: no id, no queue, no cancellation, no resume — a restart loses every build | PP10 | P0 | todo |
-| B095 | Missing indexes on every hot path (Project.workspaceId, User.clerkUserId, UsageEvent, Notification…) | PP3 | P0 | todo |
-| B096 | The engine authenticates nobody — a shared secret before it is ever a separate service | PP9 | P0 | todo |
-| B097 | No graceful shutdown: previews orphan, streams cut without an error event, Prisma never disconnects | PP10 | P1 | todo |
-| B098 | The engine has zero logging; no tracing, metrics or error reporting anywhere | PP10 | P0 | todo |
-| B099 | No rate limiting and no per-workspace quota — the bill is unbounded at three levels | PP9 | P0 | todo |
+| B095 | Missing indexes on every hot path (Project.workspaceId, User.clerkUserId, UsageEvent, Notification…) | PP3 | P0 | done |
+| B096 | The engine authenticates nobody — a shared secret before it is ever a separate service | PP9 | P0 | done |
+| B097 | No graceful shutdown: previews orphan, streams cut without an error event, Prisma never disconnects | PP10 | P1 | done |
+| B098 | The engine has zero logging; no tracing, metrics or error reporting anywhere | PP10 | P0 | done |
+| B099 | No rate limiting and no per-workspace quota — the bill is unbounded at three levels | PP9 | P0 | done |
 | B100 | No deletion path: soft-delete leaves workspaces, git history and usage rows; user.deleted does nothing | PP9 | P0 | todo |
-| B101 | Clerk webhook accepts unsigned requests — verify BEFORE implementing the handler | PP9 | P1 | todo |
-| B102 | No error boundary in the app — one thrown render blanks the page after a paid build | PP2 | P1 | todo |
+| B101 | Clerk webhook accepts unsigned requests — verify BEFORE implementing the handler | PP9 | P1 | done |
+| B102 | No error boundary in the app — one thrown render blanks the page after a paid build | PP2 | P1 | done |
 | B103 | No API versioning and no idempotency key on POST /build — a retry is a second bill | PP3 | P1 | todo |
 | B104 | Prompt injection is an unexamined surface — gates constrain output, nothing constrains the instruction | PP9 | P1 | todo |
+| B105 | design.test.tsx is flaky: two different tests failed on two runs, three later runs clean — a flaky test in CI teaches people to ignore CI | PP2 | P0 | todo |
 
 **B080 — a Codespace is the way in.** It runs the stack *and* forwards ports, so each one gets an
 `https://<name>-<port>.app.github.dev` origin openable from a phone — no deploy, no hosting
