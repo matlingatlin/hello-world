@@ -5,6 +5,35 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Fixed
+- 2026-08-22 — **A dropped connection is not a stopped build** (B086).
+  The build screen promises "you can leave this page — the build keeps running", and then
+  contradicted itself the moment the stream died: "The build stopped". It was never true. The api
+  had no failure to report, the engine was still working, and the only thing that had ended was
+  the page's ability to hear about it — which is exactly what a Codespaces forwarder does to a
+  quiet stream.
+
+  Three parts, because the failure had three shapes:
+
+  **The stream now has a last word.** Every Scio SSE stream ends with `finished` or `error` — the
+  api emits one on each path out of the handler — *except* when the engine hung up quietly, where
+  it emitted neither and closed a 200 that had reported nothing but progress. To a browser that is
+  indistinguishable from a build still going, forever. Both stream handlers now emit an `error`
+  frame in that case.
+
+  **The client can tell the two apart.** `streamSse` raises `ApiError(0)` both when a read fails
+  mid-flight and when the stream ends without a terminal event, and the try is scoped to the read
+  alone so a page's own render bug is no longer reported as a dead socket. A frame that fails to
+  parse is still dropped rather than guessed at.
+
+  **The screens say the true thing.** The build view and the design window both distinguish a lost
+  connection from a failed build: a warning card that says the work is still running on the server,
+  and a "Check on it" that *re-reads* rather than re-subscribing — the build may well have finished
+  while the page was deaf, and asking for another one would throw away the one already running.
+
+  app 89, api 105.
+
+
+### Fixed
 - 2026-08-22 — **The flaky test had two causes, and neither was the obvious one** (B105).
   It reproduced only under the full suite, never in isolation — six clean runs alone — which ruled
   out the first guess (missing `cleanup`; the file has always had it).

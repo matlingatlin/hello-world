@@ -321,6 +321,22 @@ describe("Build (e2e): stream + persistence", () => {
     expect(scope.buildVersions).toHaveLength(0);
   });
 
+  it("says so in the stream when the engine hangs up without a word", async () => {
+    // Progress frames and then silence is indistinguishable from a build still
+    // running, so the browser sat on a half-drawn list forever. Every stream
+    // owes its reader a last word.
+    engine.events = [
+      ["started", { project_id: "p1", whole: "", packages: ["pkg_a"], total: 1, workspace: "" }],
+    ];
+
+    const res = await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+    const last = frames(res.text).at(-1);
+    expect(last?.event).toBe("error");
+    expect(String(last?.data.message)).toContain("without producing an app");
+    expect(scope.projects[0].status).toBe("error");
+  });
+
   it("does not persist a version when the engine reports a build error", async () => {
     engine.events = [
       ["started", { project_id: "p1", whole: "", packages: [], total: 0, workspace: "" }],

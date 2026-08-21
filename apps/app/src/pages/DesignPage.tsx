@@ -7,7 +7,7 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button, Eyebrow, Lede, PageTitle, StateCard } from "../components/ui";
-import { ApiError } from "../lib/api";
+import { ApiError, lostConnection } from "../lib/api";
 import { connectBridge, originOf, type Bridge, type BridgeHit } from "../lib/bridge";
 import { useApi } from "../lib/useApi";
 
@@ -89,6 +89,16 @@ export function DesignPage() {
   const [preparing, setPreparing] = useState(false);
   const [lines, setLines] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * The connection died, which is not the same as the preview failing.
+   *
+   * A preview is a real build on the server and it carries on without this
+   * page. Reported as a failure it sent the user back to rebuild something
+   * that was already being built; reported as nothing at all — which is what
+   * a stream that just ends looks like — it left this screen on "Working out
+   * what to build…" forever.
+   */
+  const [disconnected, setDisconnected] = useState(false);
 
   const [mode, setMode] = useState<"use" | "mark">("use");
   const [pending, setPending] = useState<Pending[]>([]);
@@ -128,6 +138,7 @@ export function DesignPage() {
     setPreparing(true);
     setLines([]);
     setError(null);
+    setDisconnected(false);
     setReachable(null);
     try {
       await api.streamDesignPreview(projectId, (event, data) => {
@@ -149,12 +160,32 @@ export function DesignPage() {
       });
     } catch (err) {
       if (!showing.current) return;
-      setError(err instanceof ApiError ? err.message : "The preview could not be built.");
+      if (lostConnection(err)) setDisconnected(true);
+      else setError(err instanceof ApiError ? err.message : "The preview could not be built.");
     } finally {
       setPreparing(false);
       refreshVersions();
     }
   }, [api, projectId, refreshVersions]);
+
+  /**
+   * Re-read rather than re-subscribe: the preview may well have finished while
+   * this page was deaf, and asking for another build would throw away the one
+   * that is already running.
+   */
+  const checkOnPreview = useCallback(async () => {
+    setDisconnected(false);
+    const current = await api.getDesign(projectId).catch(() => null);
+    if (!showing.current) return;
+    if (current?.previewUrl) {
+      setPreviewUrl(current.previewUrl);
+      setManifest(current.manifest);
+      setWhole(current.whole);
+      refreshVersions();
+      return;
+    }
+    await rebuild();
+  }, [api, projectId, refreshVersions, rebuild]);
 
   // --- getting a preview -------------------------------------------------
   useEffect(() => {
@@ -178,7 +209,8 @@ export function DesignPage() {
       .catch((err) => {
         if (!showing.current) return;
         setPreparing(false);
-        setError(err instanceof ApiError ? err.message : "The preview could not be built.");
+        if (lostConnection(err)) setDisconnected(true);
+        else setError(err instanceof ApiError ? err.message : "The preview could not be built.");
       });
 
     return () => {
@@ -355,6 +387,24 @@ export function DesignPage() {
   }
 
   // --- render ------------------------------------------------------------
+  if (disconnected && !previewUrl && !error) {
+    return (
+      <section>
+        <Eyebrow>Design · preparing</Eyebrow>
+        <PageTitle>Building a preview you can mark up</PageTitle>
+        <StateCard
+          icon="~"
+          tone="warn"
+          title="We lost the connection"
+          action={<Button onClick={checkOnPreview}>Check on it</Button>}
+        >
+          The preview is still being built on the server — this page just stopped hearing about
+          it.
+        </StateCard>
+      </section>
+    );
+  }
+
   if (preparing || (!previewUrl && !error)) {
     return (
       <section>

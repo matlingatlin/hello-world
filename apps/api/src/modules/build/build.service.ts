@@ -286,6 +286,15 @@ export class BuildService {
     this.logger.warn(
       `build for ${projectId} produced no result: ${failure ?? "unknown"}`,
     );
+    // And say so in the stream. Without this the engine hanging up quietly
+    // closed a 200 that had reported nothing but progress, which reads to a
+    // browser exactly like a build that is still going — forever.
+    if (!failure) {
+      await emit("error", {
+        type: "no_result",
+        message: "The engine stopped without producing an app.",
+      });
+    }
     await this.client(workspaceId).project.update({
       where: { id: projectId },
       data: { status: "error" },

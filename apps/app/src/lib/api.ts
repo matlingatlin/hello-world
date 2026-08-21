@@ -16,6 +16,15 @@ import type {
   RestoreDesignVersionResponse,
 } from "@scio/shared";
 
+/**
+ * What the client says when the connection, rather than the work, went away.
+ *
+ * Carried as status 0 — no server ever answered — so a caller can tell "we
+ * stopped hearing about the build" from "the build failed", which the build
+ * screen owes the user: it promises the build keeps running when you leave.
+ */
+export const CONNECTION_LOST = "The connection dropped — the work is still running on the server.";
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -26,6 +35,17 @@ export class ApiError extends Error {
   get unauthorized() {
     return this.status === 401;
   }
+}
+
+/**
+ * Did we lose the connection, or did the work fail?
+ *
+ * Status 0 is what this client raises when nothing answered, and anything that
+ * is not an `ApiError` never reached the server to begin with. Everything else
+ * is a real answer from the api and belongs to whoever asked for it.
+ */
+export function lostConnection(err: unknown): boolean {
+  return !(err instanceof ApiError) || err.status === 0;
 }
 
 export type GetToken = () => Promise<string | null>;
@@ -171,10 +191,21 @@ export function createApi(getToken: GetToken, baseUrl?: string) {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    // Every Scio stream ends with `finished` or `error`: the api emits one on
+    // each path out of the handler. So a stream that ends with neither did not
+    // end — the connection did, and the difference is invisible to `await`.
+    let terminal = false;
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        // Scoped to the read alone: an exception from `onEvent` below is the
+        // page's bug, not a dead socket, and must not be reported as one.
+        chunk = await reader.read();
+      } catch {
+        throw new ApiError(0, CONNECTION_LOST);
+      }
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream: true });
       const frames = buffer.split("\n\n");
       buffer = frames.pop() ?? "";
       for (const frame of frames) {
@@ -185,13 +216,17 @@ export function createApi(getToken: GetToken, baseUrl?: string) {
           else if (line.startsWith("data: ")) raw += line.slice(6);
         }
         if (!raw) continue;
+        let payload: Record<string, unknown>;
         try {
-          onEvent(name, JSON.parse(raw) as Record<string, unknown>);
+          payload = JSON.parse(raw) as Record<string, unknown>;
         } catch {
-          /* a frame we cannot read is dropped, never guessed at */
+          continue; // a frame we cannot read is dropped, never guessed at
         }
+        if (name === "finished" || name === "error") terminal = true;
+        onEvent(name, payload);
       }
     }
+    if (!terminal) throw new ApiError(0, CONNECTION_LOST);
   }
 }
 

@@ -87,7 +87,7 @@
 | B083 | Two builds can run on one project and share (and wipe) one workspace directory | PP5 | P0 | done |
 | B084 | The reveal's actions all lead to placeholders — /ship (own it), /live (refine), /settings | PP8 | P0 | todo |
 | B085 | applyWorkspaceScope fails OPEN for upsert/createMany — make it throw instead | PP9 | P1 | done |
-| B086 | A dropped connection still reads as "the build stopped" — reconnect, do not declare | PP5 | P1 | todo |
+| B086 | A dropped connection still reads as "the build stopped" — reconnect, do not declare | PP5 | P1 | done |
 | B087 | build_package is 226 lines doing six jobs — split the attempt body out of the loop | PP6 | P1 | todo |
 | B088 | "Make this the current version" is written 4x, none transactional — one helper + a partial unique index | PP3 | P0 | done |
 | B089 | Type the SSE events in packages/shared — the build stream is the one path that opts out | PP5 | P1 | todo |

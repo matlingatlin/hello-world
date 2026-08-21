@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../lib/api";
 import * as useApiModule from "../lib/useApi";
 import { BuildPage } from "./BuildPage";
 import { RevealPage } from "./RevealPage";
@@ -159,6 +160,40 @@ describe("Build view", () => {
 
     expect(await screen.findByText("No app scaffold available.")).toBeDefined();
     expect(screen.getByText("The build stopped")).toBeDefined();
+  });
+
+  it("calls a dropped connection what it is, not a stopped build", async () => {
+    // The lede on this very screen promises the build keeps running when you
+    // leave it. "The build stopped" contradicted that every time the stream
+    // died, and it was never once true: the api had no failure to report.
+    mockApi({
+      streamBuild: vi.fn().mockRejectedValue(new ApiError(0, "the connection dropped")),
+    });
+    renderAt("/projects/p1/build", <BuildPage />);
+
+    expect(await screen.findByText("We lost the connection")).toBeDefined();
+    expect(screen.queryByText("The build stopped")).toBeNull();
+  });
+
+  it("goes to the reveal if the build finished while the page was deaf", async () => {
+    mockApi({
+      streamBuild: vi.fn().mockRejectedValue(new ApiError(0, "the connection dropped")),
+    });
+    renderAt("/projects/p1/build", <BuildPage />);
+
+    await userEvent.click(await screen.findByText("Check on it"));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects/p1/reveal"));
+  });
+
+  it("still reports a real build failure as a failure", async () => {
+    mockApi({
+      streamBuild: vi.fn().mockRejectedValue(new ApiError(409, "Approve a spec first.")),
+    });
+    renderAt("/projects/p1/build", <BuildPage />);
+
+    expect(await screen.findByText("Approve a spec first.")).toBeDefined();
+    expect(screen.queryByText("We lost the connection")).toBeNull();
   });
 
   it("tells the user they can leave", async () => {

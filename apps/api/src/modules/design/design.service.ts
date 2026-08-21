@@ -273,6 +273,13 @@ export class DesignService {
       this.logger.warn(
         `preview for ${projectId} produced nothing: ${failure ?? "unknown"}`,
       );
+      // Every stream owes its reader a last word. See build.service.run.
+      if (!failure) {
+        await emit("error", {
+          type: "no_result",
+          message: "The engine stopped without producing a preview.",
+        });
+      }
       await this.client(workspaceId).project.update({
         where: { id: projectId },
         data: { status: "error" },

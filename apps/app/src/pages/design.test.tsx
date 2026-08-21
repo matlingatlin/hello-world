@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../lib/api";
 import { connectBridge } from "../lib/bridge";
 import * as useApiModule from "../lib/useApi";
 import { DesignPage } from "./DesignPage";
@@ -579,5 +580,43 @@ describe("A preview that stopped running", () => {
 
     await user.click(screen.getByRole("button", { name: "Build the preview again" }));
     expect(stream).toHaveBeenCalledWith("p1", expect.any(Function));
+  });
+});
+
+describe("A connection that stopped, and a preview that did not", () => {
+  it("does not report a dropped stream as a preview that could not be built", async () => {
+    mockApi({
+      getDesign: vi.fn().mockResolvedValue(preview({ previewUrl: null })),
+      streamDesignPreview: vi.fn().mockRejectedValue(new ApiError(0, "the connection dropped")),
+    });
+    renderPage();
+
+    expect(await screen.findByText("We lost the connection")).toBeDefined();
+  });
+
+  it("shows the preview that finished while the page was deaf", async () => {
+    const getDesign = vi
+      .fn()
+      .mockResolvedValueOnce(preview({ previewUrl: null }))
+      .mockResolvedValue(preview());
+    mockApi({
+      getDesign,
+      streamDesignPreview: vi.fn().mockRejectedValue(new ApiError(0, "the connection dropped")),
+    });
+    renderPage();
+
+    await userEvent.click(await screen.findByText("Check on it"));
+
+    expect(await screen.findByTitle("Your app")).toBeDefined();
+  });
+
+  it("still reports a real preview failure as a failure", async () => {
+    mockApi({
+      getDesign: vi.fn().mockRejectedValue(new ApiError(409, "Approve a spec first.")),
+    });
+    renderPage();
+
+    expect(await screen.findByText("Approve a spec first.")).toBeDefined();
+    expect(screen.queryByText("We lost the connection")).toBeNull();
   });
 });

@@ -2,6 +2,7 @@ import type { BuildProgress, BuildStarted } from "@scio/shared";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button, Eyebrow, Lede, PageTitle, StateCard } from "../components/ui";
+import { lostConnection } from "../lib/api";
 import { useApi } from "../lib/useApi";
 
 /**
@@ -52,6 +53,16 @@ export function BuildPage() {
   const [lines, setLines] = useState<string[]>([]);
   const [done, setDone] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * The connection died, which is NOT the same as the build dying.
+   *
+   * The lede one line up promises "you can leave this page — the build keeps
+   * running", and then a dropped stream used to contradict it with "The build
+   * stopped". It was wrong every time it appeared: the api had no failure to
+   * report, the engine was still working, and the only thing that had ended was
+   * this page's ability to hear about it.
+   */
+  const [disconnected, setDisconnected] = useState(false);
   const running = useRef(false);
   // Whether this component is still on screen. A ref, not a local, because
   // StrictMode unmounts and remounts: a local would be captured by the dead
@@ -104,7 +115,8 @@ export function BuildPage() {
       )
       .catch((err) => {
         if (!showing.current) return;
-        setError(err instanceof Error ? err.message : "The build failed.");
+        if (lostConnection(err)) setDisconnected(true);
+        else setError(err instanceof Error ? err.message : "The build failed.");
       });
 
     return () => {
@@ -122,6 +134,31 @@ export function BuildPage() {
       <Lede>
         You can leave this page — the build keeps running and we'll let you know when it's ready.
       </Lede>
+
+      {disconnected && !error && (
+        <div className="mb-4">
+          <StateCard
+            icon="~"
+            tone="warn"
+            title="We lost the connection"
+            action={
+              <Button
+                onClick={async () => {
+                  // Re-read rather than re-subscribe: the build may well have
+                  // finished while this page was deaf.
+                  const latest = await api.latestBuild(projectId).catch(() => null);
+                  if (latest?.buildVersion) navigate(`/projects/${projectId}/reveal`);
+                  else window.location.reload();
+                }}
+              >
+                Check on it
+              </Button>
+            }
+          >
+            The build keeps running on the server — this page just stopped hearing about it.
+          </StateCard>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4">
