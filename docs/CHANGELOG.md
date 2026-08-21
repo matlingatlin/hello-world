@@ -4,6 +4,45 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Reviewed
+- 2026-08-22 — **External-style review → `docs/REVIEW-CONSULTANT-2026-08-22.md`** (B106–B114).
+  Weighted deliberately toward the code nobody has reviewed — yesterday's platform batch — and the
+  modules the earlier passes never opened. **Two of the three blocking findings are in yesterday's
+  fixes.**
+
+  **The spend ceiling does not work.** `run_relay` creates its `RelayResult` fresh per invocation
+  (`relay.py:196`) and the guard compares that one call's running total (`relay.py:212`), so
+  `budget_usd` is a **per-model-call** ceiling. `loop.py:366`, `loop.py:398` and `critique.py:212`
+  each hand it the same number, and a seven-package build makes at least fourteen relay calls —
+  so sending $3.76 authorises roughly $50–80. The previous entry's claim that "a build stops at a
+  ceiling the user agreed to" is false, and worse than the original gap because the CHANGELOG now
+  says it is handled. It needs a build-scoped accumulator.
+
+  **`LocalDockerSandbox.start()` ignores its `env` argument.** It accepts `env` at
+  `sandbox.py:263` and the word appears exactly once more in the method — the parameter. The
+  `docker run` passes no `-e` at all. But `loop.py:170` sends `SCIO_PREVIEW_MODE` and
+  `NEXT_PUBLIC_SCIO_SHELL_ORIGIN` that way, and `choose_sandbox()` *prefers* Docker. So on the host
+  closest to production every preview is built without the marking bridge and the design window
+  renders a preview where clicking does nothing — silently, because the flag was never delivered.
+  Root cause worth its own item (B114): an abstract method whose contract one implementation
+  ignores is worse than no abstraction.
+
+  Also: shutdown leaks Docker containers (`_containers` is per-instance); the engine has no pinned
+  dependency set, so CI and production resolve different versions; neither the design path nor
+  intake has any ceiling and intake is not metered; the throttler is keyed by IP; accessibility has
+  never been measured (13 aria, 5 labels, 0 role, 0 alt); `usage_event` has no time index.
+
+  And an honest correction to yesterday's own entry: "the engine has logging for the first time" is
+  two calls in the lifespan and **zero** in the builder. A logger exists; observability does not.
+  None of the five questions a business asks — how many, how long, how much, how often it fails,
+  which part fails most — is answerable.
+
+  The pattern behind four of the six missed findings: they live in code paths that never run during
+  development — the Docker provider, a second relay call, a month-boundary query, a fresh
+  dependency resolution. The blind spot is not carelessness, it is that only one environment has
+  ever been exercised.
+
+
 ### Fixed
 - 2026-08-21 — **The platform, in four batches** (B081–B083, B085, B088, B091–B093, B095–B099,
   B101–B102). Everything the production review named that had no open product decision behind it.

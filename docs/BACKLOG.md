@@ -107,6 +107,15 @@
 | B103 | No API versioning and no idempotency key on POST /build — a retry is a second bill | PP3 | P1 | todo |
 | B104 | Prompt injection is an unexamined surface — gates constrain output, nothing constrains the instruction | PP9 | P1 | todo |
 | B105 | design.test.tsx is flaky: two different tests failed on two runs, three later runs clean — a flaky test in CI teaches people to ignore CI | PP2 | P0 | todo |
+| B106 | BLOCKING: the spend ceiling is enforced PER RELAY CALL, not per build — sending $3.76 authorises ~$50-80. The fix for B081 does not do what it claims | PP4 | P0 | todo |
+| B107 | BLOCKING: LocalDockerSandbox.start() ignores its env argument, so the marking bridge and the verification layer are dead on any Docker host — silently | PP6 | P0 | todo |
+| B108 | Shutdown stops local previews and leaks Docker containers — _containers is per-instance and nothing enumerates it | PP10 | P0 | todo |
+| B109 | The engine has no pinned dependency set — pyproject uses >= ranges with no lockfile, so CI and production resolve different versions | PP10 | P1 | todo |
+| B110 | Neither the design path nor intake has a spend ceiling; intake is not metered either | PP4 | P1 | todo |
+| B111 | The throttler is keyed by IP, so one office NAT shares 120 req/min — key it by workspace | PP9 | P1 | todo |
+| B112 | Accessibility has never been measured: 13 aria attributes, 5 labels, 0 role, 0 alt across 8 form-driven pages | PP2 | P1 | todo |
+| B113 | usage_event has no (workspace_id, created_at) index — every billing question is "spend in a period" | PP3 | P1 | todo |
+| B114 | SandboxProvider declares env in its abstract signature and one of two implementations ignores it — add a provider conformance test | PP6 | P0 | todo |
 
 **B080 — a Codespace is the way in.** It runs the stack *and* forwards ports, so each one gets an
 `https://<name>-<port>.app.github.dev` origin openable from a phone — no deploy, no hosting
