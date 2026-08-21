@@ -1,5 +1,5 @@
 import type { ApplyDesignChangeResponse, DesignPreviewResponse } from "@scio/shared";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -149,6 +149,13 @@ function renderPage() {
 /** Wait for the preview to be embedded — everything else happens after that. */
 async function ready() {
   await screen.findByTitle("Your app");
+  // The iframe existing is not the same as the page listening. The marking
+  // bridge is attached in an effect, and `mark()` below fires a window message
+  // SYNCHRONOUSLY — so without flushing effects first, a message can arrive
+  // before the listener does and simply vanish. That is what made this file
+  // flaky: it passed on an idle machine and failed under a loaded one, where
+  // effect flushing lags the test's own synchronous calls (B105).
+  await act(async () => {});
 }
 
 describe("The design window", () => {
@@ -535,21 +542,42 @@ describe("The involvement question", () => {
 });
 
 describe("A preview that stopped running", () => {
+  /**
+   * The component waits a real five seconds before deciding a preview is gone
+   * (DesignPage: the countdown starts at the iframe's `load`, because a dev
+   * preview compiles on first request). This test used to wait it out with an
+   * 8-second margin, which held on an idle machine and did not under load: the
+   * whole suite runs in parallel workers, and a starved worker turned a
+   * comfortable 3-second margin into a failure. That is what made the suite
+   * flaky — two different tests failed on two runs and three later runs were
+   * clean (B105).
+   *
+   * Fake timers instead. The behaviour under test is "after five seconds with
+   * no word from the bridge, say so", and a test of that should ADVANCE time,
+   * never wait for it. The suite also gets five seconds shorter.
+   */
   it("offers a way to build it again rather than a dead frame", async () => {
     const user = userEvent.setup();
     const stream = vi.fn().mockResolvedValue(undefined);
     mockApi({ streamDesignPreview: stream });
     renderPage();
 
+    // Real timers until the frame is here: `findBy*` polls, and a fake clock
+    // that nobody advances would hang it.
     const frame = (await screen.findByTitle("Your app")) as HTMLIFrameElement;
+
+    vi.useFakeTimers();
     // The iframe loads (or fails to), and the bridge never says hello.
     fireEvent.load(frame);
-    const notice = await screen.findByTestId("bridge-unreachable", {}, { timeout: 8000 });
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    vi.useRealTimers();
+
+    const notice = screen.getByTestId("bridge-unreachable");
     expect(notice.textContent).toContain("isn't running any more");
 
     await user.click(screen.getByRole("button", { name: "Build the preview again" }));
     expect(stream).toHaveBeenCalledWith("p1", expect.any(Function));
-    // Longer than the default: the warning is deliberately on a real 5s timer,
-    // so that a preview which is merely slow to compile does not trip it.
-  }, 20_000);
+  });
 });

@@ -5,6 +5,26 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Fixed
+- 2026-08-22 — **The flaky test had two causes, and neither was the obvious one** (B105).
+  It reproduced only under the full suite, never in isolation — six clean runs alone — which ruled
+  out the first guess (missing `cleanup`; the file has always had it).
+
+  **One:** the page waits a real five seconds before calling a preview gone, and the test waited it
+  out with an 8-second margin. Comfortable on an idle machine, not on one running the whole suite
+  in parallel workers. Fake timers now advance the clock instead of the test enduring it — the
+  behaviour under test is "after five seconds, say so", and a test of that should advance time. The
+  file also got five seconds shorter.
+
+  **Two, and the actual flake:** `ready()` waited for the iframe to exist, but the marking bridge
+  attaches in an effect, and the helper that delivers a marking fires a window message
+  **synchronously**. On a loaded machine the message could arrive before the listener did, and
+  simply vanish — which is why *different* tests failed on different runs. `ready()` now flushes
+  effects before anything marks.
+
+  Verified by twelve consecutive full-suite runs. app 78.
+
+
+### Fixed
 - 2026-08-22 — **Everything the consultant pass raised** (B106–B114), including the two findings
   that were in the previous day's fixes.
 

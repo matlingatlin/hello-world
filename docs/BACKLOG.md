@@ -106,7 +106,7 @@
 | B102 | No error boundary in the app — one thrown render blanks the page after a paid build | PP2 | P1 | done |
 | B103 | No API versioning and no idempotency key on POST /build — a retry is a second bill | PP3 | P1 | todo |
 | B104 | Prompt injection is an unexamined surface — gates constrain output, nothing constrains the instruction | PP9 | P1 | todo |
-| B105 | design.test.tsx is flaky: two different tests failed on two runs, three later runs clean — a flaky test in CI teaches people to ignore CI | PP2 | P0 | todo |
+| B105 | design.test.tsx is flaky: two different tests failed on two runs, three later runs clean — a flaky test in CI teaches people to ignore CI | PP2 | P0 | done |
 | B106 | BLOCKING: the spend ceiling is enforced PER RELAY CALL, not per build — sending $3.76 authorises ~$50-80. The fix for B081 does not do what it claims | PP4 | P0 | done |
 | B107 | BLOCKING: LocalDockerSandbox.start() ignores its env argument, so the marking bridge and the verification layer are dead on any Docker host — silently | PP6 | P0 | done |
 | B108 | Shutdown stops local previews and leaks Docker containers — _containers is per-instance and nothing enumerates it | PP10 | P0 | done |
