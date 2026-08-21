@@ -89,6 +89,39 @@ def preview_host() -> str:
     return os.getenv(PREVIEW_HOST, "").strip() or "127.0.0.1"
 
 
+# What a generated app is allowed to see of the machine it runs on.
+#
+# It used to see everything: the child was started with `**os.environ`, which at
+# that moment holds ANTHROPIC_API_KEY and SCIO_CATALOG_DB — a database URL with
+# credentials. The app is Next.js, so it runs server-side code that a MODEL
+# wrote; `process.env.ANTHROPIC_API_KEY` was one line away, and an app that
+# merely logged its own environment would have put the platform's key in a log
+# the user can read.
+#
+# So: an allow-list, and everything the app legitimately needs arrives through
+# the explicit `env=` the builder passes (the preview-mode flag, the shell
+# origin, the verification database). Adding a name here is a decision someone
+# makes on purpose.
+INHERITED_ENV = (
+    "PATH",  # npm and node have to be findable
+    "HOME",  # npm writes its cache under it; without it npm picks /
+    "LANG",
+    "LC_ALL",
+    "TZ",
+    "NODE_OPTIONS",
+    "npm_config_cache",
+)
+
+
+def child_environment(port: int, extra: dict[str, str] | None = None) -> dict[str, str]:
+    """The environment a preview process gets. Nothing the platform knows."""
+    base = {name: os.environ[name] for name in INHERITED_ENV if name in os.environ}
+    base["PORT"] = str(port)
+    base["NEXT_TELEMETRY_DISABLED"] = "1"
+    base.update(extra or {})
+    return base
+
+
 def _guard_path(workdir: Path, relative: str) -> Path:
     """Refuse writes that escape the sandbox directory.
 
@@ -138,12 +171,7 @@ class LocalProcessSandbox(SandboxProvider):
         process = subprocess.Popen(
             ["npm", "run", "dev", "--", "--port", str(port), "--hostname", preview_host()],
             cwd=app_dir,
-            env={
-                **os.environ,
-                "PORT": str(port),
-                "NEXT_TELEMETRY_DISABLED": "1",
-                **(env or {}),
-            },
+            env=child_environment(port, env),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,

@@ -16,7 +16,8 @@ inconvenienced:
 
 1. **The generated app inherits the platform's secrets** (Part 2.1).
 2. **A restart loses every running build and orphans every preview** (Part 1).
-3. **Two builds on one host share one mutable `node_modules`** (Part 2.2).
+3. **The only sandbox that has ever run a real build disqualifies itself from production**, and
+   nothing stops production from selecting it anyway (Part 2.3).
 
 Everything else is severity-ordered below.
 
@@ -77,25 +78,32 @@ model to write — puts the platform key in a log the user can read.
 `builder/loop.py:170`). Never `**os.environ`. This is a five-line change and it is the single most
 important one in this document.
 
-### 2.2 Every build on a host shares one mutable `node_modules` — **blocking**
-`workspace.py:245-283`: dependencies install into a shared cache keyed by the manifest, and each
-app gets `modules.symlink_to(cache / "node_modules")`. Two problems:
+### 2.2 The shared `node_modules` cache — **I was wrong about half of this**
+**Corrected 2026-08-21, after implementing the fix and finding it already there.**
 
-- **No lock.** Two builds that both find the cache cold run `npm install` into the same directory
-  at the same time, and a third can symlink a half-installed tree. Because the stack is *locked*
-  (ADR-0011), nearly every build shares the same key — this is the common case, not the rare one.
-- **The symlink is writable.** The comment says "a generated app never writes into node_modules",
-  which is an assumption about model-authored code, not an enforcement. One app that does poisons
-  every future build on that host, across tenants.
+I claimed the cache installs without a lock and that two builds race. They do not.
+`_install_into_cache` (`workspace.py:287`) installs into a **pid-scoped scratch directory** and
+`rename`s it into place, and the loser of a concurrent race is handled explicitly, with a comment
+saying so: *"Another build won the race and populated the same key first — its install is as good
+as ours, so keep theirs and drop ours."* I read the caller and not the helper. There is no
+corruption and nothing to fix.
 
-**Fix:** install to a temporary directory and `rename` into place (atomic, lock-free), and mount
-the cache read-only — or copy-on-write per build if the disk cost is acceptable.
+What remains true is smaller: the symlink into the shared cache is **writable**, and the comment's
+"a generated app never writes into node_modules" is an assumption rather than an enforcement. But
+the severity was wrong there too — see 2.3.
 
-### 2.3 The sandbox is a process, not a boundary
-`LocalProcessSandbox.isolated` returns **False** and says so honestly, and a Docker provider exists
-beside it. But the local one is what runs today, which means generated code shares the engine's
-filesystem, network and process table. It can reach `127.0.0.1:8000` — the engine — which brings us
-to:
+### 2.3 The sandbox is a process, not a boundary — and that is the real finding
+`LocalProcessSandbox` says it plainly in its own docstring: *"this shares the host … it is NOT an
+isolation boundary, and must never be the production provider."* A `DockerSandbox` exists beside it
+and `choose_sandbox()` prefers it when Docker is available.
+
+So the writable cache in 2.2, the shared filesystem, the reachable `127.0.0.1:8000` — these are
+properties of a provider that is **already disqualified from production by its own contract**. The
+finding is not "harden the local sandbox". It is: **the production sandbox provider is unbuilt and
+unproven** (ADR-0005 chose ACA dynamic sessions; the Docker one has never run a real build), and
+nothing today *enforces* that production cannot select the local one. A boot-time refusal —
+`NODE_ENV=production` + `LocalProcessSandbox` → fail to start — is the same fence dev auth already
+has, and it costs three lines.
 
 ### 2.4 The engine authenticates nobody
 No `Depends`, no bearer check, no middleware anywhere in `main.py`. Every endpoint — `/build`,

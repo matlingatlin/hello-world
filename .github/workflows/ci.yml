@@ -1,0 +1,75 @@
+# The check that would have caught this week.
+#
+# Three of the four bugs the first Codespace run found were invisible to every
+# suite, because every suite ran on a machine where the artefacts already
+# existed: source files .gitignore had been hiding, a `dist/` somebody built
+# once weeks ago, a Playwright installed by hand and never written down. All
+# three are the same bug — "it works here" — and the only cure is a machine that
+# has never seen this repo before.
+#
+# So this job clones fresh, installs only what the repo declares, and runs
+# everything. It is deliberately not clever: no caching of node_modules or the
+# venv, because a cache is exactly the thing that would hide the next one.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install the workspace exactly as declared
+        run: |
+          corepack enable
+          corepack prepare "$(node -p 'require("./package.json").packageManager')" --activate
+          pnpm install --frozen-lockfile
+
+      # dist/ is gitignored, so a fresh clone has none and the api cannot
+      # compile without this. That is the bug, and this is the proof it is gone.
+      - name: Build the shared contract
+        run: pnpm --filter @scio/shared build
+
+      - name: Install the engine from its declared extras
+        run: |
+          python -m venv apps/engine/.venv
+          apps/engine/.venv/bin/pip install --quiet --upgrade pip
+          apps/engine/.venv/bin/pip install --quiet -e "./apps/engine[dev,db,providers,vision]"
+
+      - name: Typecheck
+        run: pnpm -r lint
+
+      - name: Lint the engine
+        run: apps/engine/.venv/bin/python -m ruff check apps/engine/src apps/engine/tests
+
+      # SCIO_SKIP_ENV_FILE: a suite that reads an operator's .env is not
+      # hermetic — it once picked up a real key and started spending money.
+      - name: Engine tests
+        env:
+          SCIO_SKIP_ENV_FILE: "1"
+        run: apps/engine/.venv/bin/python -m pytest apps/engine -q
+
+      - name: API tests
+        run: pnpm --filter @scio/api test
+
+      - name: App tests
+        run: pnpm --filter @scio/app test

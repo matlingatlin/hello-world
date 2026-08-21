@@ -94,7 +94,7 @@
 | B090 | DesignPage: 19 useState is a state machine — make the impossible combinations unrepresentable | PP6 | P1 | todo |
 | B091 | BLOCKING: the generated app inherits the engine's whole environment (ANTHROPIC_API_KEY, SCIO_CATALOG_DB) — allow-list it | PP9 | P0 | todo |
 | B092 | BLOCKING: no CI — a clean-clone workflow would have caught 3 of this week's 4 Codespace bugs | PP10 | P0 | todo |
-| B093 | BLOCKING: builds on one host share one mutable node_modules cache, unlocked and writable | PP6 | P0 | todo |
+| B093 | Refuse to boot with LocalProcessSandbox when NODE_ENV=production — it disqualifies itself in its own docstring and nothing enforces it | PP9 | P0 | todo |
 | B094 | Builds must become jobs: no id, no queue, no cancellation, no resume — a restart loses every build | PP10 | P0 | todo |
 | B095 | Missing indexes on every hot path (Project.workspaceId, User.clerkUserId, UsageEvent, Notification…) | PP3 | P0 | todo |
 | B096 | The engine authenticates nobody — a shared secret before it is ever a separate service | PP9 | P0 | todo |

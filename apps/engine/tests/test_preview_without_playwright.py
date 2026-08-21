@@ -42,3 +42,27 @@ def test_the_live_preview_returns_blind_instead_of_raising(monkeypatch) -> None:
 
     observation = loop.SandboxPreview.observe(preview, Path("."), attempt=0)
     assert observation.observed is False
+
+
+def test_a_preview_never_sees_the_platforms_secrets(monkeypatch) -> None:
+    """The generated app is code a MODEL wrote, running as a child process.
+
+    It used to be started with `**os.environ`, which holds ANTHROPIC_API_KEY and
+    the catalog database's URL. `process.env.ANTHROPIC_API_KEY` was one line of
+    generated code away.
+    """
+    from scio_engine.core.sandbox import child_environment
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-secret")
+    monkeypatch.setenv("SCIO_CATALOG_DB", "postgresql://scio:pw@db/scio")
+    monkeypatch.setenv("PATH", "/usr/bin")
+
+    env = child_environment(4321, {"SCIO_PREVIEW_MODE": "1"})
+
+    assert "ANTHROPIC_API_KEY" not in env
+    assert "SCIO_CATALOG_DB" not in env
+    assert not any("sk-ant" in value for value in env.values())
+    # and it still gets what it legitimately needs
+    assert env["PATH"] == "/usr/bin"
+    assert env["PORT"] == "4321"
+    assert env["SCIO_PREVIEW_MODE"] == "1"
