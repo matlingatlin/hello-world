@@ -4,6 +4,34 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Fixed
+- 2026-08-20 — **Three source files had never been committed, and nobody could have noticed.**
+  `.gitignore` carried a bare `workspace/` under "Scratch". A pattern without a leading slash
+  matches at every level, so it also matched `apps/api/src/modules/workspace/` — and
+  `workspace.module.ts`, `workspace.controller.ts` and `workspace.service.ts` existed only on the
+  machine they were written on. The rule one line higher already carries the comment explaining
+  exactly this, from the time `build/` swallowed `src/modules/build`; the scratch rule never
+  learned it. Anchored to `/workspace/` (the engine's real workspaces live in
+  `apps/engine/out/projects`, already ignored), and the three files are committed.
+
+  Nothing could have caught it: every test and every dev run reads the working tree, where the
+  files are present. So there is now a test that reads what a *clone* gets —
+  `apps/api/test/tracked-sources.spec.ts` compares `git ls-files` against the `.ts`/`.tsx` files
+  on disk under `apps/api/src`, `apps/app/src` and `packages/shared/src`, and names any file the
+  repo does not have. Proven to fail: un-staging `workspace.module.ts` turns it red. A separate
+  one-off check over a `git archive` of the tree confirmed all **169** relative imports in those
+  three trees resolve in a fresh checkout.
+
+  Also, the engine's venv is repaired by `dev-up.sh` rather than assumed: a venv directory is
+  created before its packages land, so an install that dies in between leaves one that exists and
+  is empty — which is what "No module named uvicorn" meant on the second Codespace. The check is
+  an `import`, not a directory test. Verified by emptying the venv here and starting over.
+  `post-create.sh` no longer stops at its first failure either; it reports which steps failed and
+  says that `dev-up.sh` repairs the ones that matter, because a half-finished setup that says
+  nothing is what produced the confusing error in the first place.
+
+  api 93 (+3).
+
 ### Added
 - 2026-08-20 — **Three source files had never been committed, and a .gitignore rule was why.**
   The third Codespace run failed on `Cannot find module './modules/workspace/workspace.module'`.
