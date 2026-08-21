@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
 import type {
   BuildFinished,
   BuildVersionListResponse,
@@ -41,7 +46,10 @@ export class BuildService {
     return row;
   }
 
-  async list(workspaceId: string, projectId: string): Promise<BuildVersionListResponse> {
+  async list(
+    workspaceId: string,
+    projectId: string,
+  ): Promise<BuildVersionListResponse> {
     await this.project(workspaceId, projectId);
     const rows = await this.client(workspaceId).buildVersion.findMany({
       where: { projectId },
@@ -69,26 +77,36 @@ export class BuildService {
    * Re-read rather than carried through the browser: a project opened months
    * later must show the same honest status it showed the day it was built.
    */
-  async latest(workspaceId: string, projectId: string): Promise<LatestBuildResponse> {
+  async latest(
+    workspaceId: string,
+    projectId: string,
+  ): Promise<LatestBuildResponse> {
     const project = await this.project(workspaceId, projectId);
     const builds = await this.client(workspaceId).buildVersion.findMany({
       where: { projectId },
       orderBy: { number: "desc" },
     });
     const current =
-      builds.find((b: { isCurrent: boolean }) => b.isCurrent) ?? builds[0] ?? null;
+      builds.find((b: { isCurrent: boolean }) => b.isCurrent) ??
+      builds[0] ??
+      null;
 
     const specs = await this.client(workspaceId).specVersion.findMany({
       where: { projectId },
       orderBy: { number: "desc" },
     });
-    const spec = specs.find((s: { isCurrent: boolean }) => s.isCurrent) ?? specs[0];
-    const frozen = (spec?.assumptions ?? {}) as { whole?: string; estimate?: unknown };
+    const spec =
+      specs.find((s: { isCurrent: boolean }) => s.isCurrent) ?? specs[0];
+    const frozen = (spec?.assumptions ?? {}) as {
+      whole?: string;
+      estimate?: unknown;
+    };
     const whole = frozen.whole ?? null;
     // The estimate the user approved AGAINST, frozen with the spec — not
     // whatever the draft says now. Comparing spend to a figure that has since
     // moved would be worse than showing no comparison at all.
-    const estimate = (frozen.estimate ?? null) as LatestBuildResponse["estimate"];
+    const estimate = (frozen.estimate ??
+      null) as LatestBuildResponse["estimate"];
 
     // What the build actually cost, read back from the metering record rather
     // than recomputed. The estimate on the review screen says what a build
@@ -114,7 +132,8 @@ export class BuildService {
         : null,
       previewUrl: (project.previewUrl ?? null) as string | null,
       projectStatus: project.status as string,
-      honestStatus: (current?.honestStatus ?? null) as LatestBuildResponse["honestStatus"],
+      honestStatus: (current?.honestStatus ??
+        null) as LatestBuildResponse["honestStatus"],
       whole,
       estimate,
       spend: spend
@@ -135,20 +154,74 @@ export class BuildService {
    * ignorant of HTTP so the same path can later be driven by a queue worker for
    * builds the user walked away from.
    */
+  /**
+   * How long a build may hold the project before the lock is assumed stale.
+   *
+   * Longer than any build we have measured (the slowest real one took 46
+   * minutes). A crashed engine must not lock a project forever, and a lock that
+   * needs a human to clear is a lock nobody will clear.
+   */
+  private static readonly BUILD_LOCK_MS = 90 * 60 * 1000;
+
+  /**
+   * One build at a time, per project.
+   *
+   * `status` has said "building" since the first version and nothing read it.
+   * Two builds are not merely wasteful: the engine keys its workspace by
+   * project id and prepares it `fresh`, so the second build DELETES the first
+   * one's files mid-flight, and both spend money. The trigger is not exotic —
+   * it is pressing Build again when the stream looks dead, which is exactly
+   * what a dropped connection invites.
+   */
+  /**
+   * Called by the controller BEFORE the stream is opened.
+   *
+   * Once headers are sent a refusal can only be an event inside the stream,
+   * which is the right shape for a build that fails half-way and the wrong one
+   * for a build that never should have started: a caller that is not a browser
+   * deserves a 409.
+   */
+  async ensureCanStart(workspaceId: string, projectId: string): Promise<void> {
+    this.refuseIfAlreadyBuilding(await this.project(workspaceId, projectId));
+  }
+
+  private refuseIfAlreadyBuilding(project: { status: string; updatedAt: Date }): void {
+    if (project.status !== "building") return;
+    const held = Date.now() - new Date(project.updatedAt).getTime();
+    if (held > BuildService.BUILD_LOCK_MS) {
+      this.logger.warn(
+        `project lock held for ${Math.round(held / 60000)} minutes — assuming a crashed build and taking it`,
+      );
+      return;
+    }
+    throw new ConflictException(
+      "A build for this project is already running. Open it rather than starting a second one — " +
+        "two builds share one workspace, and the second would delete the first one's files.",
+    );
+  }
+
   async run(
     workspaceId: string,
     projectId: string,
-    emit: (event: string, data: Record<string, unknown>) => Promise<void> | void,
+    emit: (
+      event: string,
+      data: Record<string, unknown>,
+    ) => Promise<void> | void,
   ): Promise<void> {
-    await this.project(workspaceId, projectId);
+    const project = await this.project(workspaceId, projectId);
+    this.refuseIfAlreadyBuilding(project);
 
     const specVersions = await this.client(workspaceId).specVersion.findMany({
       where: { projectId },
       orderBy: { number: "desc" },
     });
-    const current = specVersions.find((s: { isCurrent: boolean }) => s.isCurrent);
+    const current = specVersions.find(
+      (s: { isCurrent: boolean }) => s.isCurrent,
+    );
     if (!current) {
-      throw new ConflictException("Approve a spec first — there is nothing frozen to build.");
+      throw new ConflictException(
+        "Approve a spec first — there is nothing frozen to build.",
+      );
     }
 
     const builds = await this.client(workspaceId).buildVersion.findMany({
@@ -174,7 +247,8 @@ export class BuildService {
         },
         async (event, data) => {
           if (event === "finished") finished = data as unknown as BuildFinished;
-          if (event === "error") failure = String(data.message ?? "the build failed");
+          if (event === "error")
+            failure = String(data.message ?? "the build failed");
           await emit(event, data);
         },
       );
@@ -190,7 +264,9 @@ export class BuildService {
 
     // No finished event means no app: say so in the project's status rather than
     // leaving it "building" forever.
-    this.logger.warn(`build for ${projectId} produced no result: ${failure ?? "unknown"}`);
+    this.logger.warn(
+      `build for ${projectId} produced no result: ${failure ?? "unknown"}`,
+    );
     await this.client(workspaceId).project.update({
       where: { id: projectId },
       data: { status: "error" },
@@ -205,37 +281,41 @@ export class BuildService {
     finished: BuildFinished,
   ): Promise<void> {
     const client = this.client(workspaceId);
-    const previous = await client.buildVersion.findMany({ where: { projectId } });
-    for (const row of previous.filter((r: { isCurrent: boolean }) => r.isCurrent)) {
-      await client.buildVersion.update({ where: { id: row.id }, data: { isCurrent: false } });
-    }
-
-    await client.buildVersion.create({
-      data: {
-        projectId,
-        number,
-        description: finished.summary.split("\n")[0] ?? `Build ${number}`,
-        gitSha: finished.git_sha,
-        // The honest status is stored whole: what worked, what needs a look and
-        // what was never built are all part of the record, not just the good news.
-        honestStatus: {
-          works: finished.works,
-          summary: finished.summary,
-          working: finished.parts_working,
-          needs_look: finished.parts_needing_a_look,
-          blocked: finished.parts_blocked,
-          failed: finished.parts_failed,
-          remainders: finished.remainders,
-          standin: finished.standin,
+    // One transaction, not two writes with a gap — see spec.service.approve.
+    // Migration 0006 adds a partial unique index so the database refuses a
+    // second current row too.
+    await client.$transaction([
+      client.buildVersion.updateMany({
+        where: { projectId, isCurrent: true },
+        data: { isCurrent: false },
+      }),
+      client.buildVersion.create({
+        data: {
+          projectId,
+          number,
+          description: finished.summary.split("\n")[0] ?? `Build ${number}`,
+          gitSha: finished.git_sha,
+          // The honest status is stored whole: what worked, what needs a look and
+          // what was never built are all part of the record, not just the good news.
+          honestStatus: {
+            works: finished.works,
+            summary: finished.summary,
+            working: finished.parts_working,
+            needs_look: finished.parts_needing_a_look,
+            blocked: finished.parts_blocked,
+            failed: finished.parts_failed,
+            remainders: finished.remainders,
+            standin: finished.standin,
+          },
+          // The build's own provenance. usage_event below is the metering ledger
+          // for a workspace; this is what one build cost, readable from the build.
+          costUsd: finished.total_cost_usd || null,
+          tokens: finished.total_tokens || null,
+          specVersionId,
+          isCurrent: true,
         },
-        // The build's own provenance. usage_event below is the metering ledger
-        // for a workspace; this is what one build cost, readable from the build.
-        costUsd: finished.total_cost_usd || null,
-        tokens: finished.total_tokens || null,
-        specVersionId,
-        isCurrent: true,
-      },
-    });
+      }),
+    ]);
 
     // The metering record. `usage_event` has existed since ADR-0009 and nothing
     // had ever written to it: the engine computed `total_cost_usd`, the api
@@ -261,7 +341,9 @@ export class BuildService {
           },
         });
       } catch (err) {
-        this.logger.warn(`could not record usage for ${projectId}: ${(err as Error).message}`);
+        this.logger.warn(
+          `could not record usage for ${projectId}: ${(err as Error).message}`,
+        );
       }
     }
 

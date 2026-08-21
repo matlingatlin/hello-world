@@ -33,7 +33,20 @@ const READ_OPERATIONS = new Set([
   "deleteMany",
 ]);
 
-const CREATE_OPERATIONS = new Set(["create", "createMany", "upsert"]);
+const CREATE_OPERATIONS = new Set(["create"]);
+
+/**
+ * Operations that need no scoping — they do not read or write rows.
+ *
+ * Everything NOT in this set and not scopeable above is refused rather than
+ * passed through. `upsert` used to sit in CREATE_OPERATIONS and quietly do
+ * nothing: an upsert has no top-level `data` (it has `create`/`update`), so
+ * nothing was stamped, and it is not a read either, so nothing was filtered.
+ * `createMany` was skipped outright because its `data` is an array. Neither has
+ * a caller today — which is exactly when to close a hole, rather than after one
+ * appears and writes a row into the wrong tenant.
+ */
+const UNSCOPED_OPERATIONS = new Set(["findRaw", "aggregateRaw", "$queryRaw", "$executeRaw"]);
 
 /** Pure helper — exported for tests. Returns args with workspace scoping applied. */
 export function applyWorkspaceScope(
@@ -46,11 +59,20 @@ export function applyWorkspaceScope(
   const next = { ...args };
   if (READ_OPERATIONS.has(operation)) {
     next.where = { ...(next.where ?? {}), workspaceId };
+    return next;
   }
   if (CREATE_OPERATIONS.has(operation) && next.data && !Array.isArray(next.data)) {
     next.data = { ...next.data, workspaceId };
+    return next;
   }
-  return next;
+  if (UNSCOPED_OPERATIONS.has(operation)) return next;
+  // Fail closed. This file exists to make tenancy impossible to get wrong, and
+  // an operation it does not understand must stop the request, not slip past
+  // unscoped. A loud failure in development beats a silent cross-tenant write.
+  throw new Error(
+    `workspace scoping does not know how to scope ${model}.${operation}. ` +
+      "Add it to READ_OPERATIONS or CREATE_OPERATIONS with a test, or use an unscoped model.",
+  );
 }
 
 @Injectable()

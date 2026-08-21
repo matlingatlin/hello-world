@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type {
   ApplyDesignChangeRequest,
@@ -88,9 +93,12 @@ export class DesignService {
       where: { projectId },
       orderBy: { number: "desc" },
     });
-    const current = specs.find((s: { isCurrent: boolean }) => s.isCurrent) ?? specs[0];
+    const current =
+      specs.find((s: { isCurrent: boolean }) => s.isCurrent) ?? specs[0];
     if (!current) {
-      throw new ConflictException("Approve a spec first — there is nothing to design against.");
+      throw new ConflictException(
+        "Approve a spec first — there is nothing to design against.",
+      );
     }
     return current;
   }
@@ -100,7 +108,9 @@ export class DesignService {
       where: { projectId },
       orderBy: { number: "desc" },
     });
-    return rows.find((r: { isCurrent: boolean }) => r.isCurrent) ?? rows[0] ?? null;
+    return (
+      rows.find((r: { isCurrent: boolean }) => r.isCurrent) ?? rows[0] ?? null
+    );
   }
 
   /**
@@ -119,17 +129,24 @@ export class DesignService {
   ): Promise<DesignVersion> {
     const client = this.client(workspaceId);
     const rows = await client.designVersion.findMany({ where: { projectId } });
-    for (const row of rows.filter((r: { isCurrent: boolean }) => r.isCurrent)) {
-      await client.designVersion.update({ where: { id: row.id }, data: { isCurrent: false } });
-    }
-    const created = await client.designVersion.create({
-      data: {
-        projectId,
-        number: (Math.max(0, ...rows.map((r: { number: number }) => r.number)) ?? 0) + 1,
-        ref: JSON.stringify(ref),
-        isCurrent: true,
-      },
-    });
+    // One transaction, not two writes with a gap — see spec.service.approve.
+    // Migration 0006 adds a partial unique index so the database refuses a
+    // second current row too.
+    const [, created] = await client.$transaction([
+      client.designVersion.updateMany({
+        where: { projectId, isCurrent: true },
+        data: { isCurrent: false },
+      }),
+      client.designVersion.create({
+        data: {
+          projectId,
+          number:
+            Math.max(0, ...rows.map((r: { number: number }) => r.number)) + 1,
+          ref: JSON.stringify(ref),
+          isCurrent: true,
+        },
+      }),
+    ]);
     return this.asDto(created);
   }
 
@@ -153,13 +170,20 @@ export class DesignService {
     }
   }
 
-  async list(workspaceId: string, projectId: string): Promise<DesignVersionListResponse> {
+  async list(
+    workspaceId: string,
+    projectId: string,
+  ): Promise<DesignVersionListResponse> {
     await this.project(workspaceId, projectId);
     const rows = await this.client(workspaceId).designVersion.findMany({
       where: { projectId },
       orderBy: { number: "desc" },
     });
-    return { designVersions: rows.map((row: Record<string, unknown>) => this.asDto(row)) };
+    return {
+      designVersions: rows.map((row: Record<string, unknown>) =>
+        this.asDto(row),
+      ),
+    };
   }
 
   /**
@@ -173,7 +197,10 @@ export class DesignService {
   async generate(
     workspaceId: string,
     projectId: string,
-    emit: (event: string, data: Record<string, unknown>) => Promise<void> | void,
+    emit: (
+      event: string,
+      data: Record<string, unknown>,
+    ) => Promise<void> | void,
   ): Promise<void> {
     await this.project(workspaceId, projectId);
     const spec = await this.currentSpec(workspaceId, projectId);
@@ -198,7 +225,8 @@ export class DesignService {
         },
         async (event, data) => {
           if (event === "finished") finished = data as unknown as BuildFinished;
-          if (event === "error") failure = String(data.message ?? "the preview failed");
+          if (event === "error")
+            failure = String(data.message ?? "the preview failed");
           await emit(event, data);
         },
       );
@@ -208,7 +236,9 @@ export class DesignService {
     }
 
     if (!finished) {
-      this.logger.warn(`preview for ${projectId} produced nothing: ${failure ?? "unknown"}`);
+      this.logger.warn(
+        `preview for ${projectId} produced nothing: ${failure ?? "unknown"}`,
+      );
       await this.client(workspaceId).project.update({
         where: { id: projectId },
         data: { status: "error" },
@@ -236,7 +266,10 @@ export class DesignService {
   }
 
   /** What the design window loads when it opens: the current preview. */
-  async current(workspaceId: string, projectId: string): Promise<DesignPreviewResponse> {
+  async current(
+    workspaceId: string,
+    projectId: string,
+  ): Promise<DesignPreviewResponse> {
     await this.project(workspaceId, projectId);
     const row = await this.currentDesign(workspaceId, projectId);
     const ref = this.refOf(row);
@@ -270,7 +303,9 @@ export class DesignService {
     const ref = this.refOf(design);
 
     if (!ref.workspace) {
-      throw new ConflictException("Generate a preview first — there is nothing to change yet.");
+      throw new ConflictException(
+        "Generate a preview first — there is nothing to change yet.",
+      );
     }
 
     const result = await this.engine.designChange({
@@ -297,7 +332,8 @@ export class DesignService {
     });
 
     const previewUrl = (ref.previewUrl as string) || null;
-    const manifest = result.manifest ?? (ref.manifest as Record<string, unknown>) ?? null;
+    const manifest =
+      result.manifest ?? (ref.manifest as Record<string, unknown>) ?? null;
 
     // Only an applied change is a new version. A conflict changed nothing, so
     // recording one would put a version in the history that nobody can see the
@@ -346,20 +382,29 @@ export class DesignService {
   private summarise(result: {
     applied: boolean;
     conflicts: Array<{ question: string }>;
-    packages: Array<{ package: string; edited_files: string[]; unchanged_files: number; accepted: boolean; rejection: string }>;
+    packages: Array<{
+      package: string;
+      edited_files: string[];
+      unchanged_files: number;
+      accepted: boolean;
+      rejection: string;
+    }>;
     unaddressable: unknown[];
   }): string {
     if (result.conflicts.length > 0) {
       return `Not applied — ${result.conflicts.length} thing(s) need your call.`;
     }
-    if (result.packages.length === 0) return "Nothing to change — no marking could be addressed.";
+    if (result.packages.length === 0)
+      return "Nothing to change — no marking could be addressed.";
     const lines = result.packages.map((p) =>
       p.accepted
         ? `${p.package}: changed ${p.edited_files.join(", ")} (${p.unchanged_files} other files unchanged)`
         : `${p.package}: not applied — ${p.rejection}`,
     );
     if (result.unaddressable.length > 0) {
-      lines.push(`${result.unaddressable.length} marking(s) could not be addressed`);
+      lines.push(
+        `${result.unaddressable.length} marking(s) could not be addressed`,
+      );
     }
     return lines.join("\n");
   }
@@ -392,7 +437,8 @@ export class DesignService {
     const current = await this.currentDesign(workspaceId, projectId);
     const currentRef = this.refOf(current);
     const gitSha = (targetRef.gitSha as string) || "";
-    const workspace = (currentRef.workspace as string) || (targetRef.workspace as string) || "";
+    const workspace =
+      (currentRef.workspace as string) || (targetRef.workspace as string) || "";
 
     if (!gitSha) {
       return {
@@ -406,13 +452,16 @@ export class DesignService {
       };
     }
     if (!workspace) {
-      throw new ConflictException("Generate a preview first — there is nothing to restore into.");
+      throw new ConflictException(
+        "Generate a preview first — there is nothing to restore into.",
+      );
     }
 
     const result = await this.engine.designRestore({
       app_dir: workspace,
       git_sha: gitSha,
-      package_files: (currentRef.packageFiles as Record<string, string[]>) ?? {},
+      package_files:
+        (currentRef.packageFiles as Record<string, string[]>) ?? {},
     });
 
     if (!result.restored) {
@@ -427,7 +476,8 @@ export class DesignService {
 
     const version = await this.record(workspaceId, projectId, {
       ...currentRef,
-      manifest: result.manifest ?? targetRef.manifest ?? currentRef.manifest ?? null,
+      manifest:
+        result.manifest ?? targetRef.manifest ?? currentRef.manifest ?? null,
       change: `returned to version ${target.number}`,
       gitSha: result.head || gitSha,
     });
@@ -447,7 +497,10 @@ export class DesignService {
     body: FreezeDesignRequest,
   ): Promise<DesignVersionResponse> {
     await this.project(workspaceId, projectId);
-    const version = await this.record(workspaceId, projectId, { approved: true, ref: body.ref });
+    const version = await this.record(workspaceId, projectId, {
+      approved: true,
+      ref: body.ref,
+    });
     return { designVersion: version };
   }
 }

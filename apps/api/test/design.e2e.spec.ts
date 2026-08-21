@@ -61,6 +61,19 @@ class FakeScope {
         if (!owns(where.projectId)) return null;
         return rows.find((r) => r.id === where.id && r.projectId === where.projectId) ?? null;
       },
+      // Modelled because the services now use it: "make this the current
+      // version" is one updateMany plus one create inside a transaction, not a
+      // read-modify-write loop.
+      async updateMany({ where, data }: any) {
+        if (!owns(where.projectId)) return { count: 0 };
+        const hits = rows.filter(
+          (r) =>
+            r.projectId === where.projectId &&
+            (where.isCurrent === undefined || r.isCurrent === where.isCurrent),
+        );
+        hits.forEach((r) => Object.assign(r, data));
+        return { count: hits.length };
+      },
       async update({ where, data }: any) {
         const row = rows.find((r) => r.id === where.id);
         if (!row) throw new Error("record not found");
@@ -70,6 +83,10 @@ class FakeScope {
     });
 
     return {
+      // Not atomic — a fake cannot be — but it keeps the call shape honest.
+      async $transaction(operations: any[]) {
+        return Promise.all(operations);
+      },
       project: {
         async findFirst({ where }: any) {
           return (

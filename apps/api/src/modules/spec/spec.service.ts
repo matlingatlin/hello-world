@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import type {
   AmendSpecRequest,
   AmendSpecResponse,
@@ -38,7 +42,10 @@ export class SpecService {
     return row;
   }
 
-  async list(workspaceId: string, projectId: string): Promise<SpecVersionListResponse> {
+  async list(
+    workspaceId: string,
+    projectId: string,
+  ): Promise<SpecVersionListResponse> {
     await this.project(workspaceId, projectId);
     const rows = await this.client(workspaceId).specVersion.findMany({
       where: { projectId },
@@ -62,7 +69,9 @@ export class SpecService {
     const project = await this.project(workspaceId, projectId);
     const spec = (project.draftSpec ?? null) as IntakeSpec | null;
     if (!spec || Object.keys(spec).length === 0) {
-      throw new ConflictException("There is no spec to approve yet — finish the wizard first.");
+      throw new ConflictException(
+        "There is no spec to approve yet — finish the wizard first.",
+      );
     }
 
     // The gate, checked where it is enforceable.
@@ -95,32 +104,40 @@ export class SpecService {
     });
     const number = (previous[0]?.number ?? 0) + 1;
 
-    for (const row of previous.filter((r: { isCurrent: boolean }) => r.isCurrent)) {
-      await this.client(workspaceId).specVersion.update({
-        where: { id: row.id },
+    // One transaction, not two writes with a gap. A crash between un-flagging the
+    // old current row and creating the new one left a project with NO current
+    // version, which every read path reads as "nothing exists". Migration 0006
+    // adds a partial unique index so the database refuses a second current row
+    // as well — belt and braces on an invariant four call sites promised and
+    // none of them kept.
+    const client = this.client(workspaceId);
+    const [, created] = await client.$transaction([
+      client.specVersion.updateMany({
+        where: { projectId, isCurrent: true },
         data: { isCurrent: false },
-      });
-    }
-
-    const created = await this.client(workspaceId).specVersion.create({
-      data: {
-        projectId,
-        number,
-        content: spec as object,
-        assumptions: {
-          assumed: assumedFields(spec),
-          // What was on screen when they pressed the button.
-          ...(body.whole ? { whole: body.whole } : {}),
-          // The estimate too, read from the project rather than trusted from
-          // the client — the same reason `assumed` is extracted here. The
-          // reveal compares what a build SPENT against this, so it has to be
-          // the figure that was on screen at approval, not whatever the draft
-          // says by then.
-          ...(project.draftEstimate ? { estimate: project.draftEstimate } : {}),
+      }),
+      client.specVersion.create({
+        data: {
+          projectId,
+          number,
+          content: spec as object,
+          assumptions: {
+            assumed: assumedFields(spec),
+            // What was on screen when they pressed the button.
+            ...(body.whole ? { whole: body.whole } : {}),
+            // The estimate too, read from the project rather than trusted from
+            // the client — the same reason `assumed` is extracted here. The
+            // reveal compares what a build SPENT against this, so it has to be
+            // the figure that was on screen at approval, not whatever the draft
+            // says by then.
+            ...(project.draftEstimate
+              ? { estimate: project.draftEstimate }
+              : {}),
+          },
+          isCurrent: true,
         },
-        isCurrent: true,
-      },
-    });
+      }),
+    ]);
 
     await this.client(workspaceId).project.update({
       where: { id: projectId },
@@ -176,13 +193,16 @@ export class SpecService {
       where: { projectId },
       orderBy: { number: "desc" },
     });
-    const current = previous.find((r: { isCurrent: boolean }) => r.isCurrent) ?? previous[0];
+    const current =
+      previous.find((r: { isCurrent: boolean }) => r.isCurrent) ?? previous[0];
     if (!current) {
       throw new ConflictException("There is no approved spec to amend.");
     }
 
     const spec = structuredClone(current.content ?? {}) as IntakeSpec;
-    const assumptions = { ...((current.assumptions ?? {}) as Record<string, unknown>) };
+    const assumptions = {
+      ...((current.assumptions ?? {}) as Record<string, unknown>),
+    };
     const allowances = [...toStrings(assumptions.allowances)];
     let removedNonGoal: string | null = null;
 
@@ -194,7 +214,10 @@ export class SpecService {
         spec.non_goals = {
           ...field,
           value: kept,
-          provenance: [...(field.provenance ?? []), `dropped in the design window: ${says}`],
+          provenance: [
+            ...(field.provenance ?? []),
+            `dropped in the design window: ${says}`,
+          ],
         };
       }
       // Not found is not an error: the same conflict answered twice must not
@@ -214,22 +237,28 @@ export class SpecService {
       },
     ];
 
-    for (const row of previous.filter((r: { isCurrent: boolean }) => r.isCurrent)) {
-      await this.client(workspaceId).specVersion.update({
-        where: { id: row.id },
+    // One transaction, not two writes with a gap. A crash between un-flagging the
+    // old current row and creating the new one left a project with NO current
+    // version, which every read path reads as "nothing exists". Migration 0006
+    // adds a partial unique index so the database refuses a second current row
+    // as well — belt and braces on an invariant four call sites promised and
+    // none of them kept.
+    const client = this.client(workspaceId);
+    const [, created] = await client.$transaction([
+      client.specVersion.updateMany({
+        where: { projectId, isCurrent: true },
         data: { isCurrent: false },
-      });
-    }
-
-    const created = await this.client(workspaceId).specVersion.create({
-      data: {
-        projectId,
-        number: (previous[0]?.number ?? 0) + 1,
-        content: spec as object,
-        assumptions: assumptions as object,
-        isCurrent: true,
-      },
-    });
+      }),
+      client.specVersion.create({
+        data: {
+          projectId,
+          number: (previous[0]?.number ?? 0) + 1,
+          content: spec as object,
+          assumptions: assumptions as object,
+          isCurrent: true,
+        },
+      }),
+    ]);
 
     // The draft follows the frozen spec, or re-approving would quietly put the
     // dropped non-goal back and the same question would be asked again.
@@ -257,7 +286,9 @@ function same(a: string, b: string): boolean {
 }
 
 function toStrings(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string")
+    : [];
 }
 
 function toRecords(value: unknown): Array<Record<string, unknown>> {
@@ -271,7 +302,12 @@ export function allowancesOf(assumptions: unknown): string[] {
 }
 
 function isField(value: unknown): value is SpecField {
-  return typeof value === "object" && value !== null && "source" in value && "value" in value;
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "source" in value &&
+    "value" in value
+  );
 }
 
 /** The fields carried by a flagged default — what the review screen showed as "assumed". */

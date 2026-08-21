@@ -55,6 +55,19 @@ class FakeScope {
         if (!owns(where.projectId)) return [];
         return rows.filter((r) => r.projectId === where.projectId).sort(sort);
       },
+      // Modelled because the services now use it: "make this the current
+      // version" is one updateMany plus one create inside a transaction, not a
+      // read-modify-write loop.
+      async updateMany({ where, data }: any) {
+        if (!owns(where.projectId)) return { count: 0 };
+        const hits = rows.filter(
+          (r) =>
+            r.projectId === where.projectId &&
+            (where.isCurrent === undefined || r.isCurrent === where.isCurrent),
+        );
+        hits.forEach((r) => Object.assign(r, data));
+        return { count: hits.length };
+      },
       async update({ where, data }: any) {
         const row = rows.find((r) => r.id === where.id);
         if (!row) throw new Error("record not found");
@@ -64,6 +77,10 @@ class FakeScope {
     });
 
     return {
+      // Not atomic — a fake cannot be — but it keeps the call shape honest.
+      async $transaction(operations: any[]) {
+        return Promise.all(operations);
+      },
       project: {
         async findFirst({ where }: any) {
           return (
@@ -201,6 +218,7 @@ describe("Build (e2e): stream + persistence", () => {
         name: "Bistro",
         type: "app",
         status: "spec_locked",
+        updatedAt: new Date(),
         draftSpec: {},
         previewUrl: null,
         deletedAt: null,
@@ -233,10 +251,12 @@ describe("Build (e2e): stream + persistence", () => {
   });
 
   it("is 404 for another workspace's project, and builds nothing", async () => {
-    const res = await request(http).post("/projects/p1/build").set(w2).expect(200);
-    // The stream is already open, so the refusal arrives as an event in it.
-    expect(frames(res.text)[0].event).toBe("error");
-    expect(frames(res.text)[0].data.type).toBe("not_found");
+    // A real status code, because the refusal now happens BEFORE the stream is
+    // opened. It used to arrive as an error event inside a 200, which is the
+    // right shape for a build that fails half-way and the wrong one for a build
+    // that never should have started — and it read as success to anything that
+    // is not a browser.
+    await request(http).post("/projects/p1/build").set(w2).expect(404);
     expect(engine.seen).toHaveLength(0);
     expect(scope.buildVersions).toHaveLength(0);
   });
@@ -395,4 +415,33 @@ describe("Build (e2e): stream + persistence", () => {
     expect(res.body.buildVersion).toBeNull();
     expect(res.body.honestStatus).toBeNull();
   });
+
+  describe("one build at a time", () => {
+    /**
+     * The engine keys its workspace by project id and prepares it `fresh`, so a
+     * second build deletes the first one's files mid-flight — and both spend
+     * money. `status` has said "building" since the first version; nothing read
+     * it until a dropped stream made pressing Build again the obvious thing.
+     */
+    it("refuses a second build while one is running", async () => {
+      scope.projects[0].status = "building";
+      scope.projects[0].updatedAt = new Date();
+
+      const response = await request(http).post("/projects/p1/build").set(w1).expect(409);
+
+      expect(response.body.message).toMatch(/already running/i);
+      expect(scope.buildVersions).toHaveLength(0);
+    });
+
+    it("takes a lock a crashed build left behind, rather than locking forever", async () => {
+      scope.projects[0].status = "building";
+      scope.projects[0].updatedAt = new Date(Date.now() - 3 * 60 * 60 * 1000);
+
+      await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+      expect(scope.buildVersions).toHaveLength(1);
+    });
+  });
+
 });
+

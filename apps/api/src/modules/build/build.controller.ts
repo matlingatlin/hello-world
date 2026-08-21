@@ -47,6 +47,10 @@ export class BuildController {
     @Param("projectId") projectId: string,
     @Res() res: Response,
   ): Promise<void> {
+    // Before the stream: a refusal here is a status code, not an event nobody
+    // outside a browser would look for.
+    await this.builds.ensureCanStart(workspaceId, projectId);
+
     const { emit, close } = openStream(res);
 
     try {

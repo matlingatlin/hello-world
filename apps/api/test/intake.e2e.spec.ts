@@ -42,6 +42,10 @@ class FakeScope {
       store.projects.some((p) => p.id === projectId && p.workspaceId === workspaceId);
 
     return {
+      // Not atomic — a fake cannot be — but it keeps the call shape honest.
+      async $transaction(operations: any[]) {
+        return Promise.all(operations);
+      },
       project: {
         async findFirst({ where }: any) {
           return (
@@ -88,6 +92,16 @@ class FakeScope {
           return store.specVersions
             .filter((s) => s.projectId === where.projectId)
             .sort((a, b) => b.number - a.number);
+        },
+        async updateMany({ where, data }: any) {
+          if (!ownsProject(where.projectId)) return { count: 0 };
+          const hits = store.specVersions.filter(
+            (s) =>
+              s.projectId === where.projectId &&
+              (where.isCurrent === undefined || s.isCurrent === where.isCurrent),
+          );
+          hits.forEach((row) => Object.assign(row, data));
+          return { count: hits.length };
         },
         async update({ where, data }: any) {
           const row = store.specVersions.find((s) => s.id === where.id);

@@ -111,38 +111,39 @@ model User {
   workspace     Workspace      @relation(fields: [workspaceId], references: [id])
   notifications Notification[]
 
+  @@index([workspaceId])
   @@map("user")
 }
 
 model Project {
-  id          String        @id @default(uuid()) @db.Uuid
-  workspaceId String        @map("workspace_id") @db.Uuid
-  name        String
-  type        ProjectType   @default(app)
-  status      ProjectStatus @default(draft)
+  id                    String        @id @default(uuid()) @db.Uuid
+  workspaceId           String        @map("workspace_id") @db.Uuid
+  name                  String
+  type                  ProjectType   @default(app)
+  status                ProjectStatus @default(draft)
   /// The wizard's working spec (Layer A), before it is frozen as a spec_version.
   /// Lives on the project because it is still being edited; a spec_version is a
   /// contract and must never be rewritten in place.
-  draftSpec   Json?         @map("draft_spec")
+  draftSpec             Json?         @map("draft_spec")
   /// The confirmation prose and the cost estimate for `draftSpec`, stored
   /// because they are DERIVED from it and deriving them costs a real Layer B +
   /// Layer C model call. Recomputing them per request made loading the wizard
   /// or the review screen take ~12 seconds and spend money on a page refresh.
   /// Written by every path that writes draftSpec, so they cannot drift from it.
-  draftWhole     String? @map("draft_whole")
-  draftEstimate  Json?   @map("draft_estimate")
+  draftWhole            String?       @map("draft_whole")
+  draftEstimate         Json?         @map("draft_estimate")
   /// Which spec the two above describe. Invalidation is by construction today —
   /// every writer of draft_spec writes them together — and this is what keeps
   /// that true if a fourth writer ever appears: a mismatch means recompute,
   /// rather than showing a confident summary of a spec that no longer exists.
-  draftConfirmationHash String? @map("draft_confirmation_hash")
+  draftConfirmationHash String?       @map("draft_confirmation_hash")
   /// Where the current build is being served (a sandbox URL). Points at a
   /// running preview, so it is expected to go stale — the build_version is the
   /// durable record, this is only what to embed right now.
-  previewUrl  String?       @map("preview_url")
-  deletedAt   DateTime?     @map("deleted_at") // soft delete
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  previewUrl            String?       @map("preview_url")
+  deletedAt             DateTime?     @map("deleted_at") // soft delete
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
 
   workspace       Workspace            @relation(fields: [workspaceId], references: [id])
   messages        Message[]
@@ -154,6 +155,8 @@ model Project {
   embeddings      ReferenceEmbedding[]
   usageEvents     UsageEvent[]
 
+  @@index([workspaceId])
+  @@index([workspaceId, deletedAt])
   @@map("project")
 }
 
@@ -167,6 +170,7 @@ model Message {
 
   project Project @relation(fields: [projectId], references: [id])
 
+  @@index([projectId])
   @@map("message")
 }
 
@@ -229,6 +233,8 @@ model BuildVersion {
   deployments   Deployment[]
 
   @@unique([projectId, number])
+  @@index([specVersionId])
+  @@index([designVersionId])
   @@map("build_version")
 }
 
@@ -246,6 +252,8 @@ model Deployment {
   project      Project      @relation(fields: [projectId], references: [id])
   buildVersion BuildVersion @relation(fields: [buildVersionId], references: [id])
 
+  @@index([projectId])
+  @@index([buildVersionId])
   @@map("deployment")
 }
 
@@ -262,6 +270,7 @@ model ReferenceAsset {
   project    Project              @relation(fields: [projectId], references: [id])
   embeddings ReferenceEmbedding[]
 
+  @@index([projectId])
   @@map("reference_asset")
 }
 
@@ -278,6 +287,8 @@ model ReferenceEmbedding {
   project Project        @relation(fields: [projectId], references: [id])
   asset   ReferenceAsset @relation(fields: [assetId], references: [id])
 
+  @@index([projectId])
+  @@index([assetId])
   @@map("reference_embedding")
 }
 
@@ -295,6 +306,8 @@ model UsageEvent {
   workspace Workspace @relation(fields: [workspaceId], references: [id])
   project   Project?  @relation(fields: [projectId], references: [id])
 
+  @@index([workspaceId])
+  @@index([projectId])
   @@map("usage_event")
 }
 
@@ -311,6 +324,7 @@ model Notification {
   workspace Workspace @relation(fields: [workspaceId], references: [id])
   user      User      @relation(fields: [userId], references: [id])
 
+  @@index([workspaceId, userId])
   @@map("notification")
 }
 
@@ -326,5 +340,6 @@ model AuditLog {
 
   workspace Workspace @relation(fields: [workspaceId], references: [id])
 
+  @@index([workspaceId])
   @@map("audit_log")
 }

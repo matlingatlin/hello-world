@@ -39,3 +39,22 @@ describe("applyWorkspaceScope", () => {
     expect(args.where).toEqual({ projectId: "p1" });
   });
 });
+
+describe("an operation the scope does not understand", () => {
+  /**
+   * `upsert` used to sit in CREATE_OPERATIONS and do nothing at all: it has no
+   * top-level `data` to stamp and is not a read, so nothing was filtered
+   * either. `createMany` was skipped because its `data` is an array. Both would
+   * have written unscoped rows on a workspace-scoped model.
+   */
+  it.each(["upsert", "createMany"])("refuses %s rather than passing it through", (operation) => {
+    expect(() => applyWorkspaceScope("Project", operation, { data: {} }, "w1")).toThrow(
+      /does not know how to scope Project\./,
+    );
+  });
+
+  it("leaves models that are not workspace-scoped alone", () => {
+    const args = { data: { id: "x" } };
+    expect(applyWorkspaceScope("SpecVersion", "upsert", args, "w1")).toBe(args);
+  });
+});
