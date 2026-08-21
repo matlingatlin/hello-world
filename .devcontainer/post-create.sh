@@ -35,8 +35,14 @@ step "shared types" bash -c 'cd packages/shared && npx tsc -p tsconfig.json'
 step "engine venv" bash -c '
   python3 -m venv apps/engine/.venv &&
   apps/engine/.venv/bin/pip install --upgrade pip &&
-  apps/engine/.venv/bin/pip install -e "./apps/engine[dev,db,providers]" &&
+  apps/engine/.venv/bin/pip install -e "./apps/engine[dev,db,providers,vision]" &&
   apps/engine/.venv/bin/python -c "import uvicorn, fastapi"'
+
+# The browser Playwright drives. Its own step because it is the big download and
+# the one most likely to fail — and a failure here costs the preview its senses,
+# not the build: the loop records "nobody looked" and carries on.
+step "chromium for the preview" bash -c '
+  apps/engine/.venv/bin/playwright install --with-deps chromium'
 
 step "prisma client" bash -c 'cd apps/api && npx prisma generate'
 

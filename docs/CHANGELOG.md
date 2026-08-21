@@ -5,6 +5,25 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Fixed
+- 2026-08-20 — **A design build died on an optional dependency that was never declared.**
+  Clicking "shape the design" in the Codespace returned `No module named 'playwright'`. Playwright
+  is the preview's senses — screenshot, classified console, click resolution — and `preview.py`
+  says in its own docstring that it is optional, with `is_available()` there to ask. Nothing on
+  the build path ever asked: `SandboxPreview.observe()` imported it regardless. So a build that
+  had genuinely succeeded, with the app built and being served, reported a missing Python module.
+
+  It is now declared (`apps/engine[vision]`) so it can be installed at all, and the build path
+  asks first: without a browser it returns `Observation.blind()` and records
+  *"the browser checks (console, screenshot) — nobody opened the page"* as an **unjudged**
+  remainder, the same pattern already used for an interaction criterion nobody could drive. An
+  empty console because nobody looked must never read as a clean one.
+
+  The tell was in the test counts: the suite went 582 passed / 6 skipped → 576 / 15 the moment
+  this sandbox's venv was rebuilt from the declared extras. Nine interaction-channel tests had
+  been passing on a Playwright somebody installed by hand, years of runs ago, and never wrote
+  down — the same shape as the gitignored sources and the pre-built `dist/`. With the extra
+  declared and installed: **585 passed, 6 skipped**.
+
 - 2026-08-20 — **Three source files had never been committed, and nobody could have noticed.**
   `.gitignore` carried a bare `workspace/` under "Scratch". A pattern without a leading slash
   matches at every level, so it also matched `apps/api/src/modules/workspace/` — and

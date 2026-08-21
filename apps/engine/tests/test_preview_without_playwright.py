@@ -1,0 +1,44 @@
+"""A missing optional extra must not kill a build.
+
+Playwright is optional — the docstring said so, `is_available()` existed to ask,
+and the build path imported it anyway. A design build on a machine without it
+died with `No module named 'playwright'`, which is a true sentence and a useless
+one: the app had been built and was being served, and the only impossible thing
+was looking at it.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from scio_engine.core.preview import Observation, PreviewInspector
+
+
+def test_a_blind_observation_says_it_never_happened() -> None:
+    blind = Observation.blind()
+    assert blind.observed is False
+    assert blind.screenshot_path is None
+
+
+def test_an_empty_console_is_not_evidence_of_a_clean_one() -> None:
+    """`clean` is about what was seen; `observed` is about whether anyone looked.
+
+    Both are needed: the caller reads `observed` first and records an unjudged
+    remainder, so no gate ever passes on evidence nobody gathered.
+    """
+    blind = Observation.blind()
+    assert blind.clean is True
+    assert blind.observed is False
+
+
+def test_the_live_preview_returns_blind_instead_of_raising(monkeypatch) -> None:
+    from scio_engine.builder import loop
+
+    monkeypatch.setattr(PreviewInspector, "is_available", staticmethod(lambda: False))
+
+    preview = loop.SandboxPreview.__new__(loop.SandboxPreview)
+    preview._handle = object()
+    preview._ensure_started = lambda app_dir: preview._handle  # type: ignore[method-assign]
+
+    observation = loop.SandboxPreview.observe(preview, Path("."), attempt=0)
+    assert observation.observed is False

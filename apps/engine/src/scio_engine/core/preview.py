@@ -47,10 +47,19 @@ class Observation:
     console: ConsoleReport
     title: str = ""
     hits: list[ElementHit] = field(default_factory=list)
+    observed: bool = True
+    """False when nobody looked. An empty console then means "unknown", not
+    "clean", and whatever reads this has to say so rather than pass a gate on
+    evidence it never gathered."""
 
     @property
     def clean(self) -> bool:
         return self.console.clean
+
+    @classmethod
+    def blind(cls) -> Observation:
+        """What we know about a page nobody could open."""
+        return cls(screenshot_path=None, console=classify_console([], []), observed=False)
 
 
 class PreviewInspector:

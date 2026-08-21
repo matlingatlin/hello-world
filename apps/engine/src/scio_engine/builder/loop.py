@@ -182,6 +182,12 @@ class SandboxPreview(BuildPreview):
 
     def observe(self, app_dir: Path, *, attempt: int) -> Observation:
         handle = self._ensure_started(app_dir)
+        if not PreviewInspector.is_available():
+            # Playwright is an optional extra. Without it the app is still built
+            # and still served — only the looking is impossible — so this is a
+            # thing nobody could check, not a build that failed. The build path
+            # used to import it regardless and die on ModuleNotFoundError.
+            return Observation.blind()
         shot = (
             self.screenshot_dir / f"attempt-{attempt}.png" if self.screenshot_dir else None
         )
@@ -632,6 +638,16 @@ async def build_package(
                 ]
 
             observation = await asyncio.to_thread(preview.observe, app_dir, attempt=index)
+            if not observation.observed:
+                # An empty console because nobody looked is not a clean console.
+                # Same rule as an interaction criterion nobody could drive: it
+                # rides along, so "works" keeps meaning "works, and here is what
+                # nobody checked".
+                gate.unjudged.append(
+                    "the browser checks (console, screenshot) — Playwright is not "
+                    "installed, so nobody opened the page. Install the engine's "
+                    "`vision` extra and `playwright install chromium`."
+                )
             console_problems = _console_problems(observation.console)
             if console_problems:
                 # GUARDRAIL 3: benign browser noise was already filtered out.

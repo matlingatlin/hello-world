@@ -126,6 +126,28 @@ be public too**, or the frame shows GitHub's sign-in page. Find it in the
 **Ports** panel after the build (it is the one that appeared) and set its
 visibility to Public.
 
+## The preview's senses (Playwright)
+
+The engine drives a headless browser to look at what it built: the screenshot,
+the classified console, click resolution. That is an **optional** extra —
+`apps/engine[vision]` plus `playwright install chromium`, both done by
+`post-create.sh` — because the core and its tests have to run without a browser.
+
+Without it a build is not blind *and* broken, only blind: the app is still built
+and served, and the loop records **"nobody opened the page"** as an unjudged
+remainder so no gate passes on evidence nobody gathered. Before this was fixed
+the build path imported Playwright regardless and a design build died on
+`No module named 'playwright'` — a true sentence about a build that had actually
+succeeded.
+
+If the chromium step failed at creation, install it by hand:
+
+```bash
+apps/engine/.venv/bin/pip install -e "./apps/engine[vision]"
+apps/engine/.venv/bin/playwright install --with-deps chromium
+scripts/dev-down.sh && scripts/dev-up.sh
+```
+
 ## Real builds (this one costs money)
 
 The engine uses its stand-ins whenever no key is configured, which is the default

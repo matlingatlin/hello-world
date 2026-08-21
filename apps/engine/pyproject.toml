@@ -24,6 +24,14 @@ dev = [
 db = [
     "psycopg[binary]>=3.2",
 ]
+# The preview's senses: screenshot, classified console, click resolution.
+# Optional on purpose — the core and its tests run without a browser — but it
+# was never DECLARED optional, only described as such in a docstring, so there
+# was no way to install it and a design build died on the import.
+# The browser itself is a separate step: `playwright install chromium`.
+vision = [
+    "playwright>=1.47",
+]
 # Real model SDKs — only needed when calling real models (keys in env).
 providers = [
     "anthropic>=0.40",

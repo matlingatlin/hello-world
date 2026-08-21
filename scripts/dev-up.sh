@@ -163,7 +163,9 @@ else
   "$VENV/bin/pip" install --quiet --upgrade pip
   # db: the library's Postgres catalog. providers: the real model SDKs, so that
   # adding a key to apps/engine/.env is the only step a real build needs.
-  "$VENV/bin/pip" install --quiet -e "$ROOT/apps/engine[dev,db,providers]" ||
+  # vision: Playwright, the preview's senses — without it a build still runs and
+  # says nobody looked, which is honest but blind.
+  "$VENV/bin/pip" install --quiet -e "$ROOT/apps/engine[dev,db,providers,vision]" ||
     die "the engine's dependencies did not install — pip's error is above"
   printf '  installed\n'
 fi
