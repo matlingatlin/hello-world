@@ -92,6 +92,20 @@
 | B088 | "Make this the current version" is written 4x, none transactional — one helper + a partial unique index | PP3 | P0 | todo |
 | B089 | Type the SSE events in packages/shared — the build stream is the one path that opts out | PP5 | P1 | todo |
 | B090 | DesignPage: 19 useState is a state machine — make the impossible combinations unrepresentable | PP6 | P1 | todo |
+| B091 | BLOCKING: the generated app inherits the engine's whole environment (ANTHROPIC_API_KEY, SCIO_CATALOG_DB) — allow-list it | PP9 | P0 | todo |
+| B092 | BLOCKING: no CI — a clean-clone workflow would have caught 3 of this week's 4 Codespace bugs | PP10 | P0 | todo |
+| B093 | BLOCKING: builds on one host share one mutable node_modules cache, unlocked and writable | PP6 | P0 | todo |
+| B094 | Builds must become jobs: no id, no queue, no cancellation, no resume — a restart loses every build | PP10 | P0 | todo |
+| B095 | Missing indexes on every hot path (Project.workspaceId, User.clerkUserId, UsageEvent, Notification…) | PP3 | P0 | todo |
+| B096 | The engine authenticates nobody — a shared secret before it is ever a separate service | PP9 | P0 | todo |
+| B097 | No graceful shutdown: previews orphan, streams cut without an error event, Prisma never disconnects | PP10 | P1 | todo |
+| B098 | The engine has zero logging; no tracing, metrics or error reporting anywhere | PP10 | P0 | todo |
+| B099 | No rate limiting and no per-workspace quota — the bill is unbounded at three levels | PP9 | P0 | todo |
+| B100 | No deletion path: soft-delete leaves workspaces, git history and usage rows; user.deleted does nothing | PP9 | P0 | todo |
+| B101 | Clerk webhook accepts unsigned requests — verify BEFORE implementing the handler | PP9 | P1 | todo |
+| B102 | No error boundary in the app — one thrown render blanks the page after a paid build | PP2 | P1 | todo |
+| B103 | No API versioning and no idempotency key on POST /build — a retry is a second bill | PP3 | P1 | todo |
+| B104 | Prompt injection is an unexamined surface — gates constrain output, nothing constrains the instruction | PP9 | P1 | todo |
 
 **B080 — a Codespace is the way in.** It runs the stack *and* forwards ports, so each one gets an
 `https://<name>-<port>.app.github.dev` origin openable from a phone — no deploy, no hosting

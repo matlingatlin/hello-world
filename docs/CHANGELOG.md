@@ -5,6 +5,45 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Reviewed
+- 2026-08-21 — **Production-readiness review → `docs/REVIEW-PRODUCTION-READINESS.md`** (B091–B104).
+  A second pass asking a different question: not "is this code good" but "what happens the day a
+  stranger pays for this". The product logic is further along than the platform under it.
+
+  **Three findings are blocking.** The generated app is started with `env={**os.environ, ...}`
+  (`core/sandbox.py:141`), so model-authored code runs with `ANTHROPIC_API_KEY` and the database
+  URL in `process.env` — a generated app that merely logs its environment leaks the platform key.
+  There is **no CI at all**, and a workflow that clones fresh would have caught three of this
+  week's four Codespace bugs. And every build on a host symlinks the same `node_modules` cache,
+  installed without a lock and mounted writable, so two concurrent builds race and one bad
+  generated app poisons every future build on that host.
+
+  **The decisive architectural finding** is that the engine is a stateful singleton wearing a web
+  service's clothes: workspaces on local disk, previews as `Popen` handles in an in-process dict,
+  the library store a module global, and no shutdown hook — so it cannot be replicated and cannot
+  be restarted without losing every running build and orphaning every preview. A 46-minute build
+  lives inside one HTTP request with no job id, no queue, no cancellation and no resume;
+  `build.service.ts:135` already says the path is "ignorant of HTTP so it can later be driven by a
+  queue worker". Making a build a job is the change everything else waits on.
+
+  Also recorded: no index on `Project.workspaceId` or `User.clerkUserId` — the two queries that run
+  on every request; the engine authenticates nobody; zero logging in 17,000 lines of engine, and no
+  tracing, metrics or error reporting anywhere (which is why the estimate model was calibrated from
+  two builds — two is all the data there is); no rate limit or workspace quota, so with the missing
+  spend ceiling the bill is unbounded at three levels; no deletion path, in a product that writes
+  GDPR retention rules into the apps it generates; and no error boundary in the app.
+
+  **A correction to the review above it:** I wrote that two concurrent builds would produce
+  duplicate version numbers. They would not — `@@unique([projectId, number])` catches it. The real
+  failure is worse-shaped and smaller: the second build dies on an unhandled P2002 as a 500, after
+  it has spent money.
+
+  What is right was checked too, and it is the same class of problem solved correctly: path
+  traversal is guarded on both write paths, the marking bridge verifies `event.origin` and refuses
+  to post to itself, generated code is scanned for secrets before entering the library, and tenancy
+  is genuinely well built.
+
+
+### Reviewed
 - 2026-08-21 — **Full code review → `docs/REVIEW-2026-08-21.md`** (B081–B086 raised).
   Read against what Scio claims to be, after the first end-to-end real build driven from outside
   the sandbox. What is missing clusters in two places, both load-bearing for the pitch: **cost is
