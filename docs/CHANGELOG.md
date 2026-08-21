@@ -5,6 +5,30 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Fixed
+- 2026-08-21 — **B076 fixed this for packages and repeated the mistake for chunks.**
+  The first real build driven from a Codespace — the whole product, against Claude, from the
+  operator's own browser — came back *4 of 5 parts work*. `pkg_feature_booking` failed with the
+  exact message B076 exists to make impossible: *"the reply hit the output-token limit and was cut
+  off — Return the files complete, and shorter."*
+
+  The cause is in B076's own retry loop. It asked `_generate_chunk` for the **same paths** on every
+  attempt, so an over-budget chunk was sent twice unchanged and hit the cap twice — while
+  `CHUNK_TOKEN_BUDGET`'s docstring, two hundred lines up, says why that cannot work: *"a package
+  that does not fit cannot be made to fit by asking again."* True of packages, equally true of
+  chunks, and the code did it anyway.
+
+  A chunk that comes back truncated is now **halved**, and the halves go back on the front of the
+  queue: 7 files → 3 → 1. Only a single file that still will not fit is retried at the same size
+  (`CHUNK_RETRIES`), because there is nothing left to split and half a file on disk is the thing
+  that must never happen. Bounded by construction — at most 2n-1 calls for n files — and the
+  existing cost-guard test now pins all five calls of a package that cannot fit at all.
+
+  Also from that run, both good: the estimate held for a **third** independent build
+  (~$0.86–$3.18 estimated, **$1.85** spent, 176k tokens), and the preview URL rewrite works —
+  the design window embedded `https://<codespace>-55917.app.github.dev`, not loopback.
+
+  engine 587 (+2), ruff clean.
+
 - 2026-08-20 — **"The build stopped — network error", about a build that was running fine.**
   The first real build from a Codespace died in the browser after a minute or two, twice: once on
   the design preview, once on the delivery build at "0 of 5 parts done". Nothing was wrong with

@@ -233,8 +233,10 @@ lost. Eight files of real code do not become five files of real code because the
 prompt asked nicely."""
 
 CHUNK_RETRIES = 2
-"""Attempts per chunk before the whole package is failed and retried. A chunk is
-small; if it will not fit twice, the problem is not the size."""
+"""Attempts for a chunk that cannot be split any further — a SINGLE file that
+still will not fit. A multi-file chunk is never retried at the same size: it is
+halved and the halves are generated on their own, because a reply that hit the
+cap does not fit on the second ask either."""
 
 CODEGEN_TIMEOUT_S = 900.0
 """Writing that much code takes minutes, not seconds. The relay's 120s default is
@@ -400,26 +402,46 @@ async def _generate(
         )
         return result.final_text, result.total_cost_usd, result.total_tokens, result.truncated
 
-    chunks = file_chunks(package)
+    # A queue, not a for-loop, because a chunk that will not fit is SPLIT and
+    # its halves go back on the front. Asking again for the same chunk is the
+    # one thing that provably does not work — this function's own docstring
+    # said so about packages, and the first real Codespace build showed the
+    # mistake repeated one level down: `pkg_feature_booking` sent an identical
+    # over-budget chunk twice, hit the cap twice, and was lost.
+    #
+    # Bounded: each split halves, one file is the floor, so a package of n
+    # files costs at most 2n-1 calls plus the retries a single file gets.
+    pending: list[list[str]] = list(file_chunks(package))
     replies: list[str] = []
     written: dict[str, str] = {}
     total_cost = 0.0
     total_tokens = 0
+    attempts: dict[tuple[str, ...], int] = {}
 
-    for paths in chunks:
-        for attempt in range(1, CHUNK_RETRIES + 1):
-            text, cost, tokens, truncated = await _generate_chunk(
-                package, contract, paths, registry=registry, options=options, written=written
-            )
-            total_cost += cost
-            total_tokens += tokens
-            if not truncated:
-                break
-            if attempt == CHUNK_RETRIES:
-                # Out of retries for this chunk. Reported as truncation so the
-                # package fails and retries as a whole, rather than being
-                # written with a hole in it.
-                return "\n".join([*replies, text]), total_cost, total_tokens, True
+    while pending:
+        paths = pending.pop(0)
+        text, cost, tokens, truncated = await _generate_chunk(
+            package, contract, paths, registry=registry, options=options, written=written
+        )
+        total_cost += cost
+        total_tokens += tokens
+
+        if truncated:
+            if len(paths) > 1:
+                half = len(paths) // 2
+                pending[:0] = [paths[:half], paths[half:]]
+                continue
+            # One file, and it does not fit. There is nothing left to split:
+            # half a file on disk is the thing that must never happen. Retried
+            # a couple of times because a single file CAN come back shorter,
+            # then reported as truncation so the package fails as a whole.
+            key = tuple(paths)
+            attempts[key] = attempts.get(key, 0) + 1
+            if attempts[key] < CHUNK_RETRIES:
+                pending.insert(0, paths)
+                continue
+            return "\n".join([*replies, text]), total_cost, total_tokens, True
+
         replies.append(text)
         try:
             # What the next chunk is told already exists, so imports and names

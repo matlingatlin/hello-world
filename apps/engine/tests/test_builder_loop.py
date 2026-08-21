@@ -9,9 +9,16 @@ from pathlib import Path
 
 import pytest
 
+from conftest import complete_reply
+from scio_engine.builder import loop
 from scio_engine.builder.codegen import CodeExtractionError, extract_files
 from scio_engine.builder.file_plan import planned_files
-from scio_engine.builder.loop import BuildOptions, ScriptedPreview, build_package
+from scio_engine.builder.loop import (
+    CHUNK_RETRIES,
+    BuildOptions,
+    ScriptedPreview,
+    build_package,
+)
 from scio_engine.builder.result import PackageStatus
 from scio_engine.core.console import ConsoleEntry, classify_console
 from scio_engine.core.preview import Observation
@@ -353,11 +360,79 @@ class TestTruncatedReply:
         assert result.files == []
         assert not list(tmp_path.glob("**/*.tsx"))
         assert any("cut off" in problem for a in result.attempts for problem in a.problems)
-        # Three, not two: the CHUNK is retried on its own first (B076 —
-        # CHUNK_RETRIES), and only when a small chunk still will not fit does
-        # the package fail and get retried as a whole. The point is that
-        # nothing is written either way.
-        assert provider.calls == 3
+        # Five, and every one of them is explainable — this is a cost guard.
+        # First draft: the over-budget chunk is SPLIT rather than re-asked, so
+        # the sizes go 7 -> 3 -> 1, and only a single file that still will not
+        # fit is retried at the same size (CHUNK_RETRIES) before the attempt
+        # ends. That is four. The package's second attempt is the repair path,
+        # which is one call by design. The point is that nothing is written
+        # either way, and that a package that cannot fit costs a known amount.
+        assert provider.calls == 5
+
+
+class TestAnOverBudgetChunkIsSplit:
+    """B076 fixed this for packages and repeated the mistake for chunks.
+
+    The first real build from a Codespace lost `pkg_feature_booking`: the chunk
+    was too big, the loop asked for the identical chunk again, and it was cut
+    off again. `CHUNK_TOKEN_BUDGET`'s own docstring says why that cannot work —
+    "a package that does not fit cannot be made to fit by asking again" — and
+    the retry loop was doing exactly that one level down.
+
+    These drive `_generate_chunk` directly: what is under test is which files
+    each call is asked for, not what a model would reply.
+    """
+
+    async def _run(self, package, monkeypatch, fits: int):
+        files = planned_files(package)
+        asked: list[list[str]] = []
+        done: list[list[str]] = []
+
+        async def fake_chunk(pkg, contract, paths, *, registry, options, written):
+            asked.append(list(paths))
+            if len(paths) > fits:
+                return "cut off mid-file", 0.01, 16000, True
+            done.append(list(paths))
+            return complete_reply(pkg, GOOD_CODE), 0.01, 900, False
+
+        monkeypatch.setattr(loop, "_generate_chunk", fake_chunk)
+        monkeypatch.setattr(loop, "file_chunks", lambda pkg, budget=None: [list(files)])
+
+        _text, _cost, _tokens, truncated = await loop._generate(
+            package,
+            "## Goal\nA guest can book a table.\n",
+            registry=ProviderRegistry(providers={}),
+            options=one_pass(),
+            current_files={},
+            problems=[],
+        )
+        return asked, done, truncated
+
+    async def test_a_chunk_that_will_not_fit_is_halved_not_repeated(
+        self, package, monkeypatch
+    ):
+        files = planned_files(package)
+        asked, done, truncated = await self._run(package, monkeypatch, fits=len(files) // 2)
+
+        assert truncated is False, "the halves fit, so the package must not fail"
+        assert asked[0] == files, "the first ask is the whole over-budget chunk"
+        assert len(asked[1]) < len(asked[0]), "the second ask must be SMALLER, not identical"
+        # Every planned file is still WRITTEN exactly once across the splits —
+        # splitting must not drop a file or ask for one twice.
+        written = [path for call in done for path in call]
+        assert sorted(written) == sorted(files)
+
+    async def test_it_splits_down_to_single_files_before_giving_up(
+        self, package, monkeypatch
+    ):
+        """`fits=0` — nothing fits, so it must reach one file per call and stop."""
+        asked, _done, truncated = await self._run(package, monkeypatch, fits=0)
+
+        assert truncated is True
+        assert min(len(call) for call in asked) == 1, "it must split all the way down"
+        # Bounded: halving a package of n files costs at most 2n-1 calls, plus
+        # the retries the one unsplittable file gets.
+        assert len(asked) <= 2 * len(planned_files(package)) - 1 + CHUNK_RETRIES
 
 
 class TestExtraction:
