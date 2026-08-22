@@ -614,3 +614,50 @@ async def test_every_package_reports_five_checks(tmp_path, package_id):
     result, _, _ = await run(tmp_path, ALL_GOOD)
 
     assert result.get(package_id).checks_passed == 5
+
+
+class TestTheAppWideTypecheck:
+    """B048. Every other gate is per-package; this one is about the seam."""
+
+    def _compiler(self, app_dir, output="", code=0):
+        binaries = app_dir / "node_modules" / ".bin"
+        binaries.mkdir(parents=True, exist_ok=True)
+        (app_dir / "tsconfig.json").write_text("{}")
+        tsc = binaries / "tsc"
+        tsc.write_text(f'#!/bin/sh\ncat <<"EOF"\n{output}\nEOF\nexit {code}\n')
+        tsc.chmod(0o755)
+
+    async def test_a_build_that_does_not_compile_does_not_say_it_works(self, tmp_path):
+        # The build this was written for said "5 of 5 parts work" for an app
+        # whose feature package imported something the foundation never exported.
+        result, _, _ = await run(tmp_path, ALL_GOOD)
+        assert result.works is True  # every part met its own contract
+
+        self._compiler(
+            tmp_path,
+            output="lib/db/booking.ts(1,10): error TS2305: no exported member 'x'.",
+            code=2,
+        )
+        result, _, _ = await run(tmp_path, ALL_GOOD)
+
+        assert result.works is False
+
+    async def test_the_part_that_owns_the_broken_file_is_the_part_named(self, tmp_path):
+        self._compiler(
+            tmp_path,
+            output="lib/db/booking.ts(1,10): error TS2305: no exported member 'x'.",
+            code=2,
+        )
+
+        result, _, _ = await run(tmp_path, ALL_GOOD)
+
+        booking = result.get(BOOKING)
+        assert booking is not None
+        assert booking.status is PackageStatus.needs_look
+        assert any(r.source == "typecheck" for r in booking.remainders)
+
+    async def test_a_workspace_with_no_compiler_is_unjudged_not_passed(self, tmp_path):
+        result, _, _ = await run(tmp_path, ALL_GOOD)
+
+        assert result.app_unjudged  # recorded
+        assert result.works is True  # and never a failure on its own

@@ -44,7 +44,6 @@ from .orchestrate import (
 from .plan_store import load_plan, save_plan
 from .preview_bridge import prepare as prepare_bridge
 from .preview_bridge import preview_env
-from .result import PackageBuildResult
 from .standin import standin_registry
 from .workspace import WorkspaceUnavailable, prepare_workspace
 
@@ -130,7 +129,7 @@ class BuildFinished(BaseModel):
             parts_needing_a_look=result.needs_look,
             parts_blocked=result.blocked,
             parts_failed=result.failed,
-            remainders=_remainders(result.packages),
+            remainders=_remainders(result),
             element_count=result.element_count,
             files=sorted({f for package in result.packages for f in package.files}),
             total_cost_usd=result.total_cost_usd,
@@ -158,9 +157,18 @@ def _routes_of(plan: BuildPlan) -> list[str]:
     return (["/"] if "/" in routes else []) + ordered
 
 
-def _remainders(packages: list[PackageBuildResult]) -> list[str]:
-    """Every honest status line that is not "works" — the trust receipt's body."""
-    return [p.honest_status() for p in packages if not p.works]
+def _remainders(result: AppBuildResult) -> list[str]:
+    """Every honest status line that is not "works" — the trust receipt's body.
+
+    App-wide findings are included, and named as such: a compile error in a file
+    no package owns belongs to the app, and dropping it because it has no part
+    to sit under is how "5 of 5 parts work" gets printed over an app that does
+    not build.
+    """
+    lines = [p.honest_status() for p in result.packages if not p.works]
+    lines += [f"the app: {r.as_line()}" for r in result.app_remainders]
+    lines += [f"Not verified: {item}" for item in result.app_unjudged]
+    return lines
 
 
 async def stream_full_build(

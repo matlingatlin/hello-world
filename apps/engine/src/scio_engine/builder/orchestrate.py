@@ -39,6 +39,7 @@ from .file_plan import file_plan, planned_files
 from .loop import GATES, BuildOptions, BuildPreview, build_package, verify_package
 from .persistence import GitError, head_sha, persist_package_build
 from .result import PackageBuildResult, PackageStatus, Remainder
+from .typecheck import blame, typecheck
 
 
 class BuildProgress(BaseModel):
@@ -64,6 +65,18 @@ class AppBuildResult(BaseModel):
 
     order: list[str] = Field(default_factory=list)
     packages: list[PackageBuildResult] = Field(default_factory=list)
+    app_remainders: list[Remainder] = Field(
+        default_factory=list,
+        description="Things wrong with the app as a WHOLE rather than with one part — a "
+        "compile error in a file nobody owns, say. Kept apart from the per-package lists so "
+        "they do not distort the part count the reveal shows.",
+    )
+    app_unjudged: list[str] = Field(
+        default_factory=list,
+        description="App-wide checks nobody could run. They ride along exactly like a "
+        "package's unjudged criteria: 'works' keeps meaning 'works, and here is what nobody "
+        "checked'.",
+    )
     build_version: int | None = None
     git_sha: str = ""
     app_url: str = ""
@@ -96,9 +109,18 @@ class AppBuildResult(BaseModel):
 
     @property
     def works(self) -> bool:
-        """True only when every part passed. There is no partial 'yes' here —
-        the parts that need a look are listed instead."""
-        return bool(self.packages) and all(p.works for p in self.packages)
+        """True only when every part passed AND nothing is wrong app-wide.
+
+        There is no partial 'yes' here — the parts that need a look are listed
+        instead. The app-wide half was added when a build reported "5 of 5 parts
+        work" for an app that did not compile: every part met its own contract,
+        and the seam between two of them did not.
+        """
+        return (
+            bool(self.packages)
+            and all(p.works for p in self.packages)
+            and not self.app_remainders
+        )
 
     def get(self, package_id: str) -> PackageBuildResult | None:
         return next((p for p in self.packages if p.package_id == package_id), None)
@@ -106,6 +128,8 @@ class AppBuildResult(BaseModel):
     def honest_summary(self) -> str:
         """What the reveal says out loud: the count first, then every remainder."""
         head = f"{len(self.working)} of {self.total_parts} parts work."
+        if self.app_remainders:
+            head += f" {len(self.app_remainders)} problem(s) across the app."
         tail: list[str] = []
         if self.needs_look:
             tail.append(f"{len(self.needs_look)} need a look")
@@ -196,6 +220,50 @@ def _built_file_map(
         for result in results
         if result.files and result.package_id in by_id
     }
+
+
+def _run_typecheck(
+    app_dir: Path, plan: BuildPlan, results: list[PackageBuildResult]
+) -> tuple[list[Remainder], list[str]]:
+    """The app-wide gate: does what we are about to hand over actually compile?
+
+    Run once, after everything is in place, because the failure it exists to
+    catch lives BETWEEN packages — a library component written against an
+    interface this app's foundation does not provide. Every per-package gate
+    passed that build honestly, and it still did not compile.
+
+    A package the compiler blames stops being `passed`: it is `needs_look`, with
+    the file and the line. Files nobody owns go to the app's own list rather
+    than being pinned on whichever part happened to be nearest.
+    """
+    report = typecheck(app_dir)
+    if not report.ran:
+        return [], ([report.unjudged] if report.unjudged else [])
+
+    by_package = blame(report.problems, _built_file_map(plan, results))
+    app_level: list[Remainder] = []
+    for package_id, problems in by_package.items():
+        remainders = [
+            Remainder(what=p.as_line(), where=package_id or "the app", source="typecheck")
+            for p in problems
+        ]
+        result = next((r for r in results if r.package_id == package_id), None)
+        if result is None:
+            app_level += remainders
+            continue
+        result.remainders += remainders
+        if result.status is PackageStatus.passed:
+            result.status = PackageStatus.needs_look
+
+    if report.truncated:
+        app_level.append(
+            Remainder(
+                what=f"and {report.truncated} more type error(s) not listed",
+                where="the app",
+                source="typecheck",
+            )
+        )
+    return app_level, []
 
 
 async def stream_build_plan(
@@ -329,6 +397,8 @@ async def stream_build_plan(
         if opts.close_preview:
             await asyncio.to_thread(preview.close)
 
+    app_remainders, app_unjudged = _run_typecheck(app_dir, plan, results)
+
     app_result = AppBuildResult(
         order=[p.id for p in ordered],
         packages=results,
@@ -336,6 +406,8 @@ async def stream_build_plan(
         total_cost_usd=sum(r.total_cost_usd for r in results),
         total_tokens=sum(r.total_tokens for r in results),
         element_count=len(manifest.elements) if manifest else 0,
+        app_remainders=app_remainders,
+        app_unjudged=app_unjudged,
     )
 
     if opts.persist and manifest is not None:
@@ -458,12 +530,15 @@ async def stream_verification(
             await asyncio.to_thread(preview.close)
 
     manifest = build_manifest(app_dir, _built_file_map(plan, results))
+    app_remainders, app_unjudged = _run_typecheck(app_dir, plan, results)
     yield (
         "result",
         AppBuildResult(
             order=[p.id for p in ordered],
             packages=results,
             app_url=app_url,
+            app_remainders=app_remainders,
+            app_unjudged=app_unjudged,
             # Only the critique costs anything here; nothing was generated.
             total_cost_usd=sum(r.total_cost_usd for r in results),
             total_tokens=sum(r.total_tokens for r in results),

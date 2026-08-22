@@ -4,6 +4,41 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Added
+- 2026-08-22 — **The build asks whether the app compiles** (B048, first half). It never had,
+  and the first answer was no: a build that reported **"5 of 5 parts work"** shipped a
+  `lib/db/booking.ts` importing `getSupabaseClient` from a `lib/supabase.ts` that exports one
+  boolean.
+
+  Every existing gate passed it honestly, and every one of them is per-package —
+  instrumentation checks that this app's ids resolve, the validation agents read one package's
+  own files, the console classifier only sees a route somebody opened, and the critique judges
+  a package against its acceptance criteria rather than against the app it is joining. The
+  failure was *between* two packages, which is the seam assembly creates.
+
+  So the gate is app-wide and runs once, after everything is in place, using the generated
+  app's **own** pinned TypeScript. A package the compiler blames stops being `passed`; a file
+  nobody owns goes to the app's own list rather than being pinned on whichever part was
+  nearest; and no compiler means "nobody asked", recorded as unjudged — the same rule the
+  browser checks follow. `AppBuildResult.works` now accounts for app-wide findings, because
+  "every part met its own contract" is not the same claim as "this app works".
+
+  Lighthouse and a dependency audit are still open: both need a real build to calibrate
+  against and a network this sandbox does not have.
+
+### Fixed
+- 2026-08-22 — **The stand-in's foundation now exports what the library's own component
+  imports.** The seeded `booking-feature` entry has always imported `getSupabaseClient`;
+  `lib/supabase.ts` had no operations of its own, so the stand-in wrote
+  `export const ready = true` into it — the same trap `tailwind.config.ts` was rescued from
+  earlier, for the same reason. A freshly built app now compiles clean, so "5 of 5 parts work"
+  is a checked statement rather than an unchecked one.
+
+  The general version of this is open as **B116**: an entry names the *packages* it depends on
+  but not the *symbols* it needs from them, so the assembler can drop a component into an app
+  that cannot provide them. The typecheck gate now catches it; nothing prevents it.
+
+
 ### Fixed
 - 2026-08-22 — **Three things a click-through found that the tests did not**, all in the day's
   own work, all on the free path a Codespace actually runs.

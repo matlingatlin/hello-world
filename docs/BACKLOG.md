@@ -17,17 +17,17 @@ to be settled silently, so each one has an ADR proposing an answer where the sha
 - B056 — the Batch API. It trades the live per-part progress the build screen is built on for
   cost, and that is a product call.
 
-**Waiting on a real run with a key.** Both need measurement, and inventing the numbers would
-be worse than leaving them.
-- B115 — recalibrate the estimate now that input tokens are priced.
-- B048 — the quality gate at the reveal. Deliberately *not* built blind: a gate that has only
-  ever run against the stand-in's output would be exactly the blind spot the consultant review
-  named — a code path that never runs during development — and it would flip real builds to
-  "needs a look" on evidence nobody has seen.
+**Waiting on a real run with a key.** B115 — recalibrate the estimate now that input tokens
+are priced. Inventing the numbers would be worse than leaving them.
 
 **Waiting on infrastructure.** B079 — nothing outside this sandbox can open the product.
 There is no inbound path and no free tunnel fits the egress; it needs a deploy, and it is the
 single thing standing between here and a tester.
+
+**Partly done, rest waiting on a real run.** B048 — the app-wide typecheck gate is built and
+caught a real break the day it landed (an app reported "5 of 5 parts work" that did not
+compile). Lighthouse and a dependency audit still need a real build to calibrate against and a
+network the sandbox does not have.
 
 **Post-MVP by choice.** B047 (fleet learning), B057 and B058 (evaluations of vendor features
 against ours).
@@ -81,7 +81,7 @@ against ours).
 | B045 | Component library — first slice (catalog, matcher, assembler, gate) | PP4  | P0 | done |
 | B046 | Cost estimate (deterministic, from plan + library hits)        | PP4      | P0 | done |
 | B047 | Fleet learning (capture fixes/patterns -> playbook + library)  | post-MVP | P1 | todo |
-| B048 | Quality gate at reveal (Lighthouse + security + lint scores)   | PP9      | P1 | todo |
+| B048 | Quality gate at reveal (Lighthouse + security + lint scores)   | PP9      | P1 | in progress (typecheck gate done and catching real breaks; Lighthouse + audit still need a real run) |
 | B049 | Model-passes control in Settings (1 = same model x2; more = best->review->best) | PP4 | P0 | todo |
 | B050 | Intake agent: extraction + next-question loop (gate 1's brain) | PP4 | P0 | done |
 | B051 | Gate 1 wired end-to-end (wizard <-> api <-> engine, spec freeze) | PP5 | P0 | done |
@@ -150,6 +150,7 @@ against ours).
 | B113 | usage_event has no (workspace_id, created_at) index — every billing question is "spend in a period" | PP3 | P1 | done |
 | B114 | SandboxProvider declares env in its abstract signature and one of two implementations ignores it — add a provider conformance test | PP6 | P0 | done |
 | B115 | The estimate predicts output tokens only, so its point cost is low now that input is priced — calibrate against a real run | PP4 | P1 | todo |
+| B116 | A library entry names the packages it depends on but not the SYMBOLS it needs from them — the assembler can drop a component into an app that cannot provide them | PP4 | P1 | todo |
 
 **B080 — a Codespace is the way in.** It runs the stack *and* forwards ports, so each one gets an
 `https://<name>-<port>.app.github.dev` origin openable from a phone — no deploy, no hosting

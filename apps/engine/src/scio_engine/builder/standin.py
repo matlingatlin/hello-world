@@ -136,6 +136,35 @@ export default config;
 """
 
 
+_SUPABASE_MODULE = """import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+/**
+ * The app's one database client.
+ *
+ * A real module rather than a placeholder, for the same reason as
+ * `tailwind.config.ts`: the library's own components import `getSupabaseClient`
+ * from here on every assembled build, and a file exporting a lone boolean makes
+ * the finished app fail to compile — which is exactly what shipped before
+ * anybody asked the compiler (B048).
+ */
+let client: SupabaseClient | null = null;
+
+export function getSupabaseClient(): SupabaseClient {
+  if (client) return client;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+  client = createClient(url, key);
+  return client;
+}
+
+/** Whether a database has actually been connected yet. A preview runs before
+ *  anyone has, and a screen that 500s because of that helps nobody. */
+export function hasDatabase(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
+}
+"""
+
+
 def _content_for(package: str, path: str, operations: list[str]) -> str:
     if path.endswith(".sql"):
         return "-- schema placeholder\nselect 1;\n"
@@ -148,6 +177,8 @@ def _content_for(package: str, path: str, operations: list[str]) -> str:
             "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n"
             ":root { --ink: #101319; --paper: #ffffff; }\n"
         )
+    if path == "lib/supabase.ts":
+        return _SUPABASE_MODULE
     if path == "app/layout.tsx":
         return _layout(package)
     if path.endswith("/page.tsx"):
