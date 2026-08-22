@@ -3,10 +3,12 @@ import type {
   AmendSpecResponse,
   ApplyDesignChangeRequest,
   ApplyDesignChangeResponse,
+  BuildEvent,
   ApproveSpecResponse,
   CorrectSpecFieldRequest,
   CorrectSpecFieldResponse,
   CreateProjectRequest,
+  DesignPreviewEvent,
   DesignPreviewResponse,
   DesignVersionListResponse,
   IntakeStepResponse,
@@ -125,9 +127,10 @@ export function createApi(getToken: GetToken, baseUrl?: string) {
      *  progress is only honest if it comes from parts actually finishing. */
     streamDesignPreview: (
       projectId: string,
-      onEvent: (event: string, data: Record<string, unknown>) => void,
+      onEvent: (event: DesignPreviewEvent) => void,
       signal?: AbortSignal,
-    ) => streamSse(`/projects/${projectId}/design/preview`, onEvent, signal),
+    ) =>
+      streamSse<DesignPreviewEvent>(`/projects/${projectId}/design/preview`, onEvent, signal),
     applyDesignChange: (projectId: string, body: ApplyDesignChangeRequest) =>
       request<ApplyDesignChangeResponse>(`/projects/${projectId}/design/change`, {
         method: "POST",
@@ -152,9 +155,9 @@ export function createApi(getToken: GetToken, baseUrl?: string) {
       request<LatestBuildResponse>(`/projects/${projectId}/build/latest`),
     streamBuild: (
       projectId: string,
-      onEvent: (event: string, data: Record<string, unknown>) => void,
+      onEvent: (event: BuildEvent) => void,
       signal?: AbortSignal,
-    ) => streamSse(`/projects/${projectId}/build`, onEvent, signal),
+    ) => streamSse<BuildEvent>(`/projects/${projectId}/build`, onEvent, signal),
   };
 
   /**
@@ -164,9 +167,9 @@ export function createApi(getToken: GetToken, baseUrl?: string) {
    * workspace-scoped — so it is read off the response body instead, which also
    * lets a POST start the build.
    */
-  async function streamSse(
+  async function streamSse<E extends { event: string; data: unknown }>(
     path: string,
-    onEvent: (event: string, data: Record<string, unknown>) => void,
+    onEvent: (event: E) => void,
     signal?: AbortSignal,
   ): Promise<void> {
     const token = await getToken();
@@ -216,14 +219,18 @@ export function createApi(getToken: GetToken, baseUrl?: string) {
           else if (line.startsWith("data: ")) raw += line.slice(6);
         }
         if (!raw) continue;
-        let payload: Record<string, unknown>;
+        let payload: unknown;
         try {
-          payload = JSON.parse(raw) as Record<string, unknown>;
+          payload = JSON.parse(raw);
         } catch {
           continue; // a frame we cannot read is dropped, never guessed at
         }
         if (name === "finished" || name === "error") terminal = true;
-        onEvent(name, payload);
+        // The one unchecked cast in the stream, and it is here on purpose: this
+        // is the wire, where a claim about the shape of someone else's JSON is
+        // unavoidable. Everywhere downstream switches on `event` and gets the
+        // right `data` from the compiler instead of casting again (B089).
+        onEvent({ event: name, data: payload } as E);
       }
     }
     if (!terminal) throw new ApiError(0, CONNECTION_LOST);

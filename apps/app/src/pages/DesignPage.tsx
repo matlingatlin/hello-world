@@ -141,21 +141,27 @@ export function DesignPage() {
     setDisconnected(false);
     setReachable(null);
     try {
-      await api.streamDesignPreview(projectId, (event, data) => {
+      await api.streamDesignPreview(projectId, (frame) => {
         if (!showing.current) return;
-        if (event === "progress" && data.status !== "building") {
-          setLines((prev) => [...prev, String(data.message ?? "")]);
-        }
-        if (event === "finished") {
-          setPreviewUrl(String(data.app_url ?? "") || null);
-          setManifest((data.manifest as Record<string, unknown>) ?? null);
-          setWhole(String(data.whole ?? "") || null);
-          setNudge((n) => n + 1);
-          setPreparing(false);
-        }
-        if (event === "error") {
-          setError(String(data.message ?? "The preview could not be built."));
-          setPreparing(false);
+        // The payload follows from the name (B089) — no casts, and no reading a
+        // field off an event that never carries it.
+        switch (frame.event) {
+          case "progress":
+            if (frame.data.status !== "building") {
+              setLines((prev) => [...prev, frame.data.message]);
+            }
+            break;
+          case "finished":
+            setPreviewUrl(frame.data.app_url || null);
+            setManifest(frame.data.manifest ?? null);
+            setWhole(frame.data.whole || null);
+            setNudge((n) => n + 1);
+            setPreparing(false);
+            break;
+          case "error":
+            setError(frame.data.message || "The preview could not be built.");
+            setPreparing(false);
+            break;
         }
       });
     } catch (err) {

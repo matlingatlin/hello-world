@@ -34,12 +34,18 @@ from ..library.verification import VerificationDatabase, verification_enabled
 from ..library.verification import prepare as prepare_verification
 from .file_plan import file_plan
 from .loop import BuildOptions, BuildPreview, SandboxPreview
-from .orchestrate import AppBuildOptions, AppBuildResult, stream_build_plan
+from .orchestrate import (
+    AppBuildOptions,
+    AppBuildResult,
+    stream_build_plan,
+    stream_verification,
+)
+from .plan_store import load_plan, save_plan
 from .preview_bridge import prepare as prepare_bridge
 from .preview_bridge import preview_env
 from .result import PackageBuildResult
 from .standin import standin_registry
-from .workspace import prepare_workspace
+from .workspace import WorkspaceUnavailable, prepare_workspace
 
 
 class BuildStarted(BaseModel):
@@ -185,6 +191,11 @@ async def stream_full_build(
 
     workspace = Path(app_dir) if app_dir else prepare_workspace(project_id)
 
+    # The plan travels with the app. A promotion judges this workspace later
+    # without re-running Layers B and C — which would cost money and, worse,
+    # could produce a different plan than the one the code was written to.
+    save_plan(workspace, plan, layer_c.prompts, whole)
+
     # With data, a build can check that saving actually saves — the criteria
     # B054 had to scope out as unobservable (library/verification). Off unless
     # the flag is set, and then it is one fresh database for this build, owned
@@ -301,6 +312,117 @@ async def stream_full_build(
             standin=using_standin,
             workspace=str(workspace),
             preview=bool(shell_origin),
+            manifest=build_manifest(workspace, file_map),
+            package_files=file_map,
+            model=profile.only_model,
+        ),
+    )
+
+
+async def stream_promotion(
+    *,
+    project_id: str,
+    app_dir: Path,
+    registry: ProviderRegistry,
+    build_version: int = 1,
+    sandbox: SandboxProvider | None = None,
+    preview: BuildPreview | None = None,
+    close_preview: bool = False,
+    budget_usd: float | None = None,
+) -> AsyncIterator[tuple[str, BaseModel | str]]:
+    """Deliver the app the user shaped in the design window — as it stands.
+
+    "Build it" used to run the whole path again on a fresh workspace, which
+    deleted the directory the design window had been committing into. Two things
+    died with it, and the smaller one is the one that was noticed: the version
+    history the design panel offers to return to. The larger one is every change
+    the user made. They had spent the session marking elements and describing
+    what should be different, and the delivery build regenerated the app from
+    the spec — which never contained any of it.
+
+    So a promotion regenerates nothing. It takes the workspace as it is, serves
+    it *without* the preview flag (the delivered app carries no bridge), and
+    runs the same gates over it that a fresh build would, using the plan that
+    was stored with the app. It emits the same events, so the build view needs
+    to know nothing about any of this.
+    """
+    workspace = Path(app_dir)
+    if not workspace.exists():
+        raise WorkspaceUnavailable(f"there is no workspace at {workspace}")
+
+    stored = load_plan(workspace)
+    if stored is None:
+        # Never silently fall back to a rebuild: that is the data loss this
+        # exists to prevent, and it would be invisible to the person it happens
+        # to. The caller decides, and the honest answer to them is "not this
+        # workspace".
+        raise WorkspaceUnavailable(
+            f"{workspace} carries no build plan, so what is in it cannot be judged "
+            "against what it was meant to do. Build this project again from its spec."
+        )
+
+    plan = stored.plan
+    profile = run_profile()
+
+    database: VerificationDatabase | None = None
+    app_env: dict[str, str] = {}
+    if verification_enabled():
+        database = prepare_verification(workspace)
+        app_env.update(database.env)
+
+    # No `prepare_bridge`, no `preview_env`: this is the delivery, and the
+    # delivered app is the one the user owns rather than the one we instrument.
+    running = preview or SandboxPreview(
+        sandbox or choose_sandbox(),
+        screenshot_dir=workspace.parent / f"{project_id}-shots",
+        env=app_env,
+        verify_path=database.verify_path if database else "",
+    )
+
+    yield (
+        "started",
+        BuildStarted(
+            project_id=project_id,
+            whole=stored.whole,
+            packages=plan.order,
+            total=len(plan.order),
+            workspace=str(workspace),
+            models=profile.describe(),
+        ),
+    )
+
+    result: AppBuildResult | None = None
+    async for event, payload in stream_verification(
+        plan,
+        workspace,
+        registry=registry,
+        preview=running,
+        options=AppBuildOptions(
+            package=BuildOptions(critique_passes=1, spend=Spend(ceiling_usd=budget_usd)),
+            build_version=build_version,
+            close_preview=close_preview,
+        ),
+    ):
+        if isinstance(payload, AppBuildResult):
+            result = payload
+        else:
+            yield event, payload
+
+    assert result is not None  # stream_verification always ends with a result
+
+    if database is not None and close_preview:
+        database.discard()
+
+    file_map = file_plan(plan.packages)
+    yield (
+        "finished",
+        BuildFinished.of(
+            result,
+            project_id=project_id,
+            whole=stored.whole,
+            standin=registry.is_fake,
+            workspace=str(workspace),
+            preview=False,
             manifest=build_manifest(workspace, file_map),
             package_files=file_map,
             model=profile.only_model,

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type {
+  BuildEventName,
   BuildFinished,
   BuildVersionListResponse,
   IntakeSpec,
@@ -222,7 +223,7 @@ export class BuildService {
     workspaceId: string,
     projectId: string,
     emit: (
-      event: string,
+      event: BuildEventName,
       data: Record<string, unknown>,
     ) => Promise<void> | void,
   ): Promise<void> {
@@ -256,28 +257,52 @@ export class BuildService {
     let finished: BuildFinished | null = null;
     let failure: string | null = null;
 
+    const relay = async (event: string, data: Record<string, unknown>) => {
+      // The engine's frame names arrive as strings off the wire; the union is
+      // what everything after this point is entitled to assume (B089).
+      const name = event as BuildEventName;
+      if (name === "finished") finished = data as unknown as BuildFinished;
+      if (name === "error") failure = String(data.message ?? "the build failed");
+      await emit(name, data);
+    };
+
+    // Did a design session already produce this app? Then that app IS the
+    // build. Rebuilding it from the spec would regenerate every file the user
+    // spent the session shaping — and, on the way, delete the workspace the
+    // design history points at (B070).
+    const design = await this.designToPromote(workspaceId, projectId);
+
     try {
-      await this.engine.streamBuild(
-        {
-          spec: current.content as IntakeSpec,
-          project_id: projectId,
-          build_version: number,
-          budget_usd: this.ceilingFor(current),
-        },
-        async (event, data) => {
-          if (event === "finished") finished = data as unknown as BuildFinished;
-          if (event === "error")
-            failure = String(data.message ?? "the build failed");
-          await emit(event, data);
-        },
-      );
+      if (design) {
+        await this.engine.promoteBuild(
+          {
+            app_dir: design.workspace,
+            project_id: projectId,
+            build_version: number,
+            budget_usd: this.ceilingFor(current),
+          },
+          relay,
+        );
+      } else {
+        await this.engine.streamBuild(
+          {
+            spec: current.content as IntakeSpec,
+            project_id: projectId,
+            build_version: number,
+            budget_usd: this.ceilingFor(current),
+          },
+          relay,
+        );
+      }
     } catch (err) {
       failure = (err as Error).message;
       await emit("error", { type: "engine_unavailable", message: failure });
     }
 
     if (finished) {
-      await this.persist(workspaceId, projectId, current.id, number, finished);
+      await this.persist(workspaceId, projectId, current.id, number, finished, {
+        designVersionId: design?.id ?? null,
+      });
       return;
     }
 
@@ -301,12 +326,41 @@ export class BuildService {
     });
   }
 
+  /**
+   * The design version this project would be delivered from, if any.
+   *
+   * `null` when the user never opened the design window — they went straight
+   * from the spec to "build it", so there is nothing to promote and the build
+   * generates the app for the first time.
+   */
+  private async designToPromote(
+    workspaceId: string,
+    projectId: string,
+  ): Promise<{ id: string; workspace: string } | null> {
+    const row = await this.client(workspaceId).designVersion.findFirst({
+      where: { projectId, isCurrent: true },
+    });
+    if (!row) return null;
+    let workspace = "";
+    try {
+      workspace = String(
+        (JSON.parse(row.ref as string) as { workspace?: unknown }).workspace ?? "",
+      );
+    } catch {
+      // A ref we cannot read is not a workspace we can deliver. Fall through to
+      // a full build rather than guessing at a path.
+      return null;
+    }
+    return workspace ? { id: row.id as string, workspace } : null;
+  }
+
   private async persist(
     workspaceId: string,
     projectId: string,
     specVersionId: string,
     number: number,
     finished: BuildFinished,
+    links: { designVersionId: string | null },
   ): Promise<void> {
     const client = this.client(workspaceId);
     // One transaction, not two writes with a gap — see spec.service.approve.
@@ -340,6 +394,10 @@ export class BuildService {
           costUsd: finished.total_cost_usd || null,
           tokens: finished.total_tokens || null,
           specVersionId,
+          // Which design the delivered app came from, when it came from one:
+          // without it the build's provenance stops at the spec, and the app on
+          // disk is not the app the spec describes.
+          designVersionId: links.designVersionId,
           isCurrent: true,
         },
       }),

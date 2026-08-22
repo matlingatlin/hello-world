@@ -534,6 +534,282 @@ async def _drive(
         )
 
 
+@dataclass
+class _Written:
+    """What one attempt managed to put on disk, or why it could not.
+
+    Three outcomes, and they are not the same: files (go and judge them), a
+    problem the next attempt can act on (say what, try again), or a ceiling
+    that has been reached (stop — a retry costs money it has been told it does
+    not have).
+    """
+
+    files: dict[str, str] = field(default_factory=dict)
+    problems: list[str] = field(default_factory=list)
+    remainders: list[Remainder] = field(default_factory=list)
+    cost_usd: float = 0.0
+    tokens: int = 0
+    stop: bool = False
+
+
+@dataclass
+class _AttemptOutcome:
+    """One pass through the loop body: what it produced and whether to try again."""
+
+    attempt: Attempt
+    gate: _Gate
+    manifest: Manifest | None = None
+    remainders: list[Remainder] = field(default_factory=list)
+    stop: bool = False
+
+
+async def _write_attempt(
+    package: BuildPackage,
+    contract: str,
+    app_dir: Path,
+    *,
+    allowed: list[str],
+    problems: list[str],
+    registry: ProviderRegistry,
+    opts: BuildOptions,
+) -> _Written:
+    """Ask for the code and get it onto disk — or say why it is not there.
+
+    Nothing here judges the result; that is the gates' job. What it does own is
+    every way a reply can fail to become files: a ceiling, a truncated reply, a
+    reply with nothing extractable in it.
+    """
+    current = _files_on_disk(app_dir, allowed)
+    try:
+        text, cost, tokens, truncated = await _generate(
+            package,
+            contract,
+            registry=registry,
+            options=opts,
+            current_files=current,
+            problems=problems,
+        )
+    except BudgetExceeded as exc:
+        # Not a fault in the package. The user set a ceiling and the build
+        # reached it, so it is recorded as a remainder — the same shape as
+        # everything else nobody could finish — and the loop stops rather than
+        # retrying, because a retry costs money it has already been told it does
+        # not have.
+        return _Written(
+            problems=[f"[budget] {exc}"],
+            remainders=[
+                Remainder(
+                    what=(
+                        "stopped at the cost ceiling you approved — this part was "
+                        "not built, and nothing beyond it was attempted"
+                    ),
+                    where=package.id,
+                    source="budget",
+                )
+            ],
+            stop=True,
+        )
+
+    if truncated:
+        # The reply ends inside a file. Writing what arrived would put half a
+        # component on disk, so nothing is written and the next attempt is told
+        # exactly what went wrong.
+        return _Written(
+            problems=[
+                "[codegen] the reply hit the output-token limit and was cut off — "
+                "no partial file was written. Return the files complete, and shorter."
+            ],
+            cost_usd=cost,
+            tokens=tokens,
+        )
+
+    try:
+        extracted = extract_files(text, allowed=allowed)
+    except CodeExtractionError as exc:
+        return _Written(problems=[f"[codegen] {exc}"], cost_usd=cost, tokens=tokens)
+
+    # The package tag is ours to write, not the model's to remember: it is
+    # knowledge we already have, and an element that arrives without one
+    # resolves to whichever package was written above it.
+    return _Written(files=stamp_files(extracted.files, package.id), cost_usd=cost, tokens=tokens)
+
+
+async def _judge(
+    package: BuildPackage,
+    app_dir: Path,
+    *,
+    allowed: list[str],
+    tracked: list[str],
+    registry: ProviderRegistry,
+    preview: BuildPreview,
+    opts: BuildOptions,
+    attempt: int,
+) -> tuple[_Gate, Manifest]:
+    """Run the gates over whatever is on disk, cheapest and most certain first.
+
+    Called with the files already written. It reads the app rather than the
+    reply, which is what makes it reusable: the same gates judge code a model
+    just produced and code that was produced days ago (a promoted design).
+    """
+    gate = _Gate()
+
+    # Every id standing right now must still be addressable — including ids
+    # belonging to packages built before this one.
+    expected_ids = ids_in_source(app_dir, tracked) or None
+    manifest, instrumentation_problems = _check_instrumentation(
+        app_dir, package, allowed, expected_ids, opts.package_files
+    )
+    if instrumentation_problems:
+        # GUARDRAIL 1: a regeneration that lost an id is a failed build.
+        gate.instrumentation_ok = False
+        gate.problems += instrumentation_problems
+        gate.remainders += [
+            Remainder(what=p, where=package.id, source="instrumentation")
+            for p in instrumentation_problems
+        ]
+        return gate, manifest
+
+    on_disk = _files_on_disk(app_dir, allowed)
+
+    report = validate_package(package, on_disk, package_files=opts.package_files)
+    if not report.passed:
+        gate.validation_ok = False
+        gate.problems += report.instructions()
+        gate.remainders += [
+            Remainder(what=f.message, where=f.file or package.id, source="validation")
+            for f in report.errors
+        ]
+
+    observation = await asyncio.to_thread(preview.observe, app_dir, attempt=attempt)
+    if not observation.observed:
+        # An empty console because nobody looked is not a clean console. Same
+        # rule as an interaction criterion nobody could drive: it rides along,
+        # so "works" keeps meaning "works, and here is what nobody checked".
+        gate.unjudged.append(
+            "the browser checks (console, screenshot) — Playwright is not "
+            "installed, so nobody opened the page. Install the engine's "
+            "`vision` extra and `playwright install chromium`."
+        )
+    console_problems = _console_problems(observation.console)
+    if console_problems:
+        # GUARDRAIL 3: benign browser noise was already filtered out.
+        gate.console_ok = False
+        gate.problems += console_problems
+        gate.remainders += [
+            Remainder(what=p, where=package.id, source="console") for p in console_problems
+        ]
+
+    if gate.validation_ok and gate.console_ok:
+        # Drive it before paying for a critique: it is cheaper than a relay and
+        # it answers the question the user actually asked.
+        await _drive(preview, package, gate, attempt=attempt)
+
+    if gate.validation_ok and gate.console_ok and gate.interaction_ok:
+        evidence = Evidence(
+            console=observation.console,
+            screenshot_path=str(observation.screenshot_path or ""),
+            element_ids=sorted(manifest.elements),
+            extra=[f"Page title: {observation.title}"] if observation.title else [],
+        )
+        critique = await critique_package(
+            package,
+            evidence,
+            registry=registry,
+            passes=opts.critique_passes,
+            spend=opts.spend,
+        )
+        gate.critique_passed = critique.passed
+        # A criterion nobody could observe never fails the build — but it is not
+        # silently dropped either. It rides along as a remainder so "works"
+        # still means "works, and here is what nobody checked". Appended, not
+        # assigned: an interaction criterion nobody could drive is already
+        # recorded here and must not be overwritten.
+        gate.unjudged += list(critique.unjudged)
+        if not critique.passed:
+            gate.problems += critique.problems or [
+                f"Criterion not met: {c}" for c in critique.unmet
+            ]
+            gate.remainders += [
+                Remainder(what=p, where=package.id, source="critique")
+                for p in (critique.problems or critique.unmet)
+            ]
+
+    return gate, manifest
+
+
+async def _attempt_package(
+    package: BuildPackage,
+    contract: str,
+    app_dir: Path,
+    *,
+    index: int,
+    allowed: list[str],
+    tracked: list[str],
+    problems: list[str],
+    registry: ProviderRegistry,
+    preview: BuildPreview,
+    opts: BuildOptions,
+) -> _AttemptOutcome:
+    """One attempt: write the code, then judge what was written.
+
+    Split out of the loop (B087) because the loop's job — try again, and stop
+    when it is hopeless or done — is a different job from an attempt's, and
+    reading either used to mean reading both.
+    """
+    attempt = Attempt(index=index, action="generate" if index == 1 else "fix")
+
+    written = await _write_attempt(
+        package,
+        contract,
+        app_dir,
+        allowed=allowed,
+        problems=problems,
+        registry=registry,
+        opts=opts,
+    )
+    attempt.cost_usd = written.cost_usd
+    attempt.tokens = written.tokens
+
+    if not written.files:
+        attempt.problems = written.problems
+        return _AttemptOutcome(
+            attempt=attempt,
+            gate=_Gate(problems=list(written.problems)),
+            remainders=written.remainders,
+            stop=written.stop,
+        )
+
+    # Snapshot before writing: a rejected build must leave no trace.
+    before = _snapshot(app_dir, allowed)
+    # Off the event loop: a real preview writes into a sandbox and waits for a
+    # dev server to recompile, and Playwright's sync API refuses to run inside a
+    # running asyncio loop at all.
+    await asyncio.to_thread(preview.apply, app_dir, written.files)
+    attempt.files_written = sorted(written.files)
+
+    gate, manifest = await _judge(
+        package,
+        app_dir,
+        allowed=allowed,
+        tracked=tracked,
+        registry=registry,
+        preview=preview,
+        opts=opts,
+        attempt=index,
+    )
+    if not gate.instrumentation_ok:
+        _restore(app_dir, before)
+        attempt.rolled_back = True
+
+    attempt.instrumentation_ok = gate.instrumentation_ok
+    attempt.validation_ok = gate.validation_ok
+    attempt.console_ok = gate.console_ok
+    attempt.interaction_ok = gate.interaction_ok
+    attempt.critique_passed = gate.critique_passed
+    attempt.problems = gate.problems
+    return _AttemptOutcome(attempt=attempt, gate=gate, manifest=manifest)
+
+
 async def build_package(
     package: BuildPackage,
     contract: str,
@@ -575,210 +851,133 @@ async def build_package(
 
     try:
         for index in range(1, opts.max_attempts + 1):
-            attempt = Attempt(index=index, action="generate" if index == 1 else "fix")
-            current = _files_on_disk(app_dir, allowed)
-
-            try:
-                text, cost, tokens, truncated = await _generate(
-                    package,
-                    contract,
-                    registry=registry,
-                    options=opts,
-                    current_files=current,
-                    problems=problems,
-                )
-            except BudgetExceeded as exc:
-                # Not a fault in the package. The user set a ceiling and the
-                # build reached it, so it is recorded as a remainder — the same
-                # shape as everything else nobody could finish — and the loop
-                # stops rather than retrying, because a retry costs money it has
-                # already been told it does not have.
-                attempt.problems = [f"[budget] {exc}"]
-                result.remainders.append(
-                    Remainder(
-                        what=(
-                            "stopped at the cost ceiling you approved — this part was "
-                            "not built, and nothing beyond it was attempted"
-                        ),
-                        where=package.id,
-                        source="budget",
-                    )
-                )
-                result.attempts.append(attempt)
-                problems = attempt.problems
-                last_gate = _Gate(problems=list(problems))
-                break
-            attempt.cost_usd = cost
-            attempt.tokens = tokens
-            result.total_cost_usd += cost
-            result.total_tokens += tokens
-
-            if truncated:
-                # The reply ends inside a file. Writing what arrived would put
-                # half a component on disk, so nothing is written and the next
-                # attempt is told exactly what went wrong.
-                attempt.problems = [
-                    "[codegen] the reply hit the output-token limit and was cut off — "
-                    "no partial file was written. Return the files complete, and shorter."
-                ]
-                result.attempts.append(attempt)
-                problems = attempt.problems
-                last_gate = _Gate(problems=list(problems))
-                continue
-
-            try:
-                extracted = extract_files(text, allowed=allowed)
-            except CodeExtractionError as exc:
-                attempt.problems = [f"[codegen] {exc}"]
-                result.attempts.append(attempt)
-                problems = attempt.problems
-                last_gate = _Gate(problems=list(problems))
-                continue
-
-            # The package tag is ours to write, not the model's to remember: it
-            # is knowledge we already have, and an element that arrives without
-            # one resolves to whichever package was written above it.
-            extracted.files = stamp_files(extracted.files, package.id)
-
-            # Snapshot before writing: a rejected build must leave no trace.
-            before = _snapshot(app_dir, allowed)
-            # Every id standing right now must still be addressable afterwards —
-            # including ids belonging to packages built before this one.
-            expected_ids = ids_in_source(app_dir, tracked) or None
-
-            # Off the event loop: a real preview writes into a sandbox and waits
-            # for a dev server to recompile, and Playwright's sync API refuses to
-            # run inside a running asyncio loop at all.
-            await asyncio.to_thread(preview.apply, app_dir, extracted.files)
-            attempt.files_written = sorted(extracted.files)
-
-            gate = _Gate()
-            manifest, instrumentation_problems = _check_instrumentation(
-                app_dir, package, allowed, expected_ids, opts.package_files
+            outcome = await _attempt_package(
+                package,
+                contract,
+                app_dir,
+                index=index,
+                allowed=allowed,
+                tracked=tracked,
+                problems=problems,
+                registry=registry,
+                preview=preview,
+                opts=opts,
             )
-            if instrumentation_problems:
-                # GUARDRAIL 1: a regeneration that lost an id is a failed build.
-                gate.instrumentation_ok = False
-                gate.problems += instrumentation_problems
-                gate.remainders += [
-                    Remainder(what=p, where=package.id, source="instrumentation")
-                    for p in instrumentation_problems
-                ]
-                _restore(app_dir, before)
-                attempt.rolled_back = True
-                attempt.instrumentation_ok = False
-                attempt.problems = gate.problems
-                result.attempts.append(attempt)
-                problems = gate.problems
-                last_gate = gate
-                continue
-
-            on_disk = _files_on_disk(app_dir, allowed)
-
-            report = validate_package(package, on_disk, package_files=opts.package_files)
-            if not report.passed:
-                gate.validation_ok = False
-                gate.problems += report.instructions()
-                gate.remainders += [
-                    Remainder(what=f.message, where=f.file or package.id, source="validation")
-                    for f in report.errors
-                ]
-
-            observation = await asyncio.to_thread(preview.observe, app_dir, attempt=index)
-            if not observation.observed:
-                # An empty console because nobody looked is not a clean console.
-                # Same rule as an interaction criterion nobody could drive: it
-                # rides along, so "works" keeps meaning "works, and here is what
-                # nobody checked".
-                gate.unjudged.append(
-                    "the browser checks (console, screenshot) — Playwright is not "
-                    "installed, so nobody opened the page. Install the engine's "
-                    "`vision` extra and `playwright install chromium`."
-                )
-            console_problems = _console_problems(observation.console)
-            if console_problems:
-                # GUARDRAIL 3: benign browser noise was already filtered out.
-                gate.console_ok = False
-                gate.problems += console_problems
-                gate.remainders += [
-                    Remainder(what=p, where=package.id, source="console")
-                    for p in console_problems
-                ]
-
-            if gate.validation_ok and gate.console_ok:
-                # Drive it before paying for a critique: it is cheaper than a
-                # relay and it answers the question the user actually asked.
-                await _drive(preview, package, gate, attempt=index)
-
-            if gate.validation_ok and gate.console_ok and gate.interaction_ok:
-                evidence = Evidence(
-                    console=observation.console,
-                    screenshot_path=str(observation.screenshot_path or ""),
-                    element_ids=sorted(manifest.elements),
-                    extra=[f"Page title: {observation.title}"] if observation.title else [],
-                )
-                critique = await critique_package(
-                    package,
-                    evidence,
-                    registry=registry,
-                    passes=opts.critique_passes,
-                    spend=opts.spend,
-                )
-                gate.critique_passed = critique.passed
-                # A criterion nobody could observe never fails the build — but it
-                # is not silently dropped either. It rides along as a remainder so
-                # "works" still means "works, and here is what nobody checked".
-                # Appended, not assigned: an interaction criterion nobody could
-                # drive is already recorded here and must not be overwritten.
-                gate.unjudged += list(critique.unjudged)
-                if not critique.passed:
-                    gate.problems += critique.problems or [
-                        f"Criterion not met: {c}" for c in critique.unmet
-                    ]
-                    gate.remainders += [
-                        Remainder(what=p, where=package.id, source="critique")
-                        for p in (critique.problems or critique.unmet)
-                    ]
-
-            attempt.validation_ok = gate.validation_ok
-            attempt.console_ok = gate.console_ok
-            attempt.interaction_ok = gate.interaction_ok
-            attempt.critique_passed = gate.critique_passed
-            attempt.problems = gate.problems
-            result.attempts.append(attempt)
-            last_gate = gate
-
-            if gate.passed:
+            result.total_cost_usd += outcome.attempt.cost_usd
+            result.total_tokens += outcome.attempt.tokens
+            result.remainders.extend(outcome.remainders)
+            result.attempts.append(outcome.attempt)
+            if outcome.manifest is not None:
+                manifest = outcome.manifest
+            last_gate = outcome.gate
+            problems = outcome.gate.problems
+            if outcome.stop or outcome.gate.passed:
                 break
-            problems = gate.problems
     finally:
         if close_preview:
             await asyncio.to_thread(preview.close)
 
-    result.files = sorted(_files_on_disk(app_dir, allowed))
-    result.checks_passed = last_gate.score
-
-    if last_gate.passed:
-        result.status = PackageStatus.passed
-        result.remainders = [
-            Remainder(what=f"Not verified: {item}", where=package.id, source="scope")
-            for item in last_gate.unjudged
-        ]
-    elif result.files:
-        # Built, but with something still wrong: say what, and where.
-        result.status = PackageStatus.needs_look
-        result.remainders = last_gate.remainders or [
-            Remainder(what=p, where=package.id, source="build") for p in last_gate.problems
-        ]
-    else:
-        result.status = PackageStatus.failed
-        result.remainders = [
-            Remainder(what=p, where=package.id, source="build") for p in last_gate.problems
-        ] or [Remainder(what="no usable code was produced", where=package.id, source="build")]
+    _settle(result, last_gate, package, app_dir=app_dir, allowed=allowed)
 
     if opts.persist and result.files and manifest is not None:
         _persist(app_dir, package, manifest, result, opts)
 
+    return result
+
+
+def _settle(
+    result: PackageBuildResult,
+    gate: _Gate,
+    package: BuildPackage,
+    *,
+    app_dir: Path,
+    allowed: list[str],
+) -> None:
+    """Turn the last gate into the status and the remainders it can evidence.
+
+    Shared by the build loop and the verify-only pass, because "what does this
+    result honestly say" must not have two answers depending on who is asking.
+    """
+    result.files = sorted(_files_on_disk(app_dir, allowed))
+    result.checks_passed = gate.score
+
+    if gate.passed:
+        result.status = PackageStatus.passed
+        result.remainders = [
+            Remainder(what=f"Not verified: {item}", where=package.id, source="scope")
+            for item in gate.unjudged
+        ]
+    elif result.files:
+        # Built, but with something still wrong: say what, and where.
+        result.status = PackageStatus.needs_look
+        result.remainders = gate.remainders or [
+            Remainder(what=p, where=package.id, source="build") for p in gate.problems
+        ]
+    else:
+        result.status = PackageStatus.failed
+        result.remainders = [
+            Remainder(what=p, where=package.id, source="build") for p in gate.problems
+        ] or [Remainder(what="no usable code was produced", where=package.id, source="build")]
+
+
+async def verify_package(
+    package: BuildPackage,
+    app_dir: Path,
+    *,
+    registry: ProviderRegistry,
+    preview: BuildPreview,
+    options: BuildOptions | None = None,
+    close_preview: bool = True,
+) -> PackageBuildResult:
+    """Judge code that is already on disk, without writing a line of it.
+
+    This is what a promotion runs (B070). An app the user shaped in the design
+    window is delivered as it stands — regenerating it would throw away the very
+    changes they made — but "delivered" still has to mean "checked", and it is
+    checked by the same gates, in the same order, as a freshly built package.
+    There is no repair loop: nothing here wrote the code, so there is nothing to
+    ask a model to fix. What is wrong is reported.
+    """
+    opts = options or BuildOptions()
+    app_dir = Path(app_dir).resolve()
+    allowed = planned_files(package)
+    tracked = sorted(
+        {f for files in (opts.package_files or {}).values() for f in files} | set(allowed)
+    )
+
+    result = PackageBuildResult(
+        package_id=package.id,
+        status=PackageStatus.failed,
+        checks_total=len(GATES),
+    )
+    try:
+        gate, _manifest = await _judge(
+            package,
+            app_dir,
+            allowed=allowed,
+            tracked=tracked,
+            registry=registry,
+            preview=preview,
+            opts=opts,
+            attempt=1,
+        )
+    finally:
+        if close_preview:
+            await asyncio.to_thread(preview.close)
+
+    result.attempts.append(
+        Attempt(
+            index=1,
+            action="verify",
+            instrumentation_ok=gate.instrumentation_ok,
+            validation_ok=gate.validation_ok,
+            console_ok=gate.console_ok,
+            interaction_ok=gate.interaction_ok,
+            critique_passed=gate.critique_passed,
+            problems=gate.problems,
+        )
+    )
+    _settle(result, gate, package, app_dir=app_dir, allowed=allowed)
     return result
 
 

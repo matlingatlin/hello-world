@@ -36,8 +36,8 @@ from ..execution.provider import ProviderRegistry
 from ..layerb.architecture import DesignTokens
 from ..layerc.plan import BuildPackage, BuildPlan
 from .file_plan import file_plan, planned_files
-from .loop import GATES, BuildOptions, BuildPreview, build_package
-from .persistence import GitError, persist_package_build
+from .loop import GATES, BuildOptions, BuildPreview, build_package, verify_package
+from .persistence import GitError, head_sha, persist_package_build
 from .result import PackageBuildResult, PackageStatus, Remainder
 
 
@@ -375,6 +375,96 @@ def _persist_app(
         return
     result.build_version = persisted.build_version
     result.git_sha = persisted.git_sha
+
+
+async def stream_verification(
+    plan: BuildPlan,
+    app_dir: Path,
+    *,
+    registry: ProviderRegistry,
+    preview: BuildPreview,
+    options: AppBuildOptions | None = None,
+) -> AsyncIterator[tuple[str, BaseModel | str]]:
+    """Judge an app that already exists, part by part, without building it.
+
+    Same events, same order and the same honest aggregate as
+    `stream_build_plan` — the build view cannot tell the difference and should
+    not have to. What it never does is generate, repair, write or commit: the
+    app on disk is the deliverable (the user shaped it in the design window),
+    and this says what is true about it.
+
+    There is no dependency isolation here for the same reason there is no repair
+    loop. Nothing is being built on top of anything: every part already exists,
+    so every part gets judged and reported rather than skipped for the company
+    it keeps.
+    """
+    opts = options or AppBuildOptions()
+    app_dir = Path(app_dir).resolve()
+
+    ordered = plan.ordered()
+    total = len(ordered)
+    plan_files = file_plan(plan.packages)
+
+    results: list[PackageBuildResult] = []
+    done = 0
+
+    try:
+        for index, package in enumerate(ordered, start=1):
+            yield (
+                "progress",
+                BuildProgress(
+                    package_id=package.id,
+                    index=index,
+                    total=total,
+                    done=done,
+                    status="building",
+                    message=f"Checking {package.id}: {package.goal}",
+                ),
+            )
+
+            result = await verify_package(
+                package,
+                app_dir,
+                registry=registry,
+                preview=preview,
+                options=replace(opts.package, package_files=plan_files, persist=False),
+                close_preview=False,  # one app, one sandbox — it outlives this part
+            )
+            results.append(result)
+            done += 1
+
+            yield "package", result
+            yield (
+                "progress",
+                BuildProgress(
+                    package_id=package.id,
+                    index=index,
+                    total=total,
+                    done=done,
+                    status=result.status,
+                    message=result.honest_status(),
+                ),
+            )
+    finally:
+        app_url = public_url(preview.url)
+        if opts.close_preview:
+            await asyncio.to_thread(preview.close)
+
+    manifest = build_manifest(app_dir, _built_file_map(plan, results))
+    yield (
+        "result",
+        AppBuildResult(
+            order=[p.id for p in ordered],
+            packages=results,
+            app_url=app_url,
+            # Only the critique costs anything here; nothing was generated.
+            total_cost_usd=sum(r.total_cost_usd for r in results),
+            total_tokens=sum(r.total_tokens for r in results),
+            element_count=len(manifest.elements),
+            build_version=opts.build_version,
+            git_sha=head_sha(app_dir),
+        ),
+    )
 
 
 async def run_build_plan(

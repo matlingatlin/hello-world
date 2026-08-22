@@ -4,6 +4,61 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Changed
+- 2026-08-22 — **The build stream stopped opting out of its own types** (B089). `BuildEvent`
+  had been declared in `packages/shared` and wired to nothing: its `data` was a union ending
+  in `Record<string, unknown>`, which narrows to nothing, so both stream consumers cast per
+  branch (`data as unknown as BuildStarted`) and the compiler could not object to reading
+  `payload.total` off an error.
+
+  It is a discriminated union now — `started` / `progress` / `package` / `library` /
+  `finished` / `error`, plus `design_version` for the design window's stream — and both
+  pages switch on the name and get the right payload from the compiler. There is exactly
+  one unchecked cast left, in `streamSse` at the wire, where a claim about someone else's
+  JSON is unavoidable; it is commented as such. The api's two `emit` callbacks are typed to
+  the union too, so an event name invented in a service is a compile error rather than a
+  frame nobody listens for.
+
+
+### Fixed
+- 2026-08-22 — **"Build it" delivers the app you shaped, not a new one** (B070, ADR-0017).
+  The delivery build ran the whole path again on a fresh workspace, and
+  `prepare_workspace(fresh=True)` deleted the directory the design session had been
+  committing into. The noticed loss was the history — the versions panel offers "return to
+  this version" and the commits were gone. The larger, quieter loss was **every change the
+  user made in that session**: markings and directed changes edit the code, not the spec, so
+  a regeneration from the spec contains none of them. They watched their work being built,
+  then watched it being replaced.
+
+  A delivery build now **promotes** the design workspace. Nothing is regenerated; everything
+  is re-judged. The same gates in the same order — instrumentation, validation, console,
+  interaction, critique — run over what is on disk (`verify_package`,
+  `stream_verification`, `POST /build/promote`), because "delivered" has to mean "checked".
+
+  Three things make that honest rather than convenient. The plan and its contracts are
+  written to `.scio/plan.json` at build time and read back at promotion, so the app is judged
+  against the criteria it was actually built to — re-running Layers B and C would cost money
+  and could produce a different plan. The promotion serves the workspace **without** the
+  preview flag, so the delivered app carries no marking bridge. And a workspace with no
+  stored plan is refused rather than quietly rebuilt, because the quiet rebuild is the data
+  loss this exists to prevent.
+
+  Side effects worth naming: a delivery now costs the critique rather than a second full
+  build, and `build_version.design_version_id` finally records which design an app came from.
+
+### Changed
+- 2026-08-22 — **`build_package` was 226 lines doing six jobs** (B087). Split into
+  `_write_attempt` (ask for the code, get it on disk, or say why it is not there),
+  `_judge` (run the gates over what is there, cheapest and most certain first),
+  `_attempt_package` (one attempt) and the loop itself (try again; stop when done or
+  hopeless). `_settle` now turns the last gate into a status in one place instead of two.
+
+  Not a tidy-up for its own sake: `_judge` reading the *app* rather than the *reply* is what
+  made B070's verify-only pass possible at all. The gates that judge freshly generated code
+  and the gates that judge a promoted design are the same gates, because there is only one
+  copy of them.
+
+
 ### Fixed
 - 2026-08-22 — **A dropped connection is not a stopped build** (B086).
   The build screen promises "you can leave this page — the build keeps running", and then

@@ -11,7 +11,13 @@ from pathlib import Path
 import pytest
 
 from scio_engine.builder.loop import ScriptedPreview
-from scio_engine.builder.pipeline import BuildFinished, BuildStarted, stream_full_build
+from scio_engine.builder.pipeline import (
+    BuildFinished,
+    BuildStarted,
+    stream_full_build,
+    stream_promotion,
+)
+from scio_engine.builder.plan_store import PLAN_PATH, load_plan
 from scio_engine.builder.standin import (
     PASS_VERDICT,
     StandInProvider,
@@ -19,6 +25,7 @@ from scio_engine.builder.standin import (
     generate_files,
     standin_registry,
 )
+from scio_engine.builder.workspace import WorkspaceUnavailable
 from scio_engine.core.console import ConsoleEntry, classify_console
 from scio_engine.core.preview import Observation
 from scio_engine.execution.provider import Message, ProviderRegistry
@@ -201,3 +208,107 @@ class TestFullBuild:
 
         # It never got as far as writing anything.
         assert not (tmp_path / "app").exists()
+
+
+class TestPromotion:
+    """B070: "Build it" delivers the app the design window produced.
+
+    It used to recreate the workspace from the spec, which threw away both the
+    version history the design panel offers to return to and — the larger loss,
+    and the quieter one — every change the user had made in that session.
+    """
+
+    async def _build(self, tmp_path: Path, project_id: str = "p1") -> None:
+        async for _event, _payload in stream_full_build(
+            booking_spec(),
+            project_id=project_id,
+            registry=ProviderRegistry.fake(),
+            preview=clean(),
+            app_dir=tmp_path,
+        ):
+            pass
+
+    @pytest.mark.asyncio
+    async def test_a_build_leaves_its_plan_with_the_app(self, tmp_path: Path):
+        await self._build(tmp_path)
+
+        stored = load_plan(tmp_path)
+        assert stored is not None
+        assert stored.plan.order  # the same order the build ran in
+        assert stored.contracts  # and the contracts each part was judged against
+        assert (tmp_path / PLAN_PATH).exists()
+
+    @pytest.mark.asyncio
+    async def test_a_promotion_delivers_the_files_that_are_there(self, tmp_path: Path):
+        await self._build(tmp_path)
+        # Stand in for a design change: the user edited the app by hand.
+        page = tmp_path / "app" / "layout.tsx"
+        page.write_text(page.read_text() + "\n// the user asked for this\n")
+
+        events = []
+        async for event, payload in stream_promotion(
+            project_id="p1",
+            app_dir=tmp_path,
+            registry=ProviderRegistry.fake(),
+            build_version=2,
+            preview=clean(),
+        ):
+            events.append((event, payload))
+
+        assert [e for e, _ in events][0] == "started"
+        assert [e for e, _ in events][-1] == "finished"
+        # The edit survived: nothing regenerated the file.
+        assert "the user asked for this" in page.read_text()
+
+    @pytest.mark.asyncio
+    async def test_a_promotion_judges_every_part_it_delivers(self, tmp_path: Path):
+        await self._build(tmp_path)
+
+        finished = None
+        checked = []
+        async for event, payload in stream_promotion(
+            project_id="p1",
+            app_dir=tmp_path,
+            registry=ProviderRegistry.fake(),
+            build_version=2,
+            preview=clean(),
+        ):
+            if event == "package":
+                checked.append(payload.package_id)
+            if event == "finished":
+                finished = payload
+
+        assert isinstance(finished, BuildFinished)
+        stored = load_plan(tmp_path)
+        assert stored is not None
+        # Delivered means checked: every part in the plan was judged, not waved through.
+        assert checked == stored.plan.order
+
+    @pytest.mark.asyncio
+    async def test_the_delivered_app_keeps_the_history_it_was_built_with(self, tmp_path: Path):
+        await self._build(tmp_path)
+        before = (tmp_path / ".git").exists()
+
+        async for _event, _payload in stream_promotion(
+            project_id="p1",
+            app_dir=tmp_path,
+            registry=ProviderRegistry.fake(),
+            build_version=2,
+            preview=clean(),
+        ):
+            pass
+
+        assert before and (tmp_path / ".git").exists()
+
+    @pytest.mark.asyncio
+    async def test_a_workspace_with_no_plan_is_refused_rather_than_rebuilt(self, tmp_path: Path):
+        # Silently falling back to a rebuild would be the exact data loss this
+        # exists to prevent — and invisible to the person it happens to.
+        with pytest.raises(WorkspaceUnavailable):
+            async for _event, _payload in stream_promotion(
+                project_id="p1",
+                app_dir=tmp_path,
+                registry=ProviderRegistry.fake(),
+                preview=clean(),
+            ):
+                pass

@@ -35,6 +35,7 @@ class FakeScope {
   projects: any[] = [];
   specVersions: any[] = [];
   buildVersions: any[] = [];
+  designVersions: any[] = [];
   usageEvents: any[] = [];
   messages: any[] = [];
   private seq = 0;
@@ -102,6 +103,19 @@ class FakeScope {
       message: collection(store.messages, (a, b) => a.createdAt - b.createdAt),
       specVersion: collection(store.specVersions, (a, b) => b.number - a.number),
       buildVersion: collection(store.buildVersions, (a, b) => b.number - a.number),
+      designVersion: {
+        ...collection(store.designVersions, (a, b) => b.number - a.number),
+        async findFirst({ where }: any) {
+          if (!owns(where.projectId)) return null;
+          return (
+            store.designVersions.find(
+              (d) =>
+                d.projectId === where.projectId &&
+                (where.isCurrent === undefined || d.isCurrent === where.isCurrent),
+            ) ?? null
+          );
+        },
+      },
       // Metering. Scoped by workspace in the real client (auth/workspace-scope),
       // so it is here too: a build's cost must not be readable across tenants.
       usageEvent: {
@@ -150,9 +164,15 @@ class FakeEngine {
   events: Array<[string, Record<string, unknown>]> = [];
   failWith: Error | null = null;
   seen: any[] = [];
+  promoted: any[] = [];
 
   async streamBuild(body: any, onEvent: (e: string, d: Record<string, unknown>) => Promise<void>) {
     this.seen.push(body);
+    if (this.failWith) throw this.failWith;
+    for (const [event, data] of this.events) await onEvent(event, data);
+  }
+  async promoteBuild(body: any, onEvent: (e: string, d: Record<string, unknown>) => Promise<void>) {
+    this.promoted.push(body);
     if (this.failWith) throw this.failWith;
     for (const [event, data] of this.events) await onEvent(event, data);
   }
@@ -236,6 +256,7 @@ describe("Build (e2e): stream + persistence", () => {
       },
     ];
     scope.buildVersions = [];
+    scope.designVersions = [];
     scope.usageEvents = [];
     engine.events = [
       ["started", { project_id: "p1", whole: "…", packages: ["pkg_foundation"], total: 1, workspace: "/tmp/p1" }],
@@ -244,6 +265,7 @@ describe("Build (e2e): stream + persistence", () => {
     ];
     engine.failWith = null;
     engine.seen = [];
+    engine.promoted = [];
   });
 
   it("rejects unauthenticated builds (401)", async () => {
@@ -319,6 +341,57 @@ describe("Build (e2e): stream + persistence", () => {
     expect(frames(res.text).some((f) => f.event === "error")).toBe(true);
     expect(scope.projects[0].status).toBe("error"); // never left "building"
     expect(scope.buildVersions).toHaveLength(0);
+  });
+
+  describe("a project that has been through the design window", () => {
+    beforeEach(() => {
+      scope.designVersions = [
+        {
+          id: "d1",
+          projectId: "p1",
+          number: 4,
+          isCurrent: true,
+          ref: JSON.stringify({ workspace: "/tmp/p1", previewUrl: "http://127.0.0.1:41234" }),
+          createdAt: new Date(2026, 0, 1),
+        },
+      ];
+    });
+
+    it("delivers the app the user shaped instead of building a new one", async () => {
+      // The design session IS the app. Rebuilding from the spec would
+      // regenerate every file the user spent that session shaping — and delete
+      // the workspace the design history points at on the way (B070).
+      await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+      expect(engine.seen).toHaveLength(0); // nothing was rebuilt
+      expect(engine.promoted[0].app_dir).toBe("/tmp/p1");
+      expect(engine.promoted[0].build_version).toBe(1);
+    });
+
+    it("records which design the delivered build came from", async () => {
+      await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+      expect(scope.buildVersions[0].designVersionId).toBe("d1");
+    });
+
+    it("still sends the ceiling the user approved against", async () => {
+      scope.specVersions[0].assumptions = { estimate: { cost_usd: { high: 3.76 } } };
+
+      await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+      expect(engine.promoted[0].budget_usd).toBe(5.64);
+    });
+
+    it("builds from the spec when the design ref names no workspace", async () => {
+      // A ref we cannot read is not a workspace we can deliver, and guessing at
+      // a path is worse than building.
+      scope.designVersions[0].ref = "not json";
+
+      await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+      expect(engine.promoted).toHaveLength(0);
+      expect(engine.seen).toHaveLength(1);
+    });
   });
 
   it("says so in the stream when the engine hangs up without a word", async () => {

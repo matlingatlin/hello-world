@@ -171,13 +171,19 @@ describe("The design window", () => {
 
   it("builds a preview when there isn't one, showing real per-part progress", async () => {
     const stream = vi.fn(
-      async (_id: string, onEvent: (e: string, d: Record<string, unknown>) => void) => {
-        onEvent("progress", {
-          package_id: "pkg_foundation",
-          status: "passed",
-          message: "pkg_foundation: works — 4/4 checks passed.",
+      async (_id: string, onEvent: (frame: { event: string; data: unknown }) => void) => {
+        onEvent({
+          event: "progress",
+          data: {
+            package_id: "pkg_foundation",
+            status: "passed",
+            message: "pkg_foundation: works — 4/4 checks passed.",
+          },
         });
-        onEvent("finished", { app_url: PREVIEW_ORIGIN, manifest: MANIFEST, whole: "" });
+        onEvent({
+          event: "finished",
+          data: { app_url: PREVIEW_ORIGIN, manifest: MANIFEST, whole: "" },
+        });
       },
     );
     mockApi({

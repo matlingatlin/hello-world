@@ -70,7 +70,7 @@
 | B061 | Contribute-back: the library grows from real builds (ids/categories/versions) | PP4 | P0 | done |
 | B062 | Wire the cost estimate from the assemble-vs-generate plan       | PP4 | P0 | done |
 | B069 | Design window: routes and per-route markings (the preview has more than one page) | PP6 | P1 | todo        |
-| B070 | "Build it" recreates the workspace, so the design history is lost at the delivery build | PP6 | P0 | todo        |
+| B070 | "Build it" recreates the workspace, so the design history is lost at the delivery build | PP6 | P0 | done        |
 | B071 | The whole + estimate are recomputed on every GET /intake: ~12s and a real Layer B+C model call per page load | PP5 | P0 | done |
 | B072 | The wizard shows "Nothing yet — 0 of 6" while that GET is in flight — a false statement, not a spinner | PP5 | P0 | done |
 | B073 | A build's actual cost is never recorded (usage_event empty, no cost on build_version) — only the estimate exists | PP5 | P0 | done |
@@ -88,9 +88,9 @@
 | B084 | The reveal's actions all lead to placeholders — /ship (own it), /live (refine), /settings | PP8 | P0 | todo |
 | B085 | applyWorkspaceScope fails OPEN for upsert/createMany — make it throw instead | PP9 | P1 | done |
 | B086 | A dropped connection still reads as "the build stopped" — reconnect, do not declare | PP5 | P1 | done |
-| B087 | build_package is 226 lines doing six jobs — split the attempt body out of the loop | PP6 | P1 | todo |
+| B087 | build_package is 226 lines doing six jobs — split the attempt body out of the loop | PP6 | P1 | done |
 | B088 | "Make this the current version" is written 4x, none transactional — one helper + a partial unique index | PP3 | P0 | done |
-| B089 | Type the SSE events in packages/shared — the build stream is the one path that opts out | PP5 | P1 | todo |
+| B089 | Type the SSE events in packages/shared — the build stream is the one path that opts out | PP5 | P1 | done |
 | B090 | DesignPage: 19 useState is a state machine — make the impossible combinations unrepresentable | PP6 | P1 | todo |
 | B091 | BLOCKING: the generated app inherits the engine's whole environment (ANTHROPIC_API_KEY, SCIO_CATALOG_DB) — allow-list it | PP9 | P0 | done |
 | B092 | BLOCKING: no CI — a clean-clone workflow would have caught 3 of this week's 4 Codespace bugs | PP10 | P0 | done |

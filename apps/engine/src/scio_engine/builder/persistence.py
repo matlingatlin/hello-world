@@ -41,6 +41,20 @@ def ensure_repo(app_dir: Path) -> None:
     git(app_dir, "config", "user.name", "Scio builder")
 
 
+def head_sha(app_dir: Path) -> str:
+    """The commit the workspace is standing on, or "" if it has no history yet.
+
+    A promotion delivers what is already committed rather than committing
+    something new, so it needs to name that commit — and an empty string is the
+    honest answer for a workspace nobody has persisted, where a raised error
+    would only mean the same thing more loudly.
+    """
+    try:
+        return git(app_dir, "rev-parse", "HEAD")
+    except GitError:
+        return ""
+
+
 class PersistedBuild(BaseModel):
     build_version: int
     git_sha: str

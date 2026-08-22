@@ -18,7 +18,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from .builder.pipeline import stream_full_build
+from .builder.pipeline import stream_full_build, stream_promotion
 from .builder.standin import standin_registry
 from .builder.workspace import WorkspaceUnavailable
 from .config import LOADED_FROM_ENV_FILE, build_registry, use_fake_providers
@@ -370,6 +370,52 @@ async def build(req: BuildRequest) -> StreamingResponse:
                     yield _sse(event, payload.model_dump_json())
         except NotBuildableError as exc:
             yield _sse("error", json.dumps({"type": "not_buildable", "message": str(exc)}))
+        except WorkspaceUnavailable as exc:
+            yield _sse("error", json.dumps({"type": "workspace_unavailable", "message": str(exc)}))
+        except Exception as exc:  # a build must never sever the stream silently
+            yield _sse("error", json.dumps({"type": "build_failed", "message": str(exc)}))
+
+    return StreamingResponse(with_heartbeat(event_stream()), media_type="text/event-stream")
+
+
+class PromoteRequest(BaseModel):
+    """Deliver the app a design session produced, without rebuilding it."""
+
+    app_dir: str = Field(description="The workspace the design window has been committing into")
+    project_id: str = Field(default="project", description="Whose app this is")
+    build_version: int = Field(default=1, description="The version number to deliver as")
+    budget_usd: float | None = Field(
+        default=None,
+        description="A ceiling for the checks. Nothing is generated here, so the only "
+        "spend is the critique — but a pass with no ceiling is still a pass with no ceiling.",
+    )
+
+
+@app.post("/build/promote")
+async def promote(req: PromoteRequest) -> StreamingResponse:
+    """Promote a design workspace to a delivered build (B070).
+
+    The same events as `/build` — `started`, `progress`/`package`, `finished` —
+    so nothing downstream needs to know which of the two it is watching. The
+    difference is that not one line of code is regenerated: the app the user
+    shaped is the app that ships, and this judges it rather than replacing it.
+    """
+
+    async def event_stream() -> AsyncIterator[str]:
+        try:
+            async for event, payload in stream_promotion(
+                project_id=req.project_id,
+                app_dir=Path(req.app_dir),
+                registry=build_registry(),
+                build_version=req.build_version,
+                budget_usd=req.budget_usd,
+            ):
+                if isinstance(payload, str):
+                    yield _sse(event, json.dumps({"text": payload}))
+                elif isinstance(payload, dict):
+                    yield _sse(event, json.dumps(payload))
+                else:
+                    yield _sse(event, payload.model_dump_json())
         except WorkspaceUnavailable as exc:
             yield _sse("error", json.dumps({"type": "workspace_unavailable", "message": str(exc)}))
         except Exception as exc:  # a build must never sever the stream silently

@@ -104,6 +104,14 @@ function engineAuth(): Record<string, string> {
   return token ? { "x-scio-engine-token": token } : {};
 }
 
+/** Promote an existing design workspace to the delivered build (B070). */
+export interface EnginePromoteRequest {
+  app_dir: string;
+  project_id: string;
+  build_version: number;
+  budget_usd?: number;
+}
+
 export interface EngineBuildRequest {
   spec: IntakeSpec;
   project_id: string;
@@ -366,19 +374,43 @@ export class EngineClient {
     body: EngineBuildRequest,
     onEvent: (event: string, data: Record<string, unknown>) => Promise<void> | void,
   ): Promise<void> {
+    return this.streamEvents("/build", body, onEvent);
+  }
+
+  /**
+   * Deliver the app a design session produced, without rebuilding it (B070).
+   *
+   * The same events in the same order as `/build`, because to everything
+   * downstream it IS a build: it produces the delivered version. What it does
+   * not do is regenerate the code — the user shaped that code by hand in the
+   * design window, and a fresh generation from the spec would contain none of
+   * it.
+   */
+  async promoteBuild(
+    body: EnginePromoteRequest,
+    onEvent: (event: string, data: Record<string, unknown>) => Promise<void> | void,
+  ): Promise<void> {
+    return this.streamEvents("/build/promote", body, onEvent);
+  }
+
+  private async streamEvents(
+    path: string,
+    body: unknown,
+    onEvent: (event: string, data: Record<string, unknown>) => Promise<void> | void,
+  ): Promise<void> {
     let res: Response;
     try {
-      res = await fetch(`${this.baseUrl}/build`, {
+      res = await fetch(`${this.baseUrl}${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json",
         ...engineAuth(), Accept: "text/event-stream" },
         body: JSON.stringify(body),
       });
     } catch (err) {
-      throw new EngineUnavailableError(`/build: ${(err as Error).message}`);
+      throw new EngineUnavailableError(`${path}: ${(err as Error).message}`);
     }
     if (!res.ok || !res.body) {
-      throw new EngineUnavailableError(`/build returned ${res.status}`);
+      throw new EngineUnavailableError(`${path} returned ${res.status}`);
     }
 
     const reader = res.body.getReader();

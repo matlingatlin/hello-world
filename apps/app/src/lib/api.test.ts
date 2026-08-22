@@ -100,7 +100,9 @@ describe("streams", () => {
     const api = createApi(async () => "jwt", "http://api.test");
     const seen: Array<[string, unknown]> = [];
 
-    await api.streamBuild("p1", (event, data) => seen.push([event, data]));
+    await api.streamBuild("p1", (frame) => {
+      seen.push([frame.event, frame.data]);
+    });
 
     expect(seen).toEqual([
       ["progress", { done: 1 }],
@@ -115,7 +117,9 @@ describe("streams", () => {
     const api = createApi(async () => "jwt", "http://api.test");
     const seen: string[] = [];
 
-    await api.streamBuild("p1", (event) => seen.push(event));
+    await api.streamBuild("p1", (frame) => {
+      seen.push(frame.event);
+    });
 
     expect(seen).toEqual(["finished"]);
   });

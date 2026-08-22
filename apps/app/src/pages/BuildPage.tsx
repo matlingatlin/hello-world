@@ -1,4 +1,4 @@
-import type { BuildProgress, BuildStarted } from "@scio/shared";
+import type { BuildStarted } from "@scio/shared";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button, Eyebrow, Lede, PageTitle, StateCard } from "../components/ui";
@@ -86,30 +86,36 @@ export function BuildPage() {
     api
       .streamBuild(
         projectId,
-        (event, data) => {
+        (frame) => {
           if (!showing.current) return;
-          if (event === "started") {
-            const payload = data as unknown as BuildStarted;
-            setStarted(payload);
-            setStates(Object.fromEntries(payload.packages.map((id) => [id, "waiting"])));
-          }
-          if (event === "progress") {
-            const payload = data as unknown as BuildProgress;
-            setStates((prev) => ({
-              ...prev,
-              [payload.package_id]:
-                payload.status === "building" ? "building" : (payload.status as PartState),
-            }));
-            if (payload.status !== "building") {
-              setDone(payload.done);
-              setLines((prev) => [...prev, payload.message]);
+          // Switching on the name narrows the payload (B089): what used to be a
+          // cast per branch is now the compiler's job.
+          switch (frame.event) {
+            case "started": {
+              setStarted(frame.data);
+              setStates(
+                Object.fromEntries(frame.data.packages.map((id) => [id, "waiting"])),
+              );
+              break;
             }
-          }
-          if (event === "finished") {
-            navigate(`/projects/${projectId}/reveal`);
-          }
-          if (event === "error") {
-            setError(String((data as { message?: string }).message ?? "The build failed."));
+            case "progress": {
+              const { package_id, status, done: finishedParts, message } = frame.data;
+              setStates((prev) => ({
+                ...prev,
+                [package_id]: status === "building" ? "building" : (status as PartState),
+              }));
+              if (status !== "building") {
+                setDone(finishedParts);
+                setLines((prev) => [...prev, message]);
+              }
+              break;
+            }
+            case "finished":
+              navigate(`/projects/${projectId}/reveal`);
+              break;
+            case "error":
+              setError(frame.data.message || "The build failed.");
+              break;
           }
         },
       )

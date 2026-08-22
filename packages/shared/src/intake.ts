@@ -8,6 +8,8 @@
  * this metadata.
  */
 
+import type { DesignVersion } from "./entities";
+
 export type SpecSource = "stated" | "derived" | "default";
 export type SpecConfidence = "low" | "medium" | "high";
 
@@ -272,12 +274,57 @@ export interface BuildErrorEvent {
   message: string;
 }
 
-export type BuildEventName = "started" | "progress" | "package" | "finished" | "error";
-
-export interface BuildEvent {
-  event: BuildEventName;
-  data: BuildStarted | BuildProgress | BuildFinished | BuildErrorEvent | Record<string, unknown>;
+/** One part's own record, as the build reports it when it finishes. */
+export interface BuildPackageResult {
+  package_id: string;
+  status: "passed" | "needs_look" | "failed" | "blocked";
+  files: string[];
+  remainders: { what: string; where?: string; source?: string }[];
+  checks_passed: number;
+  checks_total: number;
+  total_cost_usd?: number;
+  total_tokens?: number;
+  /** Set when the part came from the library rather than being written. */
+  entry_id?: string;
 }
+
+/** What a build gave back to the component library, when it gave anything. */
+export interface BuildLibraryNote {
+  summary: string;
+  added: string[];
+}
+
+/**
+ * Every event a build stream can carry, as a discriminated union.
+ *
+ * The build stream was the one path in the product that opted out of these
+ * types (B089): the events were declared here and then consumed as
+ * `Record<string, unknown>` with a cast at each use site, so the compiler could
+ * not tell anyone that `payload.total` does not exist on an error. Switching on
+ * `event` now narrows `data`, and the single unchecked cast lives at the wire —
+ * where the claim is actually being made.
+ */
+export type BuildEvent =
+  | { event: "started"; data: BuildStarted }
+  | { event: "progress"; data: BuildProgress }
+  | { event: "package"; data: BuildPackageResult }
+  | { event: "library"; data: BuildLibraryNote }
+  | { event: "finished"; data: BuildFinished }
+  | { event: "error"; data: BuildErrorEvent };
+
+export type BuildEventName = BuildEvent["event"];
+
+/**
+ * The design window's preview stream: a build, plus the version it produced.
+ *
+ * Same events as a build — it *is* a build — with one more at the end, because
+ * the design window needs to know which version it is now looking at.
+ */
+export type DesignPreviewEvent =
+  | BuildEvent
+  | { event: "design_version"; data: DesignVersion };
+
+export type DesignPreviewEventName = DesignPreviewEvent["event"];
 
 /**
  * What the reveal shows. Read back from the database rather than carried in the

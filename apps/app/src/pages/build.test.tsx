@@ -80,9 +80,11 @@ function mockApi(overrides: Record<string, unknown>) {
 
 /** A streamBuild that replays a scripted event sequence, like the API does. */
 function scriptedStream(events: Array<[string, Record<string, unknown>]>) {
-  return vi.fn(async (_projectId: string, onEvent: (e: string, d: Record<string, unknown>) => void) => {
-    for (const [event, data] of events) onEvent(event, data);
-  });
+  return vi.fn(
+    async (_projectId: string, onEvent: (frame: { event: string; data: unknown }) => void) => {
+      for (const [event, data] of events) onEvent({ event, data });
+    },
+  );
 }
 
 function renderAt(path: string, element: JSX.Element) {

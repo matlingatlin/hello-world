@@ -19,7 +19,7 @@ import type {
 import { WorkspaceScope } from "../../auth/workspace-scope";
 import { allowancesOf } from "../spec/spec.service";
 import { EngineClient } from "../../engine/engine.client";
-import type { BuildFinished } from "@scio/shared";
+import type { BuildFinished, DesignPreviewEventName } from "@scio/shared";
 
 /**
  * Level 2 — "show me before you build it".
@@ -232,7 +232,7 @@ export class DesignService {
     workspaceId: string,
     projectId: string,
     emit: (
-      event: string,
+      event: DesignPreviewEventName,
       data: Record<string, unknown>,
     ) => Promise<void> | void,
   ): Promise<void> {
@@ -258,10 +258,13 @@ export class DesignService {
           shell_origin: this.shellOrigin(),
         },
         async (event, data) => {
-          if (event === "finished") finished = data as unknown as BuildFinished;
-          if (event === "error")
+          // Off the wire as a string; the union is what everything downstream
+          // is entitled to assume (B089).
+          const name = event as DesignPreviewEventName;
+          if (name === "finished") finished = data as unknown as BuildFinished;
+          if (name === "error")
             failure = String(data.message ?? "the preview failed");
-          await emit(event, data);
+          await emit(name, data);
         },
       );
     } catch (err) {

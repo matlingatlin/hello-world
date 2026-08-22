@@ -355,6 +355,12 @@ def prepare_workspace(project_id: str, *, fresh: bool = True, install: bool = Tr
     """
     target = workspace_root() / project_id
     if fresh and target.exists():
+        # This deletes history. It is safe for a first build, and it is exactly
+        # what ADR-0017 stopped the delivery build from doing: the design window
+        # commits into this directory, and wiping it threw away both the
+        # versions the user can return to and the changes they had made. Any new
+        # caller that might run against an existing project must promote
+        # (`stream_promotion`) rather than come through here.
         shutil.rmtree(target)
     target.mkdir(parents=True, exist_ok=True)
 
