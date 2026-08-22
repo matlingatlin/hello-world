@@ -16,6 +16,10 @@ const WORKSPACE_SCOPED_MODELS = new Set([
   "Notification",
   "AuditLog",
   "User",
+  // A build job carries its workspace directly, like the metering rows: it is
+  // read to answer "is anything of mine building?", which must never be
+  // answered with somebody else's build (B094).
+  "BuildJob",
 ]);
 
 const READ_OPERATIONS = new Set([

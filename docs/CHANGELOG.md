@@ -5,6 +5,41 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-22 — **A build is a job now** (B094, ADR-0020 slice 1). It used to exist only as a
+  stack frame in one api process and one engine process: restart either and a forty-minute
+  build that had spent real money was gone, with no record of how far it got, and nobody could
+  cancel one because there was nothing to cancel.
+
+  Migration 0011 adds `build_job`, created **before** any work starts. Three things follow.
+
+  **A build you can find.** Status, the last thing it said, parts done out of total, and a
+  heartbeat bumped on every event. `GET /v1/projects/:id/build/job` answers "what is building
+  right now" for a page that just opened.
+
+  **A build you can stop.** `DELETE /v1/projects/:id/build` is a status transition, checked by
+  the relay on every event — which is a part boundary, so the workspace is consistent when it
+  stops. A half-written package is worse than a finished one nobody wanted. The build screen
+  has a *Stop this build* button; until now the only way out of a build heading somewhere
+  wrong was a spend ceiling nobody chose in the moment. What it does **not** do is un-charge
+  what was spent: that stays recorded, because a cancellation that quietly forgave the cost
+  would be a hole, and an exploitable one.
+
+  **A build that died stops holding the project.** Past a 15-minute heartbeat grace a job is
+  marked failed and the project is buildable again, and a partial unique index enforces one
+  live job per project in the database rather than in a read-then-write.
+
+  Verified live: a running build reported `1/5` and the package it was on; `DELETE` returned
+  `{"cancelled": true}`; the stream ended with the cancellation event; the row read
+  `cancelled | 1/5 | you stopped it`; the project returned to `ready` and a new build started
+  immediately. A separate build whose client hung up ran to completion and closed its own job —
+  which is exactly the promise the build screen makes.
+
+  **Not built:** the queue and the worker. The api still owns the long unit of work, so a build
+  in flight is still lost on a deploy — the difference is that there is now a row saying so,
+  and the next build is not blocked by it.
+
+
+### Added
 - 2026-08-22 — **A restore answers the same question a change does** (B048). Going back
   reported "restored" and nothing else; "you are back where you were" is only reassuring if
   where you were still builds — and a version can predate the check that would have caught it

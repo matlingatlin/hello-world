@@ -12,8 +12,9 @@ to be settled silently, so each one has an ADR proposing an answer where the sha
   markup and a currency, and B049 (letting a user choose how hard Scio works) waits on it.
 - B084 / B022 — what "Publish" and "Settings" are → **ADR-0018**.
 - B100 — what account deletion keeps and for how long → **ADR-0019**.
-- B094 — builds as jobs → **ADR-0020**. Designed in full; it is the largest remaining piece
-  of engineering and the current design does not survive a deploy.
+- B094 — builds as jobs → **ADR-0020**. The row, cancellation and reaping are built and
+  verified live; the **queue and the worker** are the part still waiting on a decision, and
+  until they exist a build in flight is still lost on a deploy.
 - B056 — the Batch API. It trades the live per-part progress the build screen is built on for
   cost, and that is a product call.
 
@@ -128,7 +129,7 @@ against ours).
 | B091 | BLOCKING: the generated app inherits the engine's whole environment (ANTHROPIC_API_KEY, SCIO_CATALOG_DB) — allow-list it | PP9 | P0 | done |
 | B092 | BLOCKING: no CI — a clean-clone workflow would have caught 3 of this week's 4 Codespace bugs | PP10 | P0 | done |
 | B093 | Refuse to boot with LocalProcessSandbox when NODE_ENV=production — it disqualifies itself in its own docstring and nothing enforces it | PP9 | P0 | done |
-| B094 | Builds must become jobs: no id, no queue, no cancellation, no resume — a restart loses every build | PP10 | P0 | designed (ADR-0020, proposed) |
+| B094 | Builds must become jobs: no id, no queue, no cancellation, no resume — a restart loses every build | PP10 | P0 | in progress (the row, cancellation and reaping are in; queue + worker still proposed — ADR-0020) |
 | B095 | Missing indexes on every hot path (Project.workspaceId, User.clerkUserId, UsageEvent, Notification…) | PP3 | P0 | done |
 | B096 | The engine authenticates nobody — a shared secret before it is ever a separate service | PP9 | P0 | done |
 | B097 | No graceful shutdown: previews orphan, streams cut without an error event, Prisma never disconnects | PP10 | P1 | done |

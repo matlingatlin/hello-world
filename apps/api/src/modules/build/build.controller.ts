@@ -1,4 +1,4 @@
-import { Controller, Get, Headers, HttpCode, Param, Post, Res } from "@nestjs/common";
+import { Controller, Delete, Get, Headers, HttpCode, Param, Post, Res } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { BuildVersionListResponse, LatestBuildResponse } from "@scio/shared";
 import type { Response } from "express";
@@ -27,6 +27,31 @@ export class BuildController {
     @Param("projectId") projectId: string,
   ): Promise<LatestBuildResponse> {
     return this.builds.latest(workspaceId, projectId);
+  }
+
+  @Get("job")
+  @ApiOperation({ summary: "The build running for this project right now, if any" })
+  job(
+    @CurrentWorkspace() workspaceId: string,
+    @Param("projectId") projectId: string,
+  ): Promise<Record<string, unknown> | null> {
+    return this.builds.currentJob(workspaceId, projectId);
+  }
+
+  /**
+   * Stop a running build (B094).
+   *
+   * A DELETE on the build: what is being removed is the running attempt. The
+   * build stops at the next part boundary, where the workspace is consistent —
+   * a half-written package is worse than a finished one nobody wanted.
+   */
+  @Delete()
+  @ApiOperation({ summary: "Stop the build that is running" })
+  cancel(
+    @CurrentWorkspace() workspaceId: string,
+    @Param("projectId") projectId: string,
+  ): Promise<{ cancelled: boolean }> {
+    return this.builds.cancel(workspaceId, projectId);
   }
 
   /**

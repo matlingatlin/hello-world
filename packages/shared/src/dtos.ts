@@ -226,6 +226,21 @@ export interface DesignVersionListResponse {
   designVersions: DesignVersion[];
 }
 
+/**
+ * The build running right now, if one is (B094).
+ *
+ * A build is a job with a row of its own, so a page that opens mid-build can be
+ * told where it got to instead of having to start one to find out.
+ */
+export interface BuildJobResponse {
+  id: string;
+  status: string;
+  lastEvent: string;
+  partsDone: number;
+  partsTotal: number;
+  startedAt: string;
+}
+
 // build
 export interface CreateBuildRequest {
   specVersionId: string;

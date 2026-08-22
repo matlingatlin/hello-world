@@ -12,6 +12,14 @@ import type {
   LatestBuildResponse,
 } from "@scio/shared";
 import { WorkspaceScope } from "../../auth/workspace-scope";
+
+/**
+ * Thrown to unwind a build the user stopped.
+ *
+ * Not an error condition: it is the requested outcome, and it is the one clean
+ * way to stop reading the engine's stream from inside the relay.
+ */
+class BuildCancelled extends Error {}
 import { EngineClient } from "../../engine/engine.client";
 
 /**
@@ -192,7 +200,68 @@ export class BuildService {
     if (idempotencyKey && (await this.buildFor(workspaceId, projectId, idempotencyKey))) {
       return;
     }
+    await this.reapStaleJobs(workspaceId, projectId);
+    const live = await this.client(workspaceId).buildJob.findFirst({
+      where: { projectId, status: { in: ["queued", "running"] } },
+    });
+    if (live) {
+      throw new ConflictException(
+        "A build for this project is already running. Open it rather than starting a second one — " +
+          "two builds share one workspace, and the second would delete the first one's files.",
+      );
+    }
+    // The project's own status is still checked, for projects whose last build
+    // predates jobs entirely — they have no row to reap and would otherwise be
+    // stuck saying "building" forever.
     this.refuseIfAlreadyBuilding(await this.project(workspaceId, projectId));
+  }
+
+  /**
+   * Stop a build the user no longer wants.
+   *
+   * A status transition, not a signal: the build checks between parts, which is
+   * where the workspace is consistent. A half-written package is worse than a
+   * finished one nobody wanted.
+   *
+   * What it does NOT do is un-charge what has been spent. That is recorded and
+   * stays recorded — a cancellation that quietly forgave the cost would be a
+   * hole, and an exploitable one.
+   */
+  async cancel(workspaceId: string, projectId: string): Promise<{ cancelled: boolean }> {
+    await this.project(workspaceId, projectId);
+    const { count } = await this.client(workspaceId).buildJob.updateMany({
+      where: { projectId, status: { in: ["queued", "running"] } },
+      data: {
+        status: "cancelled",
+        failure: "you stopped it",
+        finishedAt: new Date(),
+      },
+    });
+    if (count === 0) {
+      throw new ConflictException("There is no build running for this project.");
+    }
+    return { cancelled: true };
+  }
+
+  /** What is building right now, if anything — for a page that just opened. */
+  async currentJob(
+    workspaceId: string,
+    projectId: string,
+  ): Promise<Record<string, unknown> | null> {
+    await this.project(workspaceId, projectId);
+    await this.reapStaleJobs(workspaceId, projectId);
+    const job = await this.client(workspaceId).buildJob.findFirst({
+      where: { projectId, status: { in: ["queued", "running"] } },
+    });
+    if (!job) return null;
+    return {
+      id: job.id,
+      status: job.status,
+      lastEvent: job.lastEvent,
+      partsDone: job.partsDone,
+      partsTotal: job.partsTotal,
+      startedAt: new Date(job.createdAt as Date).toISOString(),
+    };
   }
 
   /**
@@ -242,6 +311,102 @@ export class BuildService {
   ): Promise<Record<string, unknown> | null> {
     return this.client(workspaceId).buildVersion.findFirst({
       where: { projectId, idempotencyKey },
+    });
+  }
+
+  /**
+   * How long a build may go quiet before it is presumed dead.
+   *
+   * Long, because a real build IS quiet for stretches — Layer B, then Layer C,
+   * then a package that takes minutes. Short enough that a crashed api does not
+   * lock a project for the rest of the day.
+   */
+  private static readonly HEARTBEAT_GRACE_MS = 15 * 60 * 1000;
+
+  /**
+   * Open a job for this build, or refuse because one is already live.
+   *
+   * The row is created BEFORE any work starts (ADR-0020). That is what makes a
+   * build something that exists rather than a stack frame in two processes: a
+   * restart used to lose a forty-minute build that had spent real money, with
+   * no record of how far it got, and nobody could cancel one because there was
+   * nothing to cancel.
+   */
+  private async openJob(
+    workspaceId: string,
+    projectId: string,
+    specVersionId: string,
+    idempotencyKey?: string,
+  ): Promise<{ id: string }> {
+    await this.reapStaleJobs(workspaceId, projectId);
+    const client = this.client(workspaceId);
+    const live = await client.buildJob.findFirst({
+      where: { projectId, status: { in: ["queued", "running"] } },
+    });
+    if (live) {
+      throw new ConflictException(
+        "A build for this project is already running. Open it rather than starting a second one — " +
+          "two builds share one workspace, and the second would delete the first one's files.",
+      );
+    }
+    return client.buildJob.create({
+      data: {
+        projectId,
+        specVersionId,
+        workspaceId,
+        status: "running",
+        idempotencyKey: idempotencyKey ?? null,
+      },
+    });
+  }
+
+  /**
+   * Mark jobs whose process died as failed, so they stop holding the project.
+   *
+   * This replaces reading a timestamp off the project row and guessing. A job
+   * that has gone quiet past the grace period had its api restarted, was
+   * deployed over, or crashed — and leaving it "running" means the user can
+   * never build again.
+   */
+  private async reapStaleJobs(workspaceId: string, projectId: string): Promise<void> {
+    const cutoff = new Date(Date.now() - BuildService.HEARTBEAT_GRACE_MS);
+    const { count } = await this.client(workspaceId).buildJob.updateMany({
+      where: {
+        projectId,
+        status: { in: ["queued", "running"] },
+        heartbeatAt: { lt: cutoff },
+      },
+      data: {
+        status: "failed",
+        failure: "the build stopped reporting — its process is gone",
+        finishedAt: new Date(),
+      },
+    });
+    if (count > 0) {
+      this.logger.warn(
+        `reaped ${count} build job(s) for ${projectId} that stopped reporting`,
+      );
+    }
+  }
+
+  /** Whether this job has been asked to stop since we last looked. */
+  private async cancelled(workspaceId: string, jobId: string): Promise<boolean> {
+    const job = await this.client(workspaceId).buildJob.findFirst({ where: { id: jobId } });
+    return job?.status === "cancelled";
+  }
+
+  private async closeJob(
+    workspaceId: string,
+    jobId: string,
+    status: "succeeded" | "failed",
+    failure = "",
+  ): Promise<void> {
+    await this.client(workspaceId).buildJob.updateMany({
+      // Not a plain update: a job cancelled while it ran has already reached its
+      // ending, and finishing over the top of that would erase the user's
+      // decision from the record.
+      where: { id: jobId, status: { in: ["queued", "running"] } },
+      data: { status, failure, finishedAt: new Date() },
     });
   }
 
@@ -321,6 +486,11 @@ export class BuildService {
     });
     const number = (builds[0]?.number ?? 0) + 1;
 
+    // The job exists before the work does (B094). Everything after this point
+    // has something to record progress against, something to reap if this
+    // process dies, and something the user can cancel.
+    const job = await this.openJob(workspaceId, projectId, current.id, idempotencyKey);
+
     await this.client(workspaceId).project.update({
       where: { id: projectId },
       data: { status: "building" },
@@ -328,6 +498,7 @@ export class BuildService {
 
     let finished: BuildFinished | null = null;
     let failure: string | null = null;
+    let stopped = false;
 
     const relay = async (event: string, data: Record<string, unknown>) => {
       // The engine's frame names arrive as strings off the wire; the union is
@@ -335,6 +506,31 @@ export class BuildService {
       const name = event as BuildEventName;
       if (name === "finished") finished = data as unknown as BuildFinished;
       if (name === "error") failure = String(data.message ?? "the build failed");
+
+      // Every event is a heartbeat and a place to stop. Checked here rather
+      // than on a timer because this is where the build actually has a
+      // boundary: between parts, with the workspace consistent.
+      await this.client(workspaceId).buildJob.updateMany({
+        where: { id: job.id },
+        data: {
+          heartbeatAt: new Date(),
+          lastEvent: String(data.message ?? name).slice(0, 500),
+          ...(typeof data.done === "number" ? { partsDone: data.done } : {}),
+          ...(typeof data.total === "number" ? { partsTotal: data.total } : {}),
+        },
+      });
+      if (!stopped && (await this.cancelled(workspaceId, job.id))) {
+        stopped = true;
+        await emit("error", {
+          type: "cancelled",
+          message: "You stopped this build. Nothing more was built, and nothing was charged for after this point.",
+        });
+        // Ends the engine's stream: the api stops reading, the response body
+        // closes, and the engine's generator is closed at its next event —
+        // which is a package boundary, so it stops with a consistent workspace.
+        throw new BuildCancelled();
+      }
+      if (stopped) return;
       await emit(name, data);
     };
 
@@ -367,6 +563,13 @@ export class BuildService {
         );
       }
     } catch (err) {
+      if (err instanceof BuildCancelled) {
+        await this.client(workspaceId).project.update({
+          where: { id: projectId },
+          data: { status: "ready" },
+        });
+        return;
+      }
       failure = (err as Error).message;
       await emit("error", { type: "engine_unavailable", message: failure });
     }
@@ -376,8 +579,11 @@ export class BuildService {
         designVersionId: design?.id ?? null,
         idempotencyKey: idempotencyKey ?? null,
       });
+      await this.closeJob(workspaceId, job.id, "succeeded");
       return;
     }
+
+    await this.closeJob(workspaceId, job.id, "failed", failure ?? "the build produced no app");
 
     // No finished event means no app: say so in the project's status rather than
     // leaving it "building" forever.

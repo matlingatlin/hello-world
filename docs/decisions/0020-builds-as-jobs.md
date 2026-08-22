@@ -1,6 +1,7 @@
 # 0020. Builds are jobs, not requests
 
-- **Status:** Proposed — needs the planning chat
+- **Status:** Partly implemented (2026-08-22) — points 1, 4 and 5 are built; the queue and
+  the worker (points 2 and 3) are still Proposed and need the planning chat
 - **Date:** 2026-08-22
 - **Phase:** PP10
 
@@ -59,6 +60,36 @@ progress*.
    had reached recorded. Today's 90-minute project lock is the crude version of
    exactly this, and it should be deleted when this lands rather than left beside
    it.
+
+## What is built, as of 2026-08-22
+
+Migration 0011 adds `build_job`, and the api creates the row **before** any work starts. What
+that bought, and what it did not:
+
+- **A build survives this process.** The row carries status, the last thing the build said, how
+  many parts are done, and a heartbeat bumped on every event. `GET /v1/projects/:id/build/job`
+  answers "what is building right now" for a page that just opened.
+- **A build can be stopped.** `DELETE /v1/projects/:id/build` is a status transition; the relay
+  checks it on every event, which is a part boundary, so the workspace is consistent when it
+  stops. The stream ends with an `error` event of type `cancelled`, and the spend to that point
+  **stays recorded** — a cancellation that quietly forgave the cost would be a hole.
+- **A job whose process died is reaped**, not left "running" forever: past a 15-minute
+  heartbeat grace it is marked failed and the project is buildable again. A partial unique
+  index enforces one live job per project in the database rather than in a read-then-write.
+- **The old project-status lock is still there**, deliberately, for projects whose last build
+  predates jobs entirely: they have no row to reap and would otherwise be stuck saying
+  "building". It can go once no such project exists.
+
+Not built: the queue and the worker. The api still owns the long unit of work, so a build in
+flight is still lost on a deploy — the difference is that now there is a row saying so, and the
+next build is not blocked by it. Streaming is also still a live relay rather than a read of the
+job's event log, so a reconnect re-reads the result rather than rejoining the build.
+
+Verified live: a build showed `1/5` and the package it was on, `DELETE` returned
+`{"cancelled": true}`, the stream ended with the cancellation event, the row read
+`cancelled | 1/5 | you stopped it`, the project returned to `ready`, and a new build started
+immediately. A separate build whose client hung up ran to completion and closed its own job —
+which is the promise the build screen makes.
 
 ## Consequences
 

@@ -63,6 +63,7 @@ export function BuildPage() {
    * this page's ability to hear about it.
    */
   const [disconnected, setDisconnected] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const running = useRef(false);
   // Whether this component is still on screen. A ref, not a local, because
   // StrictMode unmounts and remounts: a local would be captured by the dead
@@ -135,6 +136,25 @@ export function BuildPage() {
 
   const total = started?.total ?? 0;
   const percent = total ? Math.round((done / total) * 100) : 0;
+  const stillBuilding = !error && !disconnected;
+
+  /**
+   * Stop it.
+   *
+   * A build is a job with a row of its own (B094), so stopping is a status the
+   * server records rather than a message this page has to deliver. It ends at
+   * the next part, where the workspace is consistent — a half-written package
+   * is worse than a finished one nobody wanted.
+   */
+  async function stop() {
+    setStopping(true);
+    try {
+      await api.cancelBuild(projectId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That build could not be stopped.");
+      setStopping(false);
+    }
+  }
 
   return (
     <section>
@@ -242,6 +262,19 @@ export function BuildPage() {
 
           {!started && !error && (
             <p className="text-[13px] text-muted">Working out what to build…</p>
+          )}
+
+          {/* Until now the only way out of a build heading somewhere wrong was
+              a spend ceiling nobody chose in the moment (B094). */}
+          {stillBuilding && (
+            <Button
+              variant="ghost"
+              className="mt-4 !px-3 !py-1.5 text-xs"
+              disabled={stopping}
+              onClick={() => void stop()}
+            >
+              {stopping ? "Stopping…" : "Stop this build"}
+            </Button>
           )}
         </aside>
       </div>

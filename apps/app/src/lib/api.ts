@@ -4,6 +4,7 @@ import type {
   ApplyDesignChangeRequest,
   ApplyDesignChangeResponse,
   BuildEvent,
+  BuildJobResponse,
   ApproveSpecResponse,
   CorrectSpecFieldRequest,
   CorrectSpecFieldResponse,
@@ -190,6 +191,12 @@ export function createApi(getToken: GetToken, baseUrl?: string) {
     // --- the build ---
     latestBuild: (projectId: string) =>
       request<LatestBuildResponse>(`/projects/${projectId}/build/latest`),
+    /** What is building right now, or `null`. Empty object means nothing. */
+    currentBuildJob: (projectId: string) =>
+      request<BuildJobResponse | Record<string, never>>(`/projects/${projectId}/build/job`),
+    /** Stop the build. It ends at the next part, where the workspace is whole. */
+    cancelBuild: (projectId: string) =>
+      request<{ cancelled: boolean }>(`/projects/${projectId}/build`, { method: "DELETE" }),
     /**
      * Run the build, streamed.
      *

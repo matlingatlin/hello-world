@@ -36,6 +36,7 @@ class FakeScope {
   specVersions: any[] = [];
   buildVersions: any[] = [];
   designVersions: any[] = [];
+  buildJobs: any[] = [];
   usageEvents: any[] = [];
   messages: any[] = [];
   private seq = 0;
@@ -114,6 +115,55 @@ class FakeScope {
                   b.idempotencyKey === where.idempotencyKey),
             ) ?? null
           );
+        },
+      },
+      /**
+       * Build jobs (B094). Hand-written rather than through `collection`,
+       * because what this model is *for* is the queries the others never make:
+       * "is one live?" and "has one gone quiet?".
+       */
+      buildJob: {
+        async create({ data }: any) {
+          if (!owns(data.projectId)) throw new Error("cross-tenant write");
+          const row = {
+            id: randomUUID(),
+            status: "queued",
+            lastEvent: "",
+            partsDone: 0,
+            partsTotal: 0,
+            failure: "",
+            heartbeatAt: new Date(),
+            createdAt: new Date(),
+            finishedAt: null,
+            ...data,
+          };
+          store.buildJobs.push(row);
+          return row;
+        },
+        async findFirst({ where }: any) {
+          return (
+            store.buildJobs.find((j) => {
+              if (j.workspaceId !== workspaceId) return false;
+              if (where.id !== undefined && j.id !== where.id) return false;
+              if (where.projectId !== undefined && j.projectId !== where.projectId) return false;
+              if (where.status?.in && !where.status.in.includes(j.status)) return false;
+              if (where.status !== undefined && !where.status.in && j.status !== where.status)
+                return false;
+              return true;
+            }) ?? null
+          );
+        },
+        async updateMany({ where, data }: any) {
+          const hits = store.buildJobs.filter((j) => {
+            if (j.workspaceId !== workspaceId) return false;
+            if (where.id !== undefined && j.id !== where.id) return false;
+            if (where.projectId !== undefined && j.projectId !== where.projectId) return false;
+            if (where.status?.in && !where.status.in.includes(j.status)) return false;
+            if (where.heartbeatAt?.lt && !(j.heartbeatAt < where.heartbeatAt.lt)) return false;
+            return true;
+          });
+          hits.forEach((j) => Object.assign(j, data));
+          return { count: hits.length };
         },
       },
       designVersion: {
@@ -270,6 +320,7 @@ describe("Build (e2e): stream + persistence", () => {
     ];
     scope.buildVersions = [];
     scope.designVersions = [];
+    scope.buildJobs = [];
     scope.usageEvents = [];
     engine.events = [
       ["started", { project_id: "p1", whole: "…", packages: ["pkg_foundation"], total: 1, workspace: "/tmp/p1" }],
@@ -354,6 +405,127 @@ describe("Build (e2e): stream + persistence", () => {
     expect(frames(res.text).some((f) => f.event === "error")).toBe(true);
     expect(scope.projects[0].status).toBe("error"); // never left "building"
     expect(scope.buildVersions).toHaveLength(0);
+  });
+
+  describe("a build is a job", () => {
+    it("opens a job before any work starts", async () => {
+      // The row exists before the engine is called, which is what makes a build
+      // something that survives this process (B094).
+      await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+      const job = scope.buildJobs[0];
+      expect(job.projectId).toBe("p1");
+      expect(job.specVersionId).toBe("s1");
+      expect(job.status).toBe("succeeded");
+      expect(job.finishedAt).toBeTruthy();
+    });
+
+    it("records how far the build got, as it gets there", async () => {
+      await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+      const job = scope.buildJobs[0];
+      expect(job.partsDone).toBe(1);
+      expect(job.partsTotal).toBe(1);
+      // The last thing it said. Mid-build that is a progress line — which is
+      // what a reconnecting client is shown; at the end it is the ending.
+      expect(job.lastEvent).toBe("finished");
+    });
+
+    it("a build that produced nothing leaves a failed job, not a running one", async () => {
+      engine.events = [
+        ["started", { project_id: "p1", whole: "", packages: [], total: 0, workspace: "" }],
+      ];
+
+      await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+      expect(scope.buildJobs[0].status).toBe("failed");
+      expect(scope.buildJobs[0].failure).toBeTruthy();
+    });
+
+    it("refuses a second build while a job is live", async () => {
+      scope.buildJobs.push({
+        id: "j-live",
+        projectId: "p1",
+        workspaceId: "w1",
+        specVersionId: "s1",
+        status: "running",
+        heartbeatAt: new Date(),
+        createdAt: new Date(),
+      });
+
+      await request(http).post("/projects/p1/build").set(w1).expect(409);
+    });
+
+    it("takes a job whose process died rather than locking the project forever", async () => {
+      // A deployed-over or crashed api leaves a job saying "running" with
+      // nobody behind it. Left alone, the user can never build again.
+      scope.buildJobs.push({
+        id: "j-dead",
+        projectId: "p1",
+        workspaceId: "w1",
+        specVersionId: "s1",
+        status: "running",
+        heartbeatAt: new Date(Date.now() - 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 60 * 60 * 1000),
+      });
+
+      await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+      expect(scope.buildJobs.find((j: any) => j.id === "j-dead").status).toBe("failed");
+      expect(scope.buildJobs).toHaveLength(2);
+    });
+
+    it("says what is building right now", async () => {
+      scope.buildJobs.push({
+        id: "j-live",
+        projectId: "p1",
+        workspaceId: "w1",
+        specVersionId: "s1",
+        status: "running",
+        lastEvent: "Building pkg_schema",
+        partsDone: 2,
+        partsTotal: 5,
+        heartbeatAt: new Date(),
+        createdAt: new Date(),
+      });
+
+      const res = await request(http).get("/projects/p1/build/job").set(w1).expect(200);
+
+      expect(res.body).toMatchObject({ status: "running", partsDone: 2, partsTotal: 5 });
+    });
+
+    it("has nothing to report when nothing is building", async () => {
+      const res = await request(http).get("/projects/p1/build/job").set(w1).expect(200);
+
+      expect(res.body).toEqual({});
+    });
+  });
+
+  describe("stopping a build", () => {
+    it("is a refusal when there is nothing to stop", async () => {
+      await request(http).delete("/projects/p1/build").set(w1).expect(409);
+    });
+
+    it("marks the live job cancelled", async () => {
+      scope.buildJobs.push({
+        id: "j-live",
+        projectId: "p1",
+        workspaceId: "w1",
+        specVersionId: "s1",
+        status: "running",
+        heartbeatAt: new Date(),
+        createdAt: new Date(),
+      });
+
+      await request(http).delete("/projects/p1/build").set(w1).expect(200);
+
+      expect(scope.buildJobs[0].status).toBe("cancelled");
+      expect(scope.buildJobs[0].finishedAt).toBeTruthy();
+    });
+
+    it("cannot stop another workspace's build", async () => {
+      await request(http).delete("/projects/p1/build").set(w2).expect(404);
+    });
   });
 
   describe("a retry is not a second bill", () => {

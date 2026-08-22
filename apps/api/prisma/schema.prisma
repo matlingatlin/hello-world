@@ -97,6 +97,7 @@ model Workspace {
 
   users         User[]
   projects      Project[]
+  buildJobs     BuildJob[]
   usageEvents   UsageEvent[]
   notifications Notification[]
   auditLogs     AuditLog[]
@@ -156,6 +157,7 @@ model Project {
   specVersions    SpecVersion[]
   designVersions  DesignVersion[]
   buildVersions   BuildVersion[]
+  buildJobs       BuildJob[]
   deployments     Deployment[]
   referenceAssets ReferenceAsset[]
   embeddings      ReferenceEmbedding[]
@@ -192,6 +194,7 @@ model SpecVersion {
 
   project       Project        @relation(fields: [projectId], references: [id])
   buildVersions BuildVersion[]
+  buildJobs     BuildJob[]
 
   @@unique([projectId, number])
   @@map("spec_version")
@@ -211,6 +214,45 @@ model DesignVersion {
 
   @@unique([projectId, number])
   @@map("design_version")
+}
+
+/// A build in progress, or one that was.
+///
+/// A build used to exist only as a stack frame in one api process and one
+/// engine process (B094, ADR-0020). Restart either and a forty-minute build
+/// that had spent real money was gone, with no record of how far it got — and
+/// nobody could cancel one, because there was nothing to cancel.
+///
+/// This row is the thing that exists. `build_version` remains what a build
+/// *produced*; this is the attempt, including the attempts that produced
+/// nothing.
+model BuildJob {
+  id             String    @id @default(uuid()) @db.Uuid
+  projectId      String    @map("project_id") @db.Uuid
+  specVersionId  String    @map("spec_version_id") @db.Uuid
+  workspaceId    String    @map("workspace_id") @db.Uuid
+  /// queued | running | succeeded | failed | cancelled
+  status         String    @default("queued")
+  idempotencyKey String?   @map("idempotency_key")
+  /// What the build last said, so a client that reconnects can be told where it
+  /// got to rather than only whether it ended.
+  lastEvent      String    @default("") @map("last_event")
+  partsDone      Int       @default(0) @map("parts_done")
+  partsTotal     Int       @default(0) @map("parts_total")
+  failure        String    @default("")
+  /// Bumped as events arrive. A job whose heartbeat has gone quiet is a job
+  /// whose process died; it is reaped rather than left "running" forever.
+  heartbeatAt    DateTime  @default(now()) @map("heartbeat_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  finishedAt     DateTime? @map("finished_at")
+
+  project     Project     @relation(fields: [projectId], references: [id])
+  specVersion SpecVersion @relation(fields: [specVersionId], references: [id])
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id])
+
+  @@index([projectId, status])
+  @@index([workspaceId])
+  @@map("build_job")
 }
 
 /// The version timeline. Code lives in git (gitSha). Restore = insert a new row;

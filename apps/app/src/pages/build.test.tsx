@@ -73,6 +73,7 @@ function mockApi(overrides: Record<string, unknown>) {
   const api = {
     streamBuild: vi.fn().mockResolvedValue(undefined),
     latestBuild: vi.fn().mockResolvedValue(latest()),
+    cancelBuild: vi.fn().mockResolvedValue({ cancelled: true }),
     ...overrides,
   };
   vi.spyOn(useApiModule, "useApi").mockReturnValue(api as never);
@@ -198,6 +199,31 @@ describe("Build view", () => {
 
     expect(await screen.findByText("Approve a spec first.")).toBeDefined();
     expect(screen.queryByText("We lost the connection")).toBeNull();
+  });
+
+  it("offers a way out of a build heading somewhere wrong", async () => {
+    // Until now the only stop was a spend ceiling nobody chose in the moment
+    // (B094). Stopping is a status the server records, so the page's job is to
+    // ask for it and then say what it asked for.
+    const api = mockApi({ streamBuild: scriptedStream([["started", STARTED]]) });
+    renderAt("/projects/p1/build", <BuildPage />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Stop this build/ }));
+
+    expect(api.cancelBuild).toHaveBeenCalledWith("p1");
+    expect(await screen.findByText("Stopping…")).toBeDefined();
+  });
+
+  it("offers no way to stop a build that already stopped", async () => {
+    mockApi({
+      streamBuild: scriptedStream([
+        ["error", { type: "workspace_unavailable", message: "No app scaffold available." }],
+      ]),
+    });
+    renderAt("/projects/p1/build", <BuildPage />);
+
+    await screen.findByText("The build stopped");
+    expect(screen.queryByRole("button", { name: /Stop this build/ })).toBeNull();
   });
 
   it("tells the user they can leave", async () => {
