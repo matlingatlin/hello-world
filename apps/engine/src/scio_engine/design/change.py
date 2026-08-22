@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 
 from ..builder.codegen import FIX_SYSTEM, CodeExtractionError, extract_files
 from ..builder.persistence import GitError, ensure_repo, git
+from ..builder.typecheck import typecheck
 from ..core.instrumentation import Manifest
 from ..core.persistence import ManifestStore
 from ..core.regenerate import PackageRegenerator, directed_regenerate
@@ -76,6 +77,14 @@ class DesignChangeResult(BaseModel):
     unaddressable: list[MarkingOutcome] = Field(default_factory=list)
     manifest: Manifest | None = None
     total_cost_usd: float = 0.0
+    compiles: bool | None = Field(
+        default=None,
+        description="Whether the app still compiles after this change. None means nobody "
+        "asked — no TypeScript in the workspace. A directed change is the flagship loop and "
+        "runs many times before a delivery build; finding out three changes later that the "
+        "first one broke the build is the expensive version of this answer.",
+    )
+    type_problems: list[str] = Field(default_factory=list)
     description: str = ""
     git_sha: str = Field(
         default="",
@@ -97,6 +106,10 @@ class DesignChangeResult(BaseModel):
         if not self.packages:
             return "Nothing to change — no marking could be addressed."
         lines = [p.as_line() for p in self.packages]
+        if self.compiles is False:
+            first = self.type_problems[0] if self.type_problems else "see the build log"
+            more = f" (+{len(self.type_problems) - 1} more)" if len(self.type_problems) > 1 else ""
+            lines.append(f"the app no longer compiles — {first}{more}")
         if self.unaddressable:
             lines.append(
                 f"{len(self.unaddressable)} marking(s) could not be addressed and were skipped"
@@ -308,6 +321,15 @@ async def apply_change(
             result.manifest = regeneration.manifest
 
     result.applied = any(p.accepted for p in result.packages)
+
+    if result.applied:
+        # After the change, before the commit: the answer belongs to the version
+        # being recorded. A change that broke the build is still committed —
+        # that is what makes it returnable — but it is never reported as if it
+        # had not (B048).
+        report = typecheck(app_dir)
+        result.compiles = report.passed if report.ran else None
+        result.type_problems = [p.as_line() for p in report.problems]
 
     # Committed here rather than per package: a batch is one change, and one
     # entry in the history is what the user asked for. Failing to commit does

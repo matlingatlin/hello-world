@@ -24,10 +24,10 @@ are priced. Inventing the numbers would be worse than leaving them.
 There is no inbound path and no free tunnel fits the egress; it needs a deploy, and it is the
 single thing standing between here and a tester.
 
-**Partly done, rest waiting on a real run.** B048 — the app-wide typecheck gate is built and
-caught a real break the day it landed (an app reported "5 of 5 parts work" that did not
-compile). Lighthouse and a dependency audit still need a real build to calibrate against and a
-network the sandbox does not have.
+**Partly done, rest waiting on a real run.** B048 — the app-wide typecheck gate runs on
+builds, promotions *and* directed changes, and caught a real break the day it landed (an app
+reported "5 of 5 parts work" that did not compile). Lighthouse and a dependency audit still
+need a real build to calibrate against and a network the sandbox does not have.
 
 **Post-MVP by choice.** B047 (fleet learning), B057 and B058 (evaluations of vendor features
 against ours).
@@ -81,7 +81,7 @@ against ours).
 | B045 | Component library — first slice (catalog, matcher, assembler, gate) | PP4  | P0 | done |
 | B046 | Cost estimate (deterministic, from plan + library hits)        | PP4      | P0 | done |
 | B047 | Fleet learning (capture fixes/patterns -> playbook + library)  | post-MVP | P1 | todo |
-| B048 | Quality gate at reveal (Lighthouse + security + lint scores)   | PP9      | P1 | in progress (typecheck gate done and catching real breaks; Lighthouse + audit still need a real run) |
+| B048 | Quality gate at reveal (Lighthouse + security + lint scores)   | PP9      | P1 | in progress (typecheck gate on builds AND directed changes; Lighthouse + audit still need a real run) |
 | B049 | Model-passes control in Settings (1 = same model x2; more = best->review->best) | PP4 | P0 | todo |
 | B050 | Intake agent: extraction + next-question loop (gate 1's brain) | PP4 | P0 | done |
 | B051 | Gate 1 wired end-to-end (wizard <-> api <-> engine, spec freeze) | PP5 | P0 | done |

@@ -174,6 +174,11 @@ export interface ApplyDesignChangeResponse {
   manifest: Record<string, unknown> | null;
   designVersion: DesignVersion | null;
   summary: string;
+  /** Whether the app still compiles after this change. `null` means nobody
+   *  asked. A change loop that only learns this at the delivery build finds out
+   *  three changes too late (B048). */
+  compiles?: boolean | null;
+  typeProblems?: string[];
 }
 
 /**

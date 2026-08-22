@@ -5,6 +5,25 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-22 — **A directed change says whether the app still compiles** (B048, second half).
+  The design window is the loop people actually live in — mark, look, mark again — and it ran
+  many times before any delivery build. So a change that broke the app was found three changes
+  later, at delivery, with no clue which one did it.
+
+  The typecheck now runs after a change is applied and before it is committed, and the answer
+  travels: `compiles` and `type_problems` on the engine's result, through the api, onto the
+  outcome card in the window. The change is still committed when it breaks the build — that is
+  what makes it returnable, and the versions panel is right there — but it is never reported
+  as if the app were fine. It is in the summary as well as its own card, because the summary
+  is what the design version stores, and a stored line that reads like a clean change is a
+  version somebody will return to expecting one.
+
+  Verified live in both directions: a healthy change reports `compiles: true`, and an app
+  broken on purpose comes back with *"lib/db/booking.ts:1 — Module '@/lib/supabase' declares
+  'getSupabaseClient' locally, but it is not exported."*
+
+
+### Added
 - 2026-08-22 — **A library entry says what it imports, not just who it depends on** (B116).
   The seeded booking feature declared `package_dependencies: [pkg_foundation, …]` and nothing
   about the fact that its code calls `getSupabaseClient` from `@/lib/supabase`. That is how it

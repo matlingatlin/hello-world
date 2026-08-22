@@ -183,6 +183,10 @@ export interface EngineDesignChangeResponse {
   manifest: Record<string, unknown> | null;
   total_cost_usd: number;
   description: string;
+  /** Whether the app still compiles after the change. `null` means nobody
+   *  asked — no TypeScript in that workspace. */
+  compiles: boolean | null;
+  type_problems: string[];
   /** The commit the change produced. Empty means it is on disk and cannot be
    *  returned to — `persistence_error` says why. */
   git_sha: string;

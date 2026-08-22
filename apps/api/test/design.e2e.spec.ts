@@ -380,6 +380,42 @@ describe("Design window (e2e): preview + directed change", () => {
     });
   });
 
+  it("passes on whether the app still compiles, and says so in the summary", async () => {
+    // A change loop that only learns this at the delivery build finds out three
+    // changes too late (B048). The api runs no compiler — the engine does, in
+    // the workspace — so this hop's job is to carry the answer without losing it.
+    await generate().expect(201);
+    engine.changeReply = {
+      ...APPLIED,
+      compiles: false,
+      type_problems: ["components/booking-form.tsx:12 — Property 'onSubmit' does not exist."],
+    };
+
+    const res = await request(http)
+      .post("/projects/p1/design/change")
+      .set(w1)
+      .send({ markings: [{ scioId: "booking-form-submit", note: "quieter" }] })
+      .expect(201);
+
+    expect(res.body.compiles).toBe(false);
+    expect(res.body.typeProblems[0]).toContain("onSubmit");
+    expect(res.body.summary).toContain("no longer compiles");
+  });
+
+  it("says nothing about compiling when the app still does", async () => {
+    await generate().expect(201);
+    engine.changeReply = { ...APPLIED, compiles: true, type_problems: [] };
+
+    const res = await request(http)
+      .post("/projects/p1/design/change")
+      .set(w1)
+      .send({ markings: [{ scioId: "booking-form-submit", note: "quieter" }] })
+      .expect(201);
+
+    expect(res.body.compiles).toBe(true);
+    expect(res.body.summary).not.toContain("compile");
+  });
+
   it("returns the isolation proof for an applied change", async () => {
     await generate().expect(201);
 

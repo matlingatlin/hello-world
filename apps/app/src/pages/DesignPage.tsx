@@ -805,6 +805,23 @@ export function DesignPage() {
                   ))}
                 </ul>
               )}
+              {/* A change loop that only learns this at the delivery build finds
+                  out three changes too late. The change is kept either way —
+                  it is committed, so you can return to the version before it —
+                  but it is never reported as if the app were fine (B048). */}
+              {outcome.compiles === false && (
+                <div
+                  className="mt-2 pt-2 border-t border-line text-[12px] text-danger"
+                  data-testid="does-not-compile"
+                >
+                  The app no longer compiles.
+                  <ul className="mt-1 flex flex-col gap-1 font-mono text-[11px]">
+                    {(outcome.typeProblems ?? []).slice(0, 3).map((problem) => (
+                      <li key={problem}>{problem}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 

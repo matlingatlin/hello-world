@@ -663,3 +663,36 @@ describe("More than one page", () => {
     expect(screen.queryByTestId("routes")).toBeNull();
   });
 });
+
+describe("A change that broke the build", () => {
+  it("says so, instead of leaving it for the delivery build to find", async () => {
+    mockApi({
+      applyDesignChange: vi.fn().mockResolvedValue(
+        applied({
+          compiles: false,
+          typeProblems: ["components/booking-form.tsx:12 — Property 'onSubmit' does not exist."],
+        }),
+      ),
+    });
+    renderPage();
+    await ready();
+    mark("booking-form-submit");
+    await userEvent.click(screen.getByRole("button", { name: /Generate again/ }));
+
+    expect(await screen.findByTestId("does-not-compile")).toBeDefined();
+    expect(screen.getByText(/Property 'onSubmit' does not exist/)).toBeDefined();
+  });
+
+  it("says nothing when the app still compiles", async () => {
+    mockApi({
+      applyDesignChange: vi.fn().mockResolvedValue(applied({ compiles: true, typeProblems: [] })),
+    });
+    renderPage();
+    await ready();
+    mark("booking-form-submit");
+    await userEvent.click(screen.getByRole("button", { name: /Generate again/ }));
+
+    await screen.findByTestId("outcome");
+    expect(screen.queryByTestId("does-not-compile")).toBeNull();
+  });
+});

@@ -530,3 +530,60 @@ class TestTheRequestShape:
             "ancestor_package",
             "note",
         }
+
+
+class TestWhetherItStillCompiles:
+    """A directed change is the flagship loop and runs many times before a
+    delivery build. Learning at the delivery that the first change broke the
+    app is the expensive version of that answer (B048)."""
+
+    def test_a_workspace_with_no_compiler_says_nobody_asked(self, tmp_path):
+        # Not False. "We could not check" and "it is broken" are different
+        # sentences, and only one of them should worry the user.
+        from scio_engine.builder.typecheck import typecheck
+
+        report = typecheck(tmp_path)
+
+        assert report.ran is False
+        assert report.passed is False  # never a pass on absence
+
+    def test_the_summary_names_the_break(self):
+        from scio_engine.design.change import DesignChangeResult, PackageChange
+
+        result = DesignChangeResult(
+            applied=True,
+            packages=[
+                PackageChange(
+                    package="pkg_feature_booking",
+                    instruction="quieter",
+                    edited_files=["components/booking-form.tsx"],
+                    unchanged_files=3,
+                    isolated=True,
+                    accepted=True,
+                )
+            ],
+            compiles=False,
+            type_problems=[
+                "components/booking-form.tsx:12 — Property 'onSubmit' does not exist.",
+                "lib/db/booking.ts:4 — Cannot find name 'x'.",
+            ],
+        )
+
+        summary = result.summary()
+
+        assert "no longer compiles" in summary
+        assert "Property 'onSubmit'" in summary
+        assert "+1 more" in summary
+
+    def test_a_change_that_compiles_says_nothing_about_it(self):
+        from scio_engine.design.change import DesignChangeResult, PackageChange
+
+        result = DesignChangeResult(
+            applied=True,
+            packages=[
+                PackageChange(package="pkg_x", instruction="i", accepted=True, isolated=True)
+            ],
+            compiles=True,
+        )
+
+        assert "compile" not in result.summary()

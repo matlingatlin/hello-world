@@ -440,6 +440,10 @@ export class DesignService {
       manifest,
       designVersion: version,
       summary: this.summarise(result),
+      // Passed through rather than re-derived: the engine ran the compiler in
+      // the workspace, and this hop has no workspace to run it in.
+      compiles: result.compiles ?? null,
+      typeProblems: result.type_problems ?? [],
     };
   }
 
@@ -454,6 +458,8 @@ export class DesignService {
       rejection: string;
     }>;
     unaddressable: unknown[];
+    compiles?: boolean | null;
+    type_problems?: string[];
   }): string {
     if (result.conflicts.length > 0) {
       return `Not applied — ${result.conflicts.length} thing(s) need your call.`;
@@ -465,6 +471,16 @@ export class DesignService {
         ? `${p.package}: changed ${p.edited_files.join(", ")} (${p.unchanged_files} other files unchanged)`
         : `${p.package}: not applied — ${p.rejection}`,
     );
+    if (result.compiles === false) {
+      // In the summary as well as its own card: the summary is what the design
+      // version records, and a version whose stored line reads like a clean
+      // change is a version somebody will return to expecting one.
+      const first = result.type_problems?.[0] ?? "see the build log";
+      const rest = (result.type_problems?.length ?? 0) - 1;
+      lines.push(
+        `the app no longer compiles — ${first}${rest > 0 ? ` (+${rest} more)` : ""}`,
+      );
+    }
     if (result.unaddressable.length > 0) {
       lines.push(
         `${result.unaddressable.length} marking(s) could not be addressed`,
