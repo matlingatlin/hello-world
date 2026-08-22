@@ -199,6 +199,22 @@ already in the environment always wins over it. Check
 useful for clicking around without spending anything. See `RUNBOOK-FIRST-RUN.md`
 for what a real run costs (the last one: 46 minutes, $2.69).
 
+## The spend ceiling, if a build refuses to start
+
+A workspace has a per-period ceiling as well as a per-build one. If a build
+comes back `409` saying what the workspace has spent, that is the period cap —
+$50 per UTC calendar month by default. Ask what is left:
+
+```bash
+curl -s -H 'Authorization: Bearer dev:you@example.com' \
+  localhost:3000/v1/usage/allowance      # {"spent":0.25,"cap":50,"room":true}
+```
+
+Raise it for a session with `SCIO_WORKSPACE_PERIOD_CAP_USD` in the api's
+environment. On the free path the figures are real arithmetic over stand-in
+token counts — a fake build books around $0.06 — so a Codespace tester will not
+reach the ceiling by clicking, only by running real builds.
+
 ## What has been verified, and what has not
 
 Verified here, by running the stack with `CODESPACE_NAME` set:

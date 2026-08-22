@@ -54,6 +54,23 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
   unsafely." Observability (**B123**) is untouched and belongs with the queue-and-worker half of
   B094. Both are in the backlog with what they wait on.
 
+### Verified
+- 2026-08-22 — **The billing fix, proven on the running stack, not only in tests.** Brought the
+  whole stack up on the free path (`SCIO_SKIP_ENV_FILE=1`, `"providers":"fake"`), drove intake →
+  corrections → approve → build over HTTP, and then started a second build and **cancelled it
+  after one package landed**. The cancelled build wrote a `generation` usage row of $0.0586 /
+  11,077 tokens, and its `build_job` row says `cancelled` carrying the same figures. Before this
+  commit that row did not exist and the ledger stayed at zero — which is precisely the hole the
+  review called exploitable. `GET /v1/usage` and `GET /v1/usage/allowance` both answer live
+  (`{"spent":0.2479,"cap":50,"room":true}`), where `usage.list` used to throw. Migration 0012
+  applied cleanly to the existing database via `prisma migrate deploy`.
+
+  One thing worth knowing for anyone testing: `scripts/dev-up.sh` reads `apps/engine/.env`, so on
+  a machine where the key lives there the stack comes up in **real** mode and clicking costs
+  money — the health line says `"providers":"real"`. `SCIO_SKIP_ENV_FILE=1` or
+  `SCIO_FAKE_PROVIDERS=1` forces the free path. A fresh Codespace has no `.env` (it is
+  gitignored) and is free by default.
+
 - 2026-08-22 — **Two things a browser found that no API call could**, driving the real UI with
   a real browser for the first time this session.
 
