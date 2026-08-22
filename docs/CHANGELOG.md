@@ -5,6 +5,34 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-22 — **A restore answers the same question a change does** (B048). Going back
+  reported "restored" and nothing else; "you are back where you were" is only reassuring if
+  where you were still builds — and a version can predate the check that would have caught it
+  when it was made. The restore now carries `compiles` and `type_problems` through to the
+  window, which says which version you landed on and what is wrong with it.
+
+### Verified
+- 2026-08-22 — **A full live pass over the paths this session had not exercised**, on the free
+  stand-in path, against the running stack:
+
+  - **The delivered app serves.** All three routes answer 200 with real HTML (5.1k / 6.9k /
+    8.7k), carrying 6, 11 and 16 instrumented elements — and **no marking bridge**, which is
+    ADR-0017's promise: a promotion serves the app the user owns, not the one we instrument.
+  - **The routes B069 advertises are real pages**, not plan entries that never got built.
+  - **The conflict loop holds.** A marking asking for "a card payment step" against a spec
+    that says "No payments" applied *nothing* and came back with the question, quoting the
+    sentence. Answering it (`/spec/amend`) removed the non-goal on spec v2, and the same
+    change then applied cleanly and compiled.
+  - **Restore is non-destructive**: returning to version 1 produced version 5, left all nine
+    commits in place, and the restored app compiles.
+  - **The directed-change loop survived today's prompt fencing** (B104) — applied, isolated,
+    14 files byte-identical, one commit.
+
+  Nothing broke in this pass, which is worth saying plainly: the three before it each found
+  something.
+
+
+### Added
 - 2026-08-22 — **A directed change says whether the app still compiles** (B048, second half).
   The design window is the loop people actually live in — mark, look, mark again — and it ran
   many times before any delivery build. So a change that broke the app was found three changes

@@ -209,6 +209,11 @@ export interface RestoreDesignVersionResponse {
   manifest: Record<string, unknown> | null;
   designVersion: DesignVersion | null;
   error: string;
+  /** Whether the app compiles at the version you went back to. `null` means
+   *  nobody asked. Usually yes — it compiled when it was made — but a version
+   *  can predate the check, and the same question is answered after a change. */
+  compiles?: boolean | null;
+  typeProblems?: string[];
 }
 
 export interface FreezeDesignRequest {

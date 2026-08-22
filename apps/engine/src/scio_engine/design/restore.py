@@ -28,6 +28,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from ..builder.persistence import GitError, git
+from ..builder.typecheck import typecheck
 from ..core.instrumentation import Manifest
 from ..core.manifest_builder import build_manifest
 from ..core.verifier import verify_instrumentation
@@ -40,6 +41,13 @@ class RestoreResult(BaseModel):
     git_sha: str = Field(default="", description="The version that was asked for")
     head: str = Field(default="", description="The commit the restore produced")
     manifest: Manifest | None = None
+    compiles: bool | None = Field(
+        default=None,
+        description="Whether the app compiles at the version restored to. None means nobody "
+        "asked. Usually yes — it compiled when it was made — but a version can predate the "
+        "check, and the same question is answered after a change, so it is answered here too.",
+    )
+    type_problems: list[str] = Field(default_factory=list)
     error: str = ""
 
 
@@ -93,4 +101,12 @@ def restore_version(
     except GitError as exc:
         return RestoreResult(git_sha=target, error=str(exc))
 
-    return RestoreResult(restored=True, git_sha=target, head=head, manifest=manifest)
+    report = typecheck(app_dir)
+    return RestoreResult(
+        restored=True,
+        git_sha=target,
+        head=head,
+        manifest=manifest,
+        compiles=report.passed if report.ran else None,
+        type_problems=[problem.as_line() for problem in report.problems],
+    )

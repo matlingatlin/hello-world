@@ -156,6 +156,9 @@ export interface EngineDesignRestoreResponse {
   git_sha: string;
   head: string;
   manifest: Record<string, unknown> | null;
+  /** Whether the app compiles at the version restored to. `null` = nobody asked. */
+  compiles: boolean | null;
+  type_problems: string[];
   error: string;
 }
 

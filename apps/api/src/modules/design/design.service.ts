@@ -568,6 +568,11 @@ export class DesignService {
       manifest: (result.manifest as Record<string, unknown>) ?? null,
       designVersion: version,
       error: "",
+      // Asked after a restore for the same reason it is asked after a change:
+      // a version can predate the check, and "you are back where you were" is
+      // only reassuring if where you were still builds.
+      compiles: result.compiles ?? null,
+      typeProblems: result.type_problems ?? [],
     };
   }
 

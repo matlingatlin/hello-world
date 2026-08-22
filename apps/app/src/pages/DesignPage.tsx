@@ -442,6 +442,15 @@ export function DesignPage() {
       setPreview((prev) =>
         prev.kind === "ready" ? { ...prev, manifest: res.manifest } : prev,
       );
+      if (res.compiles === false) {
+        // "You are back where you were" is only reassuring if where you were
+        // still builds. A version can predate the check that would have caught
+        // this when it was made.
+        setNotice(
+          `Returned to version ${version.number}, and that version does not compile: ` +
+            `${res.typeProblems?.[0] ?? "see the build log"}`,
+        );
+      }
       setPending([]);
       setOutcome(null);
       setConflicts([]);

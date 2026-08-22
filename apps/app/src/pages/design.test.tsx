@@ -696,3 +696,43 @@ describe("A change that broke the build", () => {
     expect(screen.queryByTestId("does-not-compile")).toBeNull();
   });
 });
+
+describe("Returning to a version that does not build", () => {
+  it("says so, rather than 'you are back where you were'", async () => {
+    // A version can predate the check that would have caught it when it was
+    // made — and being told you are safely back is worse than being told the
+    // truth about where you landed.
+    mockApi({
+      listDesignVersions: vi.fn().mockResolvedValue({
+        designVersions: [
+          {
+            id: "d1",
+            projectId: "p1",
+            number: 1,
+            // The button only exists for a version you can actually return to,
+            // which means one with a commit behind it.
+            ref: JSON.stringify({ gitSha: "3a28619a", change: "the first preview" }),
+            isCurrent: false,
+            createdAt: "2026-08-20T00:00:00Z",
+          },
+        ],
+      }),
+      restoreDesignVersion: vi.fn().mockResolvedValue({
+        restored: true,
+        previewUrl: PREVIEW_ORIGIN,
+        manifest: MANIFEST,
+        designVersion: null,
+        error: "",
+        compiles: false,
+        typeProblems: ["lib/db/booking.ts:1 — Cannot find name 'getSupabaseClient'."],
+      }),
+    });
+    renderPage();
+    await ready();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Return to this version/ }));
+
+    expect(await screen.findByText(/does not compile/)).toBeDefined();
+    expect(screen.getByText(/getSupabaseClient/)).toBeDefined();
+  });
+});
