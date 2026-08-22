@@ -1,5 +1,5 @@
 import type { BuildEstimate, CorrectSpecFieldRequest, IntakeStepResponse } from "@scio/shared";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button, Eyebrow, Lede, PageTitle, StateCard } from "../components/ui";
 import { ApiError } from "../lib/api";
@@ -15,6 +15,7 @@ import {
   toValue,
 } from "../lib/spec";
 import { useApi } from "../lib/useApi";
+import { useLoadOnce } from "../lib/useLoadOnce";
 
 /**
  * The spec gate: "so if I've understood you right…".
@@ -52,7 +53,7 @@ export function SpecPage() {
       .catch((err) => setError(err instanceof ApiError ? err.message : "Something went wrong"));
   }, [api, projectId]);
 
-  useEffect(load, [load]);
+  useLoadOnce(projectId, load);
 
   /**
    * One correction, applied and re-validated.

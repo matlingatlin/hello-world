@@ -4,6 +4,45 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Fixed
+- 2026-08-22 — **A retry is no longer a second bill** (B103). `POST /build` had no
+  idempotency key. The build lock already refused a build while one was *running*; the case
+  it never covered is the one that costs money — the first build finished, the client never
+  heard (a dropped stream, a reload, an impatient second click), and the retry built the
+  whole app again and charged for it.
+
+  The client now mints a key per project, keeps it in `sessionStorage` for exactly as long
+  as the request is unanswered, and clears it when a build is known to have finished. The api
+  stores it on the build version (migration 0010, a partial unique index per project) and
+  replays that build rather than starting another. The replay is rebuilt from the row the
+  reveal reads, and it says `replayed: true` out loud — a caller that cannot tell a replay
+  from a build will eventually bill for one or count the other twice.
+
+  Also here: **the API is versioned.** Everything a client calls now lives under `/v1`
+  (`/health` deliberately does not — it is for whatever watches the process). Cheap now,
+  impossible later: the first breaking change lands after there are clients in the wild.
+
+- 2026-08-22 — **The app read `/intake` twice on every page load** (B075). StrictMode mounts,
+  unmounts and remounts, and a plain `useEffect(load, [load])` fetched twice. Free today
+  because the whole and the estimate are stored (B071) — but before that each of those was a
+  Layer B + Layer C model call, and merely *opening the wizard* cost double. A `useLoadOnce`
+  hook keyed on the project loads once per thing being loaded, so navigating to another
+  project still loads it and a retry button still retries. Pinned by a test that renders the
+  page inside `<StrictMode>` and was proven to fail without the fix.
+
+### Corrected
+- 2026-08-22 — The previous commit's message says "engine 582". The real figure is **605
+  passed, 6 skipped**, and at the moment I wrote it the engine suite was not green at all:
+  `test_a_regeneration_that_drops_an_id_is_rejected_and_rolled_back` was failing, and I had
+  read an exit code that belonged to `tail` rather than to `pytest`.
+
+  The failure was real and mine. Splitting the loop (B087) moved the read of `expected_ids`
+  to *after* the new files were written, so guardrail 1 compared the app to itself and passed
+  every regeneration that dropped an id — the one thing it exists to catch. It is read before
+  the write again, `_judge` takes it as an argument, and the docstring says why. The
+  pre-existing test caught it; only my reporting failed.
+
+
 ### Changed
 - 2026-08-22 — **The build stream stopped opting out of its own types** (B089). `BuildEvent`
   had been declared in `packages/shared` and wired to nothing: its `data` was a union ending

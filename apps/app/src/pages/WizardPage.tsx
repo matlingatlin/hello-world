@@ -5,6 +5,7 @@ import { Button, Eyebrow, Lede, PageTitle, StateCard } from "../components/ui";
 import { ApiError } from "../lib/api";
 import { coreProgress, specRows } from "../lib/spec";
 import { useApi } from "../lib/useApi";
+import { useLoadOnce } from "../lib/useLoadOnce";
 
 /**
  * Gate 1's conversation. Every turn is a round trip through the API to the
@@ -144,7 +145,7 @@ export function WizardPage() {
       .catch((err) => setError(err instanceof ApiError ? err.message : "Something went wrong"));
   }, [api, projectId]);
 
-  useEffect(load, [load]);
+  useLoadOnce(projectId, load);
 
   useEffect(() => {
     // scrollTop rather than scrollTo: the same effect, and it exists everywhere

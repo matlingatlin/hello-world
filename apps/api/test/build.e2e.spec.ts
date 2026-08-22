@@ -102,7 +102,20 @@ class FakeScope {
       },
       message: collection(store.messages, (a, b) => a.createdAt - b.createdAt),
       specVersion: collection(store.specVersions, (a, b) => b.number - a.number),
-      buildVersion: collection(store.buildVersions, (a, b) => b.number - a.number),
+      buildVersion: {
+        ...collection(store.buildVersions, (a, b) => b.number - a.number),
+        async findFirst({ where }: any) {
+          if (!owns(where.projectId)) return null;
+          return (
+            store.buildVersions.find(
+              (b) =>
+                b.projectId === where.projectId &&
+                (where.idempotencyKey === undefined ||
+                  b.idempotencyKey === where.idempotencyKey),
+            ) ?? null
+          );
+        },
+      },
       designVersion: {
         ...collection(store.designVersions, (a, b) => b.number - a.number),
         async findFirst({ where }: any) {
@@ -341,6 +354,90 @@ describe("Build (e2e): stream + persistence", () => {
     expect(frames(res.text).some((f) => f.event === "error")).toBe(true);
     expect(scope.projects[0].status).toBe("error"); // never left "building"
     expect(scope.buildVersions).toHaveLength(0);
+  });
+
+  describe("a retry is not a second bill", () => {
+    it("replays the build a key already produced instead of building again", async () => {
+      // The build lock covers a build that is RUNNING. This is the case it
+      // never covered: the first build finished and the client never heard —
+      // a reload then rebuilt the whole app and charged for it (B103).
+      await request(http)
+        .post("/projects/p1/build")
+        .set(w1)
+        .set("Idempotency-Key", "key-1")
+        .expect(200);
+      expect(scope.buildVersions).toHaveLength(1);
+
+      const res = await request(http)
+        .post("/projects/p1/build")
+        .set(w1)
+        .set("Idempotency-Key", "key-1")
+        .expect(200);
+
+      expect(engine.seen).toHaveLength(1); // the engine was asked once
+      expect(scope.buildVersions).toHaveLength(1); // and one version exists
+      const last = frames(res.text).at(-1);
+      expect(last?.event).toBe("finished");
+      expect(last?.data.replayed).toBe(true);
+      expect(String(last?.data.summary)).toContain("4 of 5 parts work");
+    });
+
+    it("builds again when the key is a different one", async () => {
+      await request(http)
+        .post("/projects/p1/build")
+        .set(w1)
+        .set("Idempotency-Key", "key-1")
+        .expect(200);
+
+      await request(http)
+        .post("/projects/p1/build")
+        .set(w1)
+        .set("Idempotency-Key", "key-2")
+        .expect(200);
+
+      expect(engine.seen).toHaveLength(2);
+      expect(scope.buildVersions).toHaveLength(2);
+    });
+
+    it("stores the key on the build it produced", async () => {
+      await request(http)
+        .post("/projects/p1/build")
+        .set(w1)
+        .set("Idempotency-Key", "key-1")
+        .expect(200);
+
+      expect(scope.buildVersions[0].idempotencyKey).toBe("key-1");
+    });
+
+    it("does not replay across projects", async () => {
+      // The key names a build of ONE project; scoping it globally would let a
+      // second project silently inherit the first one's app.
+      scope.projects.push({
+        id: "p2",
+        workspaceId: "w1",
+        name: "Second",
+        type: "app",
+        status: "spec_locked",
+        updatedAt: new Date(),
+        draftSpec: {},
+        previewUrl: null,
+        deletedAt: null,
+      });
+      scope.specVersions.push({ ...scope.specVersions[0], id: "s2", projectId: "p2" });
+
+      await request(http)
+        .post("/projects/p1/build")
+        .set(w1)
+        .set("Idempotency-Key", "key-1")
+        .expect(200);
+      await request(http)
+        .post("/projects/p2/build")
+        .set(w1)
+        .set("Idempotency-Key", "key-1")
+        .expect(200);
+
+      expect(engine.seen).toHaveLength(2);
+    });
   });
 
   describe("a project that has been through the design window", () => {

@@ -50,14 +50,51 @@ export function lostConnection(err: unknown): boolean {
   return !(err instanceof ApiError) || err.status === 0;
 }
 
+/**
+ * The key that names one build request, kept for as long as it is unanswered.
+ *
+ * Minted per project and remembered in `sessionStorage`, so a reload, a
+ * reconnect or an impatient second click all ask for the SAME build rather than
+ * a second one — and if that build finished while nobody was listening, the api
+ * replays it instead of rebuilding the app (B103).
+ *
+ * `clearBuildKey` is called once a build is known to have finished, so the next
+ * deliberate build is a new request rather than a replay of the old one.
+ * Storage that is unavailable (private mode, a locked-down browser) simply
+ * yields a fresh key: worse deduplication, never a crash.
+ */
+const BUILD_KEY = (projectId: string) => `scio.build-key.${projectId}`;
+
+export function buildKey(projectId: string): string {
+  const fresh = crypto.randomUUID();
+  try {
+    const existing = sessionStorage.getItem(BUILD_KEY(projectId));
+    if (existing) return existing;
+    sessionStorage.setItem(BUILD_KEY(projectId), fresh);
+  } catch {
+    /* no storage: the key still names this request, just not the next one */
+  }
+  return fresh;
+}
+
+export function clearBuildKey(projectId: string): void {
+  try {
+    sessionStorage.removeItem(BUILD_KEY(projectId));
+  } catch {
+    /* nothing to clear */
+  }
+}
+
 export type GetToken = () => Promise<string | null>;
 
 /** Typed client for the Scio API. Attaches the Clerk session JWT per request. */
 export function createApi(getToken: GetToken, baseUrl?: string) {
-  const base = (baseUrl ?? import.meta.env.VITE_API_URL ?? "http://localhost:3000").replace(
+  // Every route the app calls is versioned (B103); `/health` is not, because
+  // nothing here calls it.
+  const base = `${(baseUrl ?? import.meta.env.VITE_API_URL ?? "http://localhost:3000").replace(
     /\/$/,
     "",
-  );
+  )}/v1`;
 
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const token = await getToken();
@@ -153,11 +190,21 @@ export function createApi(getToken: GetToken, baseUrl?: string) {
     // --- the build ---
     latestBuild: (projectId: string) =>
       request<LatestBuildResponse>(`/projects/${projectId}/build/latest`),
+    /**
+     * Run the build, streamed.
+     *
+     * Carries an idempotency key so a retry — a reload, a dropped stream, a
+     * second click — replays the build it already asked for instead of starting
+     * (and paying for) another one (B103).
+     */
     streamBuild: (
       projectId: string,
       onEvent: (event: BuildEvent) => void,
       signal?: AbortSignal,
-    ) => streamSse<BuildEvent>(`/projects/${projectId}/build`, onEvent, signal),
+    ) =>
+      streamSse<BuildEvent>(`/projects/${projectId}/build`, onEvent, signal, {
+        "Idempotency-Key": buildKey(projectId),
+      }),
   };
 
   /**
@@ -171,6 +218,7 @@ export function createApi(getToken: GetToken, baseUrl?: string) {
     path: string,
     onEvent: (event: E) => void,
     signal?: AbortSignal,
+    extraHeaders: Record<string, string> = {},
   ): Promise<void> {
     const token = await getToken();
     let res: Response;
@@ -181,6 +229,7 @@ export function createApi(getToken: GetToken, baseUrl?: string) {
           "Content-Type": "application/json",
           Accept: "text/event-stream",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...extraHeaders,
         },
         signal,
       });

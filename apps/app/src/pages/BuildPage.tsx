@@ -2,7 +2,7 @@ import type { BuildStarted } from "@scio/shared";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button, Eyebrow, Lede, PageTitle, StateCard } from "../components/ui";
-import { lostConnection } from "../lib/api";
+import { clearBuildKey, lostConnection } from "../lib/api";
 import { useApi } from "../lib/useApi";
 
 /**
@@ -111,6 +111,9 @@ export function BuildPage() {
               break;
             }
             case "finished":
+              // This build is answered: the next one is a new request, not a
+              // retry of this one (B103).
+              clearBuildKey(projectId);
               navigate(`/projects/${projectId}/reveal`);
               break;
             case "error":

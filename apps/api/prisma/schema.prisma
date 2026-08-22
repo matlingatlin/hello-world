@@ -230,6 +230,11 @@ model BuildVersion {
   tokens          Int?
   specVersionId   String   @map("spec_version_id") @db.Uuid
   designVersionId String?  @map("design_version_id") @db.Uuid
+  /// The client's key for the build it asked for, so a retry replays this row
+  /// instead of building (and billing for) the app a second time. Unique per
+  /// project through a PARTIAL index (migration 0010) — every build made before
+  /// this existed carries NULL, and NULLs must not collide.
+  idempotencyKey  String?  @map("idempotency_key")
   isCurrent       Boolean  @default(false) @map("is_current")
   createdAt       DateTime @default(now()) @map("created_at")
 

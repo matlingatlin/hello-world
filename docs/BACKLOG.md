@@ -75,7 +75,7 @@
 | B072 | The wizard shows "Nothing yet — 0 of 6" while that GET is in flight — a false statement, not a spinner | PP5 | P0 | done |
 | B073 | A build's actual cost is never recorded (usage_event empty, no cost on build_version) — only the estimate exists | PP5 | P0 | done |
 | B074 | Contribute gate: allow RFC 2606 reserved names (example.com, .test, localhost) so test fixtures stop reading as leaks | PP4 | P1 | done |
-| B075 | The app fetches /intake twice per page load (React StrictMode double-mount) — free now, but it doubled the old cost | PP5 | P2 | todo |
+| B075 | The app fetches /intake twice per page load (React StrictMode double-mount) — free now, but it doubled the old cost | PP5 | P2 | done |
 | B076 | A feature package can fail purely on the 16k codegen output cap — the reply is cut off and the part is lost | PP5 | P0 | done |
 | B077 | The estimate is optimistic on time: 14–33 min predicted, 46 min actual on a 7-part build | PP5 | P1 | done |
 | B078 | Generated apps render-block on a Google Fonts stylesheet — the app waits on a third party | PP5 | P0 | done |
@@ -104,7 +104,7 @@
 | B100 | No deletion path: soft-delete leaves workspaces, git history and usage rows; user.deleted does nothing | PP9 | P0 | todo |
 | B101 | Clerk webhook accepts unsigned requests — verify BEFORE implementing the handler | PP9 | P1 | done |
 | B102 | No error boundary in the app — one thrown render blanks the page after a paid build | PP2 | P1 | done |
-| B103 | No API versioning and no idempotency key on POST /build — a retry is a second bill | PP3 | P1 | todo |
+| B103 | No API versioning and no idempotency key on POST /build — a retry is a second bill | PP3 | P1 | done |
 | B104 | Prompt injection is an unexamined surface — gates constrain output, nothing constrains the instruction | PP9 | P1 | todo |
 | B105 | design.test.tsx is flaky: two different tests failed on two runs, three later runs clean — a flaky test in CI teaches people to ignore CI | PP2 | P0 | done |
 | B106 | BLOCKING: the spend ceiling is enforced PER RELAY CALL, not per build — sending $3.76 authorises ~$50-80. The fix for B081 does not do what it claims | PP4 | P0 | done |

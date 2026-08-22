@@ -66,8 +66,8 @@ Clerk, unchanged.
 exercised by hand:
 
 ```bash
-curl -H "Authorization: Bearer dev"                 localhost:3000/projects
-curl -H "Authorization: Bearer dev:ada@example.com" localhost:3000/projects
+curl -H "Authorization: Bearer dev"                 localhost:3000/v1/projects
+curl -H "Authorization: Bearer dev:ada@example.com" localhost:3000/v1/projects
 ```
 
 `SCIO_DEV_AUTH=1` together with `NODE_ENV=production` is refused at boot, not

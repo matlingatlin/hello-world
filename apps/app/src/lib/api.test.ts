@@ -20,7 +20,8 @@ describe("api client", () => {
     await api.listProjects();
 
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://api.test/projects");
+    // Versioned, so the first breaking change has somewhere to go (B103).
+    expect(url).toBe("http://api.test/v1/projects");
     expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer jwt-123");
   });
 

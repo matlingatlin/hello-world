@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, Param, Post, Res } from "@nestjs/common";
+import { Controller, Get, Headers, HttpCode, Param, Post, Res } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { BuildVersionListResponse, LatestBuildResponse } from "@scio/shared";
 import type { Response } from "express";
@@ -46,15 +46,19 @@ export class BuildController {
     @CurrentWorkspace() workspaceId: string,
     @Param("projectId") projectId: string,
     @Res() res: Response,
+    // The client's name for the build it is asking for. Send the same one twice
+    // and you get the same build twice — not two builds and two bills (B103).
+    @Headers("idempotency-key") idempotencyKey?: string,
   ): Promise<void> {
     // Before the stream: a refusal here is a status code, not an event nobody
-    // outside a browser would look for.
-    await this.builds.ensureCanStart(workspaceId, projectId);
+    // outside a browser would look for. A replay is not a refusal, so it is
+    // allowed past this even though it asks for a build that already exists.
+    await this.builds.ensureCanStart(workspaceId, projectId, idempotencyKey);
 
     const { emit, close } = openStream(res);
 
     try {
-      await this.builds.run(workspaceId, projectId, emit);
+      await this.builds.run(workspaceId, projectId, emit, idempotencyKey);
     } catch (err) {
       // The stream is already open, so an error is an event in it — a severed
       // connection would leave the build view frozen mid-progress with no reason.

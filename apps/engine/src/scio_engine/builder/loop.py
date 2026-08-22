@@ -639,7 +639,7 @@ async def _judge(
     app_dir: Path,
     *,
     allowed: list[str],
-    tracked: list[str],
+    expected_ids: set[str] | None,
     registry: ProviderRegistry,
     preview: BuildPreview,
     opts: BuildOptions,
@@ -650,12 +650,14 @@ async def _judge(
     Called with the files already written. It reads the app rather than the
     reply, which is what makes it reusable: the same gates judge code a model
     just produced and code that was produced days ago (a promoted design).
+
+    `expected_ids` must be read BEFORE the new files are written — it is the set
+    of ids that were addressable a moment ago, and guardrail 1 is the comparison
+    against it. Reading it here, after the write, would compare the app to
+    itself and pass every regeneration that dropped an id.
     """
     gate = _Gate()
 
-    # Every id standing right now must still be addressable — including ids
-    # belonging to packages built before this one.
-    expected_ids = ids_in_source(app_dir, tracked) or None
     manifest, instrumentation_problems = _check_instrumentation(
         app_dir, package, allowed, expected_ids, opts.package_files
     )
@@ -781,6 +783,11 @@ async def _attempt_package(
 
     # Snapshot before writing: a rejected build must leave no trace.
     before = _snapshot(app_dir, allowed)
+    # Every id standing right now must still be addressable afterwards —
+    # including ids belonging to packages built before this one. Read here,
+    # while "right now" still means "before the new code".
+    expected_ids = ids_in_source(app_dir, tracked) or None
+
     # Off the event loop: a real preview writes into a sandbox and waits for a
     # dev server to recompile, and Playwright's sync API refuses to run inside a
     # running asyncio loop at all.
@@ -791,7 +798,7 @@ async def _attempt_package(
         package,
         app_dir,
         allowed=allowed,
-        tracked=tracked,
+        expected_ids=expected_ids,
         registry=registry,
         preview=preview,
         opts=opts,
@@ -941,9 +948,6 @@ async def verify_package(
     opts = options or BuildOptions()
     app_dir = Path(app_dir).resolve()
     allowed = planned_files(package)
-    tracked = sorted(
-        {f for files in (opts.package_files or {}).values() for f in files} | set(allowed)
-    )
 
     result = PackageBuildResult(
         package_id=package.id,
@@ -955,7 +959,9 @@ async def verify_package(
             package,
             app_dir,
             allowed=allowed,
-            tracked=tracked,
+            # Nothing is being regenerated, so there is no "before" for
+            # guardrail 1 to compare against. The other four gates do the work.
+            expected_ids=None,
             registry=registry,
             preview=preview,
             opts=opts,

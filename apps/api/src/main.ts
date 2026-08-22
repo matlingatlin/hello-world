@@ -23,6 +23,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
+  // Everything a client calls lives under /v1 (B103).
+  //
+  // Cheap now, impossible later: the first breaking change to a shape lands
+  // after there are apps in the wild, and by then an unversioned path leaves
+  // only bad options. `health` stays where it is — it is for whatever is
+  // watching the process, not for a client, and every probe already knows it.
+  app.setGlobalPrefix("v1", { exclude: ["health"] });
+
   const origins = corsOrigins();
   if (origins.length > 0) {
     app.enableCors({ origin: origins, credentials: true });

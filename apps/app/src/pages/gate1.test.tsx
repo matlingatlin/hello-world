@@ -1,5 +1,6 @@
 import type { IntakeStepResponse } from "@scio/shared";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -355,5 +356,46 @@ describe("Review (spec gate)", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Not now/ }));
     expect(navigate).toHaveBeenCalledWith("/projects");
+  });
+});
+
+describe("Loading the wizard's own state", () => {
+  it("reads the project once, not once per StrictMode mount", async () => {
+    // StrictMode mounts, unmounts and remounts every component, so a plain
+    // effect fetched /intake twice on every page load. It is free today —
+    // the whole and the estimate are stored rather than recomputed (B071) —
+    // but before that each of those was a Layer B + Layer C model call, and
+    // merely opening the wizard cost double (B075).
+    const api = mockApi({});
+
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={["/projects/p1/wizard"]}>
+          <Routes>
+            <Route path="/projects/:projectId/wizard" element={<WizardPage />} />
+          </Routes>
+        </MemoryRouter>
+      </StrictMode>,
+    );
+
+    await screen.findByText(/Guests book a table/);
+    expect(api.getIntake).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads the spec review once as well", async () => {
+    const api = mockApi({});
+
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={["/projects/p1/spec"]}>
+          <Routes>
+            <Route path="/projects/:projectId/spec" element={<SpecPage />} />
+          </Routes>
+        </MemoryRouter>
+      </StrictMode>,
+    );
+
+    await waitFor(() => expect(api.getIntake).toHaveBeenCalled());
+    expect(api.getIntake).toHaveBeenCalledTimes(1);
   });
 });

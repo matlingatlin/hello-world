@@ -182,8 +182,67 @@ export class BuildService {
    * for a build that never should have started: a caller that is not a browser
    * deserves a 409.
    */
-  async ensureCanStart(workspaceId: string, projectId: string): Promise<void> {
+  async ensureCanStart(
+    workspaceId: string,
+    projectId: string,
+    idempotencyKey?: string,
+  ): Promise<void> {
+    // A key that already names a finished build is a retry, not a second
+    // build: let it through so `run` can replay what it asked for.
+    if (idempotencyKey && (await this.buildFor(workspaceId, projectId, idempotencyKey))) {
+      return;
+    }
     this.refuseIfAlreadyBuilding(await this.project(workspaceId, projectId));
+  }
+
+  /**
+   * The `finished` event for a build that already happened.
+   *
+   * Rebuilt from the row rather than remembered from the stream: the row is
+   * what the reveal reads anyway, and a replay that carried a different story
+   * than the reveal would be worse than no replay at all. What it cannot show
+   * is a per-part schedule — those events are gone — so it says what is true
+   * about the finished app and lets the build view move on to the reveal.
+   */
+  private replayOf(
+    _workspaceId: string,
+    projectId: string,
+    row: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const honest = (row.honestStatus ?? {}) as Record<string, unknown>;
+    return {
+      project_id: projectId,
+      app_url: "",
+      build_version: row.number,
+      git_sha: row.gitSha ?? "",
+      whole: "",
+      summary: honest.summary ?? "",
+      works: honest.works ?? false,
+      parts_working: honest.working ?? [],
+      parts_needing_a_look: honest.needs_look ?? [],
+      parts_blocked: honest.blocked ?? [],
+      parts_failed: honest.failed ?? [],
+      remainders: honest.remainders ?? [],
+      element_count: 0,
+      files: [],
+      total_cost_usd: Number(row.costUsd ?? 0),
+      total_tokens: Number(row.tokens ?? 0),
+      standin: honest.standin ?? false,
+      // Said out loud, because a caller that cannot tell a replay from a build
+      // will eventually bill for one or count the other twice.
+      replayed: true,
+    };
+  }
+
+  /** The build this key already produced, if it produced one. */
+  private async buildFor(
+    workspaceId: string,
+    projectId: string,
+    idempotencyKey: string,
+  ): Promise<Record<string, unknown> | null> {
+    return this.client(workspaceId).buildVersion.findFirst({
+      where: { projectId, idempotencyKey },
+    });
   }
 
   private refuseIfAlreadyBuilding(project: { status: string; updatedAt: Date }): void {
@@ -226,7 +285,20 @@ export class BuildService {
       event: BuildEventName,
       data: Record<string, unknown>,
     ) => Promise<void> | void,
+    idempotencyKey?: string,
   ): Promise<void> {
+    // A retry of a build that already finished replays it instead of building
+    // the app — and billing for it — a second time (B103). This is the case the
+    // build lock never covered: the lock refuses a build while one is RUNNING,
+    // and says nothing about a client that never heard the first one finish.
+    if (idempotencyKey) {
+      const already = await this.buildFor(workspaceId, projectId, idempotencyKey);
+      if (already) {
+        await emit("finished", this.replayOf(workspaceId, projectId, already));
+        return;
+      }
+    }
+
     const project = await this.project(workspaceId, projectId);
     this.refuseIfAlreadyBuilding(project);
 
@@ -302,6 +374,7 @@ export class BuildService {
     if (finished) {
       await this.persist(workspaceId, projectId, current.id, number, finished, {
         designVersionId: design?.id ?? null,
+        idempotencyKey: idempotencyKey ?? null,
       });
       return;
     }
@@ -360,7 +433,7 @@ export class BuildService {
     specVersionId: string,
     number: number,
     finished: BuildFinished,
-    links: { designVersionId: string | null },
+    links: { designVersionId: string | null; idempotencyKey: string | null },
   ): Promise<void> {
     const client = this.client(workspaceId);
     // One transaction, not two writes with a gap — see spec.service.approve.
@@ -398,6 +471,9 @@ export class BuildService {
           // without it the build's provenance stops at the spec, and the app on
           // disk is not the app the spec describes.
           designVersionId: links.designVersionId,
+          // What the client called this build. A second request carrying it
+          // replays this row rather than starting again (B103).
+          idempotencyKey: links.idempotencyKey,
           isCurrent: true,
         },
       }),
