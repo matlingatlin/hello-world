@@ -55,10 +55,13 @@ still placeholders, and what they should be is ADR-0018._
 ## Phase 6 — Security, multi-tenancy & metering  ◐
 Goal: tenant isolation, sandbox hardening, rate limits, usage/cost metering, billing stub.
 Deliverable: a multi-user-safe version.
-_Built: workspace scoping that fails closed, an allow-listed sandbox environment, per-build
-and per-period metering with a spend ceiling, project deletion that deletes, and a first pass
-over prompt injection. Open: rate limits, account deletion (ADR-0019), and a sandbox that
-isolates in production rather than sharing the host._
+_Built: workspace scoping that fails closed (and a test that fences it — a service reaching
+for the unscoped client fails the suite), an allow-listed sandbox environment with memory, CPU
+and PID limits, per-build **and** per-period metering with a spend ceiling — a cancelled or
+failed build is billed for what it actually spent — a throttler keyed by workspace rather than
+by IP, project deletion that deletes, and a first pass over prompt injection. Open: account
+deletion (ADR-0019), a network policy for build containers (B118), and a sandbox that isolates
+in production rather than sharing the host (B122) — which waits on B079's deploy target._
 
 ## Phase 7 — Testable alpha  ☐
 Goal: closed testing, bug-fixing, onboarding, observability.

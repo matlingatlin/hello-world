@@ -88,9 +88,19 @@ matches what was approved, by construction.
 - **Azure secrets** — API keys, tokens; never in the DB or git.
 
 ## 7. Cross-cutting: security & cost
-- **Security** — structural: RLS via the locked stack; secure defaults in the playbook; posture
-  derived from the sensitivity field; verified by the security validation agent + vision loop; and
-  workspace tenant isolation in our platform.
+- **Security** — two different things, said separately because one sentence covering both has
+  already misled one reader:
+  - *In the apps we generate*: row-level security is part of the locked stack (every generated
+    table gets RLS with explicit policies — it is an acceptance criterion of the schema package),
+    plus secure defaults from the playbook, a posture derived from the sensitivity field, and the
+    security validation agent + vision loop checking it.
+  - *In our own platform*: tenant isolation is **application-layer**, not database RLS. A Prisma
+    `$extends` client (`auth/workspace-scope.ts`) stamps and filters `workspace_id` on the scoped
+    models and **fails closed** on any operation it does not recognise. Child rows — spec, design
+    and build versions, messages — are reached only through a project the scoped client already
+    resolved, so their safety is a *discipline*, enforced by a test that fails if a service touches
+    them on the raw client (`test/tenant-discipline.spec.ts`). Postgres RLS on our own tables is a
+    backstop we do not have yet; until we do, that test is the fence.
 - **Cost** — pass-count + directed regeneration + caching (LLM); idle timeout + concurrency caps
   (sandbox); estimate at the spec gate + live counter + pause at the cap (budget).
 

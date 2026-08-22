@@ -21,6 +21,7 @@ import { WorkspaceScope } from "../../auth/workspace-scope";
  */
 class BuildCancelled extends Error {}
 import { EngineClient } from "../../engine/engine.client";
+import { UsageService } from "../usage/usage.service";
 
 /**
  * The build: a frozen spec in, a running app out.
@@ -41,6 +42,7 @@ export class BuildService {
   constructor(
     private readonly scope: WorkspaceScope,
     private readonly engine: EngineClient,
+    private readonly usage: UsageService,
   ) {}
 
   private client(workspaceId: string) {
@@ -210,6 +212,21 @@ export class BuildService {
           "two builds share one workspace, and the second would delete the first one's files.",
       );
     }
+
+    // Is there any allowance left this period?
+    //
+    // The per-BUILD ceiling has always been enforced in the relay, and on its
+    // own it is the wrong unit: it bounds one build and says nothing about how
+    // many. A careless or compromised account could run them back to back until
+    // a card or a model quota stopped it, and the platform had no opinion.
+    const allowance = await this.usage.allowance(workspaceId);
+    if (!allowance.room) {
+      throw new ConflictException(
+        `This workspace has spent $${allowance.spent.toFixed(2)} of its $${allowance.cap.toFixed(2)} ` +
+          "allowance this month, so no new build can start. It resets at the beginning of next month.",
+      );
+    }
+
     // The project's own status is still checked, for projects whose last build
     // predates jobs entirely — they have no row to reap and would otherwise be
     // stuck saying "building" forever.
@@ -262,6 +279,47 @@ export class BuildService {
       partsTotal: job.partsTotal,
       startedAt: new Date(job.createdAt as Date).toISOString(),
     };
+  }
+
+  /**
+   * Record what a build spent when it did NOT finish.
+   *
+   * The clean path meters inside `persist()`, from the figures the `finished`
+   * event carries. Every other path used to record nothing at all, which made
+   * the ledger a record of successes rather than of spending — and made
+   * cancelling a second before the end free. The money was real either way: the
+   * engine reported it per part as the parts finished.
+   *
+   * Never allowed to throw. A bookkeeping failure must not be the thing that
+   * decides whether a user can build again.
+   */
+  private async meterSpend(
+    workspaceId: string,
+    projectId: string,
+    costUsd: number,
+    tokens: number,
+    outcome: "cancelled" | "failed",
+  ): Promise<void> {
+    if (costUsd <= 0 && tokens <= 0) return;
+    try {
+      await this.client(workspaceId).usageEvent.create({
+        data: {
+          workspaceId,
+          projectId,
+          // The same kind as a delivered build: it is generation spend, and a
+          // separate kind would let a period total quietly miss it.
+          kind: "generation",
+          model: null,
+          amount: tokens,
+          cost: costUsd,
+        },
+      });
+    } catch (err) {
+      this.logger.error(
+        `a ${outcome} build for ${projectId} spent $${costUsd.toFixed(4)} that could not be ` +
+          `written to the ledger: ${(err as Error).message}`,
+      );
+    }
   }
 
   /**
@@ -499,6 +557,15 @@ export class BuildService {
     let finished: BuildFinished | null = null;
     let failure: string | null = null;
     let stopped = false;
+    // What has been spent so far, accumulated from the parts as they finish.
+    //
+    // The ledger used to be written only in `persist()`, which runs only when a
+    // `finished` event arrives — so a build that was cancelled or crashed
+    // recorded ZERO spend while the engine had really spent the money and said
+    // so in every `package` event. That is the hole ADR-0020 called exploitable:
+    // cancel a second before the end and pay nothing.
+    let spentUsd = 0;
+    let spentTokens = 0;
 
     const relay = async (event: string, data: Record<string, unknown>) => {
       // The engine's frame names arrive as strings off the wire; the union is
@@ -506,6 +573,10 @@ export class BuildService {
       const name = event as BuildEventName;
       if (name === "finished") finished = data as unknown as BuildFinished;
       if (name === "error") failure = String(data.message ?? "the build failed");
+      if (name === "package") {
+        spentUsd += Number(data.total_cost_usd ?? 0);
+        spentTokens += Number(data.total_tokens ?? 0);
+      }
 
       // Every event is a heartbeat and a place to stop. Checked here rather
       // than on a timer because this is where the build actually has a
@@ -515,6 +586,8 @@ export class BuildService {
         data: {
           heartbeatAt: new Date(),
           lastEvent: String(data.message ?? name).slice(0, 500),
+          costUsd: spentUsd,
+          tokens: spentTokens,
           ...(typeof data.done === "number" ? { partsDone: data.done } : {}),
           ...(typeof data.total === "number" ? { partsTotal: data.total } : {}),
         },
@@ -564,6 +637,9 @@ export class BuildService {
       }
     } catch (err) {
       if (err instanceof BuildCancelled) {
+        // Stopped, and charged for what it did. The user's decision does not
+        // undo the model calls that already happened.
+        await this.meterSpend(workspaceId, projectId, spentUsd, spentTokens, "cancelled");
         await this.client(workspaceId).project.update({
           where: { id: projectId },
           data: { status: "ready" },
@@ -583,6 +659,9 @@ export class BuildService {
       return;
     }
 
+    // Failed, and still charged for. A build that spent forty minutes of model
+    // time and produced nothing cost exactly as much as one that worked.
+    await this.meterSpend(workspaceId, projectId, spentUsd, spentTokens, "failed");
     await this.closeJob(workspaceId, job.id, "failed", failure ?? "the build produced no app");
 
     // No finished event means no app: say so in the project's status rather than

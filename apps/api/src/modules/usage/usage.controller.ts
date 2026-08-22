@@ -10,8 +10,16 @@ export class UsageController {
   constructor(private readonly usage: UsageService) {}
 
   @Get()
-  @ApiOperation({ summary: "Workspace usage events (stub)" })
+  @ApiOperation({ summary: "Workspace usage events, newest first" })
   list(@CurrentWorkspace() workspaceId: string): Promise<UsageListResponse> {
     return this.usage.list(workspaceId);
+  }
+
+  @Get("allowance")
+  @ApiOperation({ summary: "What this workspace has spent this period, and its ceiling" })
+  allowance(
+    @CurrentWorkspace() workspaceId: string,
+  ): Promise<{ spent: number; cap: number; room: boolean }> {
+    return this.usage.allowance(workspaceId);
   }
 }

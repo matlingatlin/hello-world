@@ -23,7 +23,20 @@ are priced. Inventing the numbers would be worse than leaving them.
 
 **Waiting on infrastructure.** B079 — nothing outside this sandbox can open the product.
 There is no inbound path and no free tunnel fits the egress; it needs a deploy, and it is the
-single thing standing between here and a tester.
+single thing standing between here and a tester. **B122** (the production sandbox) rides on it:
+`AcaSandbox` is three not-implemented methods and `choose_sandbox()` never returns one, so there
+is no isolating place to execute another tenant's generated code. That is not a hole a live user
+can fall into today — `LocalProcessSandbox` refuses to start when `SCIO_ENV=production`, so the
+failure is "cannot serve," not "serves unsafely" — but it blocks the deploy the same way.
+**B118** is the smaller half of the same question: a build container now has memory, CPU and PID
+limits and drops privilege escalation, but no network policy, so a generated app can still reach
+the internet from inside the sandbox.
+
+**Named by the external review, not yet started.** B123 — observability. The business's own
+questions ("how often do builds fail, and which part fails most") have no answer in the product:
+the honest status is stored per build and nothing aggregates it, there is no request/build id in
+the logs, no metrics and no error reporter. It belongs with the queue-and-worker half of B094,
+because the job is the natural thing to instrument.
 
 **Partly done, rest waiting on a real run.** B048 — the app-wide typecheck gate runs on
 builds, promotions *and* directed changes, and caught a real break the day it landed (an app
@@ -153,6 +166,12 @@ against ours).
 | B115 | The estimate predicts output tokens only, so its point cost is low now that input is priced — calibrate against a real run | PP4 | P1 | todo |
 | B116 | A library entry names the packages it depends on but not the SYMBOLS it needs from them — the assembler can drop a component into an app that cannot provide them | PP4 | P1 | done |
 | B117 | Scio's own shell render-blocks on a Google Fonts stylesheet — the mistake B078 fixed in generated apps, in our own product | PP2 | P2 | todo |
+| B118 | A build container has no network policy — the limits are memory/CPU/PIDs; a generated app can still reach the internet from inside the sandbox | PP6 | P1 | todo |
+| B119 | BLOCKING (external review #1): a cancelled or failed build wrote no usage row — the engine spent the money and the ledger dropped it | PP4 | P0 | done |
+| B120 | BLOCKING (external review #2): no per-PERIOD spend ceiling — usage.list threw NotImplemented and nothing summed a workspace's spend | PP4 | P0 | done |
+| B121 | BLOCKING (external review #4): the engine authenticates nobody when SCIO_ENGINE_TOKEN is unset, and nothing forced it in production | PP9 | P0 | done |
+| B122 | BLOCKING (external review #3): AcaSandbox.start/apply_change/stop raise not-implemented and choose_sandbox never returns one — no isolating sandbox exists for production | PP6 | P0 | todo (needs B079's deploy target) |
+| B123 | Observability: nothing aggregates build outcomes — no structured request/build id, no metrics, no error reporter. 'how often do builds fail, and which part' is unanswerable | PP10 | P1 | todo |
 
 **B080 — a Codespace is the way in.** It runs the stack *and* forwards ports, so each one gets an
 `https://<name>-<port>.app.github.dev` origin openable from a phone — no deploy, no hosting

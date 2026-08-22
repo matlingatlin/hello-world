@@ -501,6 +501,101 @@ describe("Build (e2e): stream + persistence", () => {
     });
   });
 
+  describe("what a build that did not finish costs", () => {
+    it("records the spend of a build that failed", async () => {
+      // The ledger used to be written only from the `finished` event, so a
+      // build that spent forty minutes of model time and produced nothing cost
+      // nothing on the record. The engine reports it per part, as the parts
+      // finish.
+      engine.events = [
+        ["started", { project_id: "p1", whole: "", packages: ["pkg_a"], total: 1, workspace: "" }],
+        ["package", { package_id: "pkg_a", status: "failed", total_cost_usd: 0.42, total_tokens: 9000 }],
+      ];
+
+      await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+      const metered = scope.usageEvents.at(-1);
+      expect(Number(metered.cost)).toBe(0.42);
+      expect(Number(metered.amount)).toBe(9000);
+      expect(metered.kind).toBe("generation");
+    });
+
+    it("keeps the running total on the job as the parts finish", async () => {
+      engine.events = [
+        ["started", { project_id: "p1", whole: "", packages: ["pkg_a"], total: 1, workspace: "" }],
+        ["package", { package_id: "pkg_a", status: "passed", total_cost_usd: 0.2, total_tokens: 100 }],
+        ["finished", FINISHED],
+      ];
+
+      await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+      expect(Number(scope.buildJobs[0].costUsd)).toBe(0.2);
+      expect(scope.buildJobs[0].tokens).toBe(100);
+    });
+
+    it("writes nothing when nothing was spent", async () => {
+      // A build refused before any model ran has no cost, and a zero row is a
+      // claim that something happened.
+      engine.events = [
+        ["started", { project_id: "p1", whole: "", packages: [], total: 0, workspace: "" }],
+      ];
+
+      await request(http).post("/projects/p1/build").set(w1).expect(200);
+
+      expect(scope.usageEvents).toHaveLength(0);
+    });
+  });
+
+  describe("the allowance for a period", () => {
+    it("refuses a build when the workspace has spent its month", async () => {
+      // A per-build ceiling bounds one build and says nothing about how many.
+      scope.usageEvents.push({
+        id: "u1",
+        workspaceId: "w1",
+        projectId: "p1",
+        kind: "generation",
+        cost: 999,
+        amount: 1,
+        createdAt: new Date(),
+      });
+
+      const res = await request(http).post("/projects/p1/build").set(w1).expect(409);
+
+      expect(res.body.message).toContain("allowance this month");
+      expect(engine.seen).toHaveLength(0);
+    });
+
+    it("says what has been spent and what the ceiling is", async () => {
+      scope.usageEvents.push({
+        id: "u1",
+        workspaceId: "w1",
+        projectId: "p1",
+        kind: "generation",
+        cost: 1.25,
+        amount: 1,
+        createdAt: new Date(),
+      });
+
+      const res = await request(http).get("/usage/allowance").set(w1).expect(200);
+
+      expect(res.body).toMatchObject({ spent: 1.25, room: true });
+      expect(res.body.cap).toBeGreaterThan(0);
+    });
+
+    it("lists a workspace's own usage and nobody else's", async () => {
+      // It used to throw NotImplementedException, so the product could predict
+      // a cost, record a cost, and never answer "how much have we spent?".
+      scope.usageEvents.push(
+        { id: "u1", workspaceId: "w1", projectId: "p1", kind: "generation", cost: 1, amount: 2, createdAt: new Date() },
+        { id: "u2", workspaceId: "w2", projectId: "p9", kind: "generation", cost: 5, amount: 3, createdAt: new Date() },
+      );
+
+      const res = await request(http).get("/usage").set(w1).expect(200);
+
+      expect(res.body.usageEvents.map((u: any) => u.id)).toEqual(["u1"]);
+    });
+  });
+
   describe("stopping a build", () => {
     it("is a refusal when there is nothing to stop", async () => {
       await request(http).delete("/projects/p1/build").set(w1).expect(409);

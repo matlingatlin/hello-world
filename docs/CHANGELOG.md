@@ -5,6 +5,55 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Fixed
+- 2026-08-22 — **What an external production-readiness review found, and what we did about it**
+  (review of commit `4ccef44`; four items it called blocking, three of them fixed here).
+
+  **A cancelled or failed build was billed to nobody** (B119). The usage ledger was only written
+  inside `persist()`, and `persist()` only ran when a `finished` event arrived. The engine had
+  really spent the money — it computed it in the relay — and on any non-clean exit that figure
+  was dropped. ADR-0020 states the opposite as a hard invariant, and the hole was the exploitable
+  one the ADR warned about: cancel every build a second before it ends and the ledger stays at
+  zero. `BuildService.run` now accumulates the spend as each `package` event goes by and writes a
+  usage row on **every** exit — cancelled and failed included — and the amount is carried on the
+  `build_job` row itself (`cost_usd`, `tokens`; migration 0012). Metering never throws: a ledger
+  write that fails is logged, not raised into the build.
+
+  **There was no ceiling on total spend** (B120). The per-*build* ceiling was real and enforced
+  in the engine, but nothing summed a workspace's spend over a period, and `usage.service.list`
+  threw `NotImplementedException` — so the roadmap's claim of "per-build *and* per-period metering
+  with a spend ceiling" was half false, and the half that was missing is the half that stops an
+  abusive account. `UsageService` is implemented: `spentThisPeriod()` and `allowance()` over the
+  UTC calendar month against `SCIO_WORKSPACE_PERIOD_CAP_USD` (default $50), exposed at
+  `GET /usage/allowance`, and `ensureCanStart` refuses a build with a `409` naming the exact
+  figures. The build is the expensive thing, so the build is what has to ask.
+
+  **The engine authenticated nobody unless an env var was set** (B121). `require_engine_token`
+  enforced the shared secret only `if expected:` — unset meant open. The sandbox had a production
+  fail-closed; the engine did not, so a deploy that forgot `SCIO_ENGINE_TOKEN` would expose an
+  unauthenticated endpoint that spends model money on request. The engine now refuses to start
+  when `SCIO_ENV=production` and no token is set.
+
+  **A build container could take the whole host.** `docker run` had no limits. It now runs with
+  `--memory 2g --memory-swap 2g --cpus 2 --pids-limit 512 --security-opt no-new-privileges`, and
+  `write_dockerfile` is documented and enforced as *ours, always* — the generated app is exactly
+  the thing whose Dockerfile must not be trusted. The remaining gap is the network policy, filed
+  as **B118**: a generated app can still reach the internet from inside the sandbox.
+
+  **The tenancy claim in ARCHITECTURE §7 was ambiguous, not wrong.** The sentence about row-level
+  security covers *generated apps*, where RLS is real and an acceptance criterion of the schema
+  package — the reviewer read it as a claim about our own platform, where isolation is
+  application-layer: a Prisma `$extends` client that stamps and filters `workspace_id`, with child
+  rows safe only because every service resolves the project through the scoped client first. That
+  is a habit, not a wall. §7 now says which is which, and `apps/api/test/tenant-discipline.spec.ts`
+  is the fence: a service that reaches for the unscoped client fails the suite and has to say why.
+
+  **Not fixed, and why.** The production sandbox (**B122**) — `AcaSandbox` is three
+  not-implemented methods and `choose_sandbox()` never returns one. It waits on B079's deploy
+  target, and today it blocks a deploy rather than endangering a user: `LocalProcessSandbox`
+  refuses to run under `SCIO_ENV=production`, so the failure is "cannot serve," not "serves
+  unsafely." Observability (**B123**) is untouched and belongs with the queue-and-worker half of
+  B094. Both are in the backlog with what they wait on.
+
 - 2026-08-22 — **Two things a browser found that no API call could**, driving the real UI with
   a real browser for the first time this session.
 

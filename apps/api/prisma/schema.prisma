@@ -240,6 +240,11 @@ model BuildJob {
   partsDone      Int       @default(0) @map("parts_done")
   partsTotal     Int       @default(0) @map("parts_total")
   failure        String    @default("")
+  /// What this attempt has spent so far. On the job because the job is what
+  /// exists while the money is being spent — and because a build that never
+  /// reaches `finished` still spent it (migration 0012).
+  costUsd        Decimal   @default(0) @map("cost_usd") @db.Decimal(10, 4)
+  tokens         Int       @default(0)
   /// Bumped as events arrive. A job whose heartbeat has gone quiet is a job
   /// whose process died; it is reaped rather than left "running" forever.
   heartbeatAt    DateTime  @default(now()) @map("heartbeat_at")

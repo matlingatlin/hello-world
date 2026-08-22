@@ -239,6 +239,37 @@ CMD ["npm", "run", "dev", "--", "--hostname", "0.0.0.0"]
 """
 
 
+CONTAINER_LIMITS: tuple[str, ...] = (
+    # A preview is one Next.js dev server for one person looking at one app.
+    "--memory",
+    "2g",
+    "--memory-swap",
+    "2g",  # equal to --memory: no swap, so the cap is the cap
+    "--cpus",
+    "2",
+    # A fork bomb in generated code should cost this container, not the host.
+    "--pids-limit",
+    "512",
+    # Read-only root with writable scratch would break `next dev`, which
+    # compiles into .next — so the filesystem stays writable and the limits
+    # above are what bound the damage.
+    "--security-opt",
+    "no-new-privileges",
+)
+"""What a preview container may take.
+
+It used to take whatever it liked: no memory limit, no cpu limit, no pid limit.
+This is the only ISOLATING provider that actually runs — `choose_sandbox`
+prefers it, and the process provider refuses to run in production — so it is
+doing load-bearing work that "local Docker" makes sound optional. An app that
+allocates until the host swaps takes every other tenant down with it.
+
+Not a network policy: the preview has to reach npm and the verification
+database, and cutting it off breaks the product rather than the attack. That is
+a real remaining gap and belongs with the production sandbox (B118).
+"""
+
+
 class LocalDockerSandbox(SandboxProvider):
     _live: dict[str, str] = {}
 
@@ -265,6 +296,19 @@ class LocalDockerSandbox(SandboxProvider):
         )
         return probe.returncode == 0
 
+    @staticmethod
+    def write_dockerfile(app_dir: Path) -> Path:
+        """OURS, always.
+
+        An existing Dockerfile used to win (`if not dockerfile.exists()`), which
+        meant a model that wrote one chose the base image, the user it runs as,
+        and what the build step executes — for code we are about to run. The
+        generated app is exactly the thing whose Dockerfile must not be trusted.
+        """
+        dockerfile = Path(app_dir) / "Dockerfile"
+        dockerfile.write_text(DOCKERFILE)
+        return dockerfile
+
     def start(
         self, app_dir: Path, *, port: int = 0, env: dict[str, str] | None = None
     ) -> SandboxHandle:
@@ -272,9 +316,7 @@ class LocalDockerSandbox(SandboxProvider):
             raise SandboxError("Docker daemon is not reachable")
         app_dir = app_dir.resolve()
 
-        dockerfile = app_dir / "Dockerfile"
-        if not dockerfile.exists():
-            dockerfile.write_text(DOCKERFILE)
+        self.write_dockerfile(app_dir)
 
         build = subprocess.run(
             ["docker", "build", "-t", self.image, "."],
@@ -299,7 +341,7 @@ class LocalDockerSandbox(SandboxProvider):
             flags += ["-e", f"{name}={value}"]
 
         run = subprocess.run(
-            ["docker", "run", "-d", "-p", f"{port}:3000", *flags, self.image],
+            ["docker", "run", "-d", "-p", f"{port}:3000", *CONTAINER_LIMITS, *flags, self.image],
             capture_output=True,
             text=True,
             check=False,

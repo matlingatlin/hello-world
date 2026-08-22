@@ -69,6 +69,15 @@ log = logging.getLogger("scio.engine")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # Fail closed in production, exactly like `choose_sandbox`. The engine
+    # authenticates nobody when SCIO_ENGINE_TOKEN is unset, and an unauthenticated
+    # engine is an endpoint that spends model money for whoever can reach it.
+    if os.getenv("SCIO_ENV", "").lower() == "production" and not os.getenv("SCIO_ENGINE_TOKEN"):
+        raise RuntimeError(
+            "SCIO_ENV=production and no SCIO_ENGINE_TOKEN. The engine authenticates nobody "
+            "without it, and it spends money on request — set the shared secret the api uses, "
+            "or do not run this in production."
+        )
     log.info(
         "engine starting providers=%s", "fake" if use_fake_providers() else "real"
     )
@@ -93,9 +102,13 @@ listened on loopback and only the api could reach it, and it stops being
 survivable the moment it is a separate service — or the moment generated code
 runs on the same host, which is exactly what the local sandbox does.
 
-Unset means open, because the local dev stack has no secret to share and
-refusing to start would be worse than the risk it removes. Set it and every
-request must carry it: fail closed where it matters, loud where it does not.
+Unset means open in development, because the local stack has no secret to share
+and refusing to start would be worse than the risk it removes. In production it
+means the engine REFUSES TO START (see `lifespan`): the sandbox already fails
+closed there, and leaving the service that spends model money open while the
+service that runs code is fenced is the wrong way round. A deploy that forgets
+the variable now fails loudly at boot instead of quietly serving an
+unauthenticated endpoint with a card behind it.
 """
 
 
