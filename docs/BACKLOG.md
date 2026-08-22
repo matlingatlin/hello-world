@@ -1,7 +1,40 @@
 # Backlog
 
-> Task tracking now lives in docs/PROJECT-PLAN.md (authoritative). This backlog holds
-> historical / cross-cutting items; "phase" refers to PROJECT-PLAN phases (PP) going forward.
+## What is left, and why (2026-08-22)
+
+Everything below is open on purpose. Grouped by what it is actually waiting on, because
+"todo" hides the difference between work nobody has done and work nobody may do yet.
+
+**Waiting on a decision — the planning chat's, not the code's.** CLAUDE.md says these are not
+to be settled silently, so each one has an ADR proposing an answer where the shape is clear.
+- B005 — MVP scope, non-goals, metrics. Phase 1's remaining artifact.
+- B063 — customer-facing pricing. The estimate screen shows *build cost*; a price needs a
+  markup and a currency, and B049 (letting a user choose how hard Scio works) waits on it.
+- B084 / B022 — what "Publish" and "Settings" are → **ADR-0018**.
+- B100 — what account deletion keeps and for how long → **ADR-0019**.
+- B094 — builds as jobs → **ADR-0020**. Designed in full; it is the largest remaining piece
+  of engineering and the current design does not survive a deploy.
+- B056 — the Batch API. It trades the live per-part progress the build screen is built on for
+  cost, and that is a product call.
+
+**Waiting on a real run with a key.** Both need measurement, and inventing the numbers would
+be worse than leaving them.
+- B115 — recalibrate the estimate now that input tokens are priced.
+- B048 — the quality gate at the reveal. Deliberately *not* built blind: a gate that has only
+  ever run against the stand-in's output would be exactly the blind spot the consultant review
+  named — a code path that never runs during development — and it would flip real builds to
+  "needs a look" on evidence nobody has seen.
+
+**Waiting on infrastructure.** B079 — nothing outside this sandbox can open the product.
+There is no inbound path and no free tunnel fits the egress; it needs a deploy, and it is the
+single thing standing between here and a tester.
+
+**Post-MVP by choice.** B047 (fleet learning), B057 and B058 (evaluations of vendor features
+against ours).
+
+> This backlog is where per-item status actually lives. PROJECT-PLAN holds the plan — its
+> own checkboxes were never ticked and are not a status signal. "Phase" refers to
+> PROJECT-PLAN phases (PP).
 
 | ID   | Item                                                     | Phase | Priority | Status      |
 |------|----------------------------------------------------------|-------|----------|-------------|
@@ -21,7 +54,7 @@
 | B014 | Logo (concept B, tile monogram) -> assets/logo           | PP1   | P0       | done        |
 | B015 | Marketing site v1 -> apps/website                        | PP1   | P0       | done        |
 | B016 | Phase 2: app shell + full visual (mocked)                | PP2   | P0       | done        |
-| B017 | Implement prototype as real React app (apps/app)         | PP2   | P0       | in progress |
+| B017 | Implement prototype as real React app (apps/app)         | PP2   | P0       | done (apps/app; remaining screens are B022) |
 | B018 | Data model (ADR-0009 + DATA-MODEL.md)                    | PP3.1 | P0       | done        |
 | B019 | Backend skeleton + API contract (NestJS)                 | PP3.2 | P0       | done        |
 | B020 | Auth integration (Clerk)                                 | PP3.3 | P0       | done        |
@@ -39,11 +72,11 @@
 | B036 | Product overview (synthesis doc)                         | PP4   | P0       | done        |
 | B037 | Technical architecture (docs/ARCHITECTURE.md)            | PP4   | P0       | done        |
 | B038 | Build Layer C in engine (the planner)                    | PP4   | P0       | done        |
-| B039 | Sandbox + marking->code core (the shared hard part)      | PP6   | P0       | in progress |
+| B039 | Sandbox + marking->code core (the shared hard part)      | PP6   | P0       | done (core/sandbox + design/change; exercised on real runs) |
 | B040 | Build the real sandbox + marking->code core (per spike findings) | PP6 | P0   | done        |
 | B041 | The builder: LLM generates each package into a working app | PP6 | P0      | done        |
 | B042 | Builder: orchestrate the full plan (B041b)               | PP6   | P0       | done        |
-| B043 | Wire the gates: engine <-> api <-> app + the real design window | PP6 | P0 | in progress |
+| B043 | Wire the gates: engine <-> api <-> app + the real design window | PP6 | P0 | done (end to end, on real models and the free path) |
 | B044 | Strategy & moat doc (docs/STRATEGY.md)                         | PP4      | P0 | done |
 | B045 | Component library — first slice (catalog, matcher, assembler, gate) | PP4  | P0 | done |
 | B046 | Cost estimate (deterministic, from plan + library hits)        | PP4      | P0 | done |
@@ -53,7 +86,7 @@
 | B050 | Intake agent: extraction + next-question loop (gate 1's brain) | PP4 | P0 | done |
 | B051 | Gate 1 wired end-to-end (wizard <-> api <-> engine, spec freeze) | PP5 | P0 | done |
 | B052 | Wire the build + reveal end-to-end (step 3)                    | PP5 | P0 | done |
-| B053 | Prepare the first REAL run (model ids, 1+Claude config, real-code sandbox, runbook) | PP5 | P0 | in progress |
+| B053 | Prepare the first REAL run (model ids, 1+Claude config, real-code sandbox, runbook) | PP5 | P0 | done (three real runs; RUNBOOK-FIRST-RUN) |
 | B054 | Harden the first real run (fix what real code surfaces)        | PP5 | P0 | done |
 | B055 | Adopt prompt caching on build-package prompt prefixes (cost)      | PP4      | P1 | won't do |
 | B056 | Adopt Batch API for parallelizable build packages (cost)          | PP4      | P1 | todo |

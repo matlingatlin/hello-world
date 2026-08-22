@@ -4,6 +4,18 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Changed
+- 2026-08-22 — **The backlog says what each open item is waiting on.** Twenty-one items said
+  "todo", which hides the difference between work nobody has done, work that needs a decision
+  nobody may take silently, work that needs a measurement nobody can take without a key, and
+  work that needs infrastructure that does not exist. They are grouped by that now, at the top
+  of the file.
+
+  Four rows were also closed as stale — B017, B039, B043 and B053 all said "in progress" for
+  things that have been built and exercised on real runs — and the note about PROJECT-PLAN
+  being authoritative for status was corrected, since its checkboxes have never been ticked.
+
+
 ### Corrected
 - 2026-08-22 — **The roadmap said phases 2 to 6 had not started.** They had. The repo holds
   twenty ADRs, an engine that has completed real builds on real models, a working design
