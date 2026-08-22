@@ -24,7 +24,13 @@ class ModelCard(BaseModel):
     id: str
     vendor: Vendor
     context_limit: int
+    input_cost_per_mtok: float
+    """USD per 1M input tokens. Required, not defaulted: a card without it would
+    price its input at zero, which is the bug this replaced — silently."""
     cost_per_mtok: float
+    """USD per 1M OUTPUT tokens. The name predates there being two prices; it is
+    left alone because the matrix file, the estimate and two stored figures all
+    use it."""
     latency: str
     strength: str
 

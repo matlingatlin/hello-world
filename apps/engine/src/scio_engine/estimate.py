@@ -20,8 +20,17 @@ whether to press build.
 ## The heuristic, and how to calibrate it
 
 Every number below is an OUTPUT-token count for one relay pass, keyed on what
-the package is and how much of it there is. Output tokens because that is what
-the relay itself prices on (`execution/relay._cost`) and what dominates codegen.
+the package is and how much of it there is.
+
+**This under-predicts the point cost, and knowingly.** The relay used to price a
+pass on its output alone, and these constants were calibrated against figures it
+produced; the relay now prices input as well (it was a third to a half of the
+real invoice), so a build's *measured* cost is higher than the point this
+computes. The published range still holds — `HIGH_MULTIPLIER` is 2.6, which
+covers it comfortably, and the ceiling is taken from the high end — but the low
+end is now optimistic. Fixing it properly means predicting input tokens too, and
+that needs a real run to calibrate against rather than a coefficient invented
+here (B115).
 
 Calibrated against the three real runs (2026-08-12), all of them on
 **claude-sonnet-5 at two passes** — `SCIO_MODEL_PASSES=1`, $15/M output. The

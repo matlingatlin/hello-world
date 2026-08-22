@@ -100,6 +100,27 @@ class TestStructuredHandoff:
         assert result.total_cost_usd > 0
         assert result.total_tokens > 0
 
+    @pytest.mark.asyncio
+    async def test_a_pass_is_priced_on_its_input_as_well_as_its_output(self, fake_registry):
+        """Output only, until now — on the reasoning that input is cheaper per
+        token and so the figure erred safe. It does not follow: a repair attempt
+        re-sends every file it is fixing, and input was a third to a half of the
+        real invoice."""
+        result = await run_relay(
+            "codegen", "P", registry=fake_registry, options=RelayOptions(passes=1)
+        )
+
+        card = default_matrix().top_n("codegen", 1)[0]
+        one = result.passes[0]
+        assert one.input_tokens > 0  # otherwise this test proves nothing
+        expected = (
+            one.input_tokens / 1_000_000 * card.input_cost_per_mtok
+            + one.output_tokens / 1_000_000 * card.cost_per_mtok
+        )
+        assert result.total_cost_usd == pytest.approx(expected)
+        # And the old figure is strictly smaller — that is the size of the miss.
+        assert result.total_cost_usd > one.output_tokens / 1_000_000 * card.cost_per_mtok
+
 
 class TestGuardrails:
     def test_pass_count_is_clamped_to_the_cap(self):

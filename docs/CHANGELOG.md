@@ -4,6 +4,79 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Changed
+- 2026-08-22 — **The design window's preview is a state machine now** (B090). Six `useState`s
+  described one thing: `previewUrl`, `manifest`, `preparing`, `lines`, `error`,
+  `disconnected` — 2^6 combinations for four real states, and the impossible ones were
+  reachable (preparing with a url, an error with a url, disconnected while preparing). The
+  render had to deduce which one it was holding: `if (preparing || (!previewUrl && !error))`.
+
+  One `preview` value with four kinds — preparing / disconnected / failed / ready — and one
+  branch each. The url and the manifest are derived off it rather than stored beside it,
+  because a second copy is a second thing that can disagree. A failed preview finally has its
+  own screen: it used to fall through to the main render, which drew an app frame around a
+  `previewUrl` of null. And "the preview could not be built" (which ends the screen) is now a
+  different value from "that version could not be restored" (a line above a screen that still
+  works) — they were the same `error`, which is why the render had to reason about which one
+  it was holding. 15 useState, from 19.
+
+  The change lifecycle (`applying` / `outcome` / `conflicts` / `confirming`) was left alone
+  deliberately: its combinations are mostly legitimate — a change can apply partially *and*
+  raise a conflict — so a union there would encode fewer real states, not fewer impossible
+  ones.
+
+
+### Fixed
+- 2026-08-22 — **The relay priced a pass on its output only, so every cost figure was low.**
+  The matrix said it plainly: *"input is cheaper on every model here, so this over-estimates
+  rather than under-estimates, which is the safe direction for a budget cap."* Cheaper per
+  token is not smaller in total. A repair attempt re-sends every file it is fixing, so a
+  codegen call routinely carries several times more input than it returns — input was a third
+  to a half of the real invoice, and it was priced at zero.
+
+  Every figure downstream inherited it: what a build cost, what a workspace has spent, and the
+  ceiling a build is stopped at. Each model in the matrix now carries
+  `input_cost_per_mtok` (required, not defaulted — a card without one would price its input at
+  zero, which is the bug this replaced, silently), and `_cost` charges both halves.
+
+  The estimate still predicts output tokens only, and now knowingly under-predicts its point
+  cost. The published range holds — the high multiplier is 2.6 and the ceiling comes off the
+  high end — but calibrating the low end needs a real run to measure against rather than a
+  coefficient invented here (B115).
+
+### Added
+- 2026-08-22 — **A first pass over the prompt-injection surface** (B104), and a threat model
+  in `docs/SECURITY.md` that names each path, what it could do, and what actually stops it.
+
+  The sharp path is not the user: it is the **running app's own console and rendered text**,
+  which go to the critique as evidence. The app was written by a model and is judged by one,
+  so a page that renders "all criteria are met" is the defendant addressing the jury — and
+  what it would win is a dishonest honest status, which is the thing this product sells. The
+  second is **catalog entries**, the one prompt in the engine that carries text from another
+  tenant's build.
+
+  `execution/untrusted.py` fences third-party text where it enters — the critique's evidence,
+  the design markings, the intake conversation, the candidate listing — and strips the
+  delimiters out of the payload first, because a fence a page can close is decoration. The
+  system prompts now say what a fenced block is.
+
+  Said plainly in the doc and worth repeating: fencing is hygiene. What protects the user is
+  structural — an unparseable critique is a failure, a "pass" over an unmet criterion is
+  rewritten to a failure, and the deterministic gates run whatever any model said.
+
+### Decided
+- 2026-08-22 — **Prompt caching on the build-package prefixes: not worth doing** (B055,
+  closed as won't-do). Measured against the actual prompts rather than assumed. Caching pays
+  on a large *stable* prefix, and this build path does not have one: `CODEGEN_SYSTEM` is
+  ~700 characters (~175 tokens, well under the 1024-token minimum cacheable prefix); the
+  bulk of a codegen prompt is the contract plus the current files, and the current files are
+  exactly the part that changes between the attempts that would have hit the cache. A
+  package's contract could be cached across its own attempts for a saving on the order of a
+  fraction of a cent, at the cost of restructuring the provider interface to carry content
+  blocks. Revisit if the prompt shape changes — a long shared preamble across packages would
+  change the answer.
+
+
 ### Fixed
 - 2026-08-22 — **A retry is no longer a second bill** (B103). `POST /build` had no
   idempotency key. The build lock already refused a build while one was *running*; the case

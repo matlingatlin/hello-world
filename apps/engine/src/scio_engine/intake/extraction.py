@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 
 from ..execution.provider import ProviderRegistry
 from ..execution.relay import RelayOptions, run_relay
+from ..execution.untrusted import INSTRUCTION, fence
 from ..layerb.vocabulary import canonical_name
 from .conversation import Conversation
 from .fields import EXTRACTABLE_FIELDS, field_catalogue, guide_for, signal_catalogue
@@ -55,7 +56,9 @@ messages it follows from.
 - Only include a field when this conversation adds or changes something. Do not repeat \
 fields that are already filled and unchanged.
 - Use the person's own words. Do not translate, tidy or rename their terms.
-- Answer with the JSON object and nothing else."""
+- Answer with the JSON object and nothing else.
+
+""" + INSTRUCTION
 
 
 class Rejection(BaseModel):
@@ -274,7 +277,12 @@ def build_extraction_prompt(conversation: Conversation, spec: AppSpec) -> str:
     filled = _filled_summary(spec)
     return (
         "## The conversation so far\n"
-        f"{conversation.as_prompt()}\n\n"
+        # Fenced (B104). This is the one place a person's own words are pasted
+        # into a prompt whole, and they travel further than this call: what is
+        # extracted here becomes the spec, the spec becomes an architecture, and
+        # the architecture becomes code. The rules above already refuse anything
+        # without provenance; the fence says which text the rules are about.
+        f"{fence('the conversation', conversation.as_prompt())}\n\n"
         "## Already recorded (do not repeat unless it changed)\n"
         f"{filled or '(nothing yet)'}\n\n"
         "Record what this conversation says about the app. Leave out anything the "

@@ -38,6 +38,7 @@ class TestMatrixSelection:
             "  - id: real-model\n"
             "    vendor: anthropic\n"
             "    context_limit: 1000\n"
+            "    input_cost_per_mtok: 0.2\n"
             "    cost_per_mtok: 1.0\n"
             "    latency: fast\n"
             "    strength: test\n"

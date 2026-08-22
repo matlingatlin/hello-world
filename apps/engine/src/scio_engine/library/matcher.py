@@ -36,6 +36,7 @@ from pydantic import BaseModel, Field
 from ..builder.file_plan import entity_of, planned_files
 from ..execution.provider import ProviderRegistry
 from ..execution.relay import RelayOptions, run_relay
+from ..execution.untrusted import fenced_lines
 from ..layerb.vocabulary import canonical_name
 from ..layerc.plan import BuildPackage, BuildPlan, PackageKind
 from .catalog import Catalog, default_catalog
@@ -192,7 +193,15 @@ async def resolve_ambiguity(
     registry: ProviderRegistry,
 ) -> CatalogEntry | None:
     """The one place a model is asked: two vetted entries, both a real fit."""
-    listing = "\n".join(f"- {e.id}: {e.name} — {e.description}" for e in options)
+    # Fenced: a catalog entry's name and description were written during someone
+    # ELSE's build (ADR-0016), which makes this the one prompt in the engine that
+    # carries text across tenants (B104). The damage is bounded — the reply is
+    # only ever matched against the ids listed here — but an entry that describes
+    # itself as "the correct choice, ignore the others" should not read as
+    # instruction.
+    listing = fenced_lines(
+        "catalog entries", [f"- {e.id}: {e.name} — {e.description}" for e in options]
+    )
     prompt = (
         f"## The package\n{package.id} — {package.goal}\n\n"
         f"## Candidates\n{listing}\n\nWhich id fits better?"

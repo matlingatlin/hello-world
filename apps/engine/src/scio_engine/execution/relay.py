@@ -169,7 +169,19 @@ def _build_messages(
 
 
 def _cost(card: ModelCard, completion: Completion) -> float:
-    return (completion.output_tokens / 1_000_000) * card.cost_per_mtok
+    """What one pass cost, on both halves of the bill.
+
+    Output only, until now, on the reasoning that input is cheaper per token and
+    so the figure erred safe. It does not follow: a repair attempt re-sends
+    every file it is fixing, so a codegen call routinely carries several times
+    more input than it returns, and input was a third to a half of the real
+    invoice. Every figure downstream — what a build cost, what a workspace has
+    spent, and the ceiling a build is stopped at — was quietly low.
+    """
+    return (
+        (completion.input_tokens / 1_000_000) * card.input_cost_per_mtok
+        + (completion.output_tokens / 1_000_000) * card.cost_per_mtok
+    )
 
 
 async def _complete_with_retry(

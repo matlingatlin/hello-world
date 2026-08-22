@@ -55,7 +55,7 @@
 | B052 | Wire the build + reveal end-to-end (step 3)                    | PP5 | P0 | done |
 | B053 | Prepare the first REAL run (model ids, 1+Claude config, real-code sandbox, runbook) | PP5 | P0 | in progress |
 | B054 | Harden the first real run (fix what real code surfaces)        | PP5 | P0 | done |
-| B055 | Adopt prompt caching on build-package prompt prefixes (cost)      | PP4      | P1 | todo |
+| B055 | Adopt prompt caching on build-package prompt prefixes (cost)      | PP4      | P1 | won't do |
 | B056 | Adopt Batch API for parallelizable build packages (cost)          | PP4      | P1 | todo |
 | B057 | Evaluate Advisor tool vs our multi-pass relay (spike)             | post-MVP | P2 | todo |
 | B058 | Evaluate memory tool / stores vs our own persistence             | post-MVP | P2 | todo |
@@ -91,7 +91,7 @@
 | B087 | build_package is 226 lines doing six jobs — split the attempt body out of the loop | PP6 | P1 | done |
 | B088 | "Make this the current version" is written 4x, none transactional — one helper + a partial unique index | PP3 | P0 | done |
 | B089 | Type the SSE events in packages/shared — the build stream is the one path that opts out | PP5 | P1 | done |
-| B090 | DesignPage: 19 useState is a state machine — make the impossible combinations unrepresentable | PP6 | P1 | todo |
+| B090 | DesignPage: 19 useState is a state machine — make the impossible combinations unrepresentable | PP6 | P1 | done |
 | B091 | BLOCKING: the generated app inherits the engine's whole environment (ANTHROPIC_API_KEY, SCIO_CATALOG_DB) — allow-list it | PP9 | P0 | done |
 | B092 | BLOCKING: no CI — a clean-clone workflow would have caught 3 of this week's 4 Codespace bugs | PP10 | P0 | done |
 | B093 | Refuse to boot with LocalProcessSandbox when NODE_ENV=production — it disqualifies itself in its own docstring and nothing enforces it | PP9 | P0 | done |
@@ -105,7 +105,7 @@
 | B101 | Clerk webhook accepts unsigned requests — verify BEFORE implementing the handler | PP9 | P1 | done |
 | B102 | No error boundary in the app — one thrown render blanks the page after a paid build | PP2 | P1 | done |
 | B103 | No API versioning and no idempotency key on POST /build — a retry is a second bill | PP3 | P1 | done |
-| B104 | Prompt injection is an unexamined surface — gates constrain output, nothing constrains the instruction | PP9 | P1 | todo |
+| B104 | Prompt injection is an unexamined surface — gates constrain output, nothing constrains the instruction | PP9 | P1 | done |
 | B105 | design.test.tsx is flaky: two different tests failed on two runs, three later runs clean — a flaky test in CI teaches people to ignore CI | PP2 | P0 | done |
 | B106 | BLOCKING: the spend ceiling is enforced PER RELAY CALL, not per build — sending $3.76 authorises ~$50-80. The fix for B081 does not do what it claims | PP4 | P0 | done |
 | B107 | BLOCKING: LocalDockerSandbox.start() ignores its env argument, so the marking bridge and the verification layer are dead on any Docker host — silently | PP6 | P0 | done |
@@ -116,6 +116,7 @@
 | B112 | Accessibility: the finding was MOSTLY WRONG — every control already had an aria-label; a line-based grep cannot see multi-line JSX. What was real: nothing announced itself. Live regions added | PP2 | P1 | done |
 | B113 | usage_event has no (workspace_id, created_at) index — every billing question is "spend in a period" | PP3 | P1 | done |
 | B114 | SandboxProvider declares env in its abstract signature and one of two implementations ignores it — add a provider conformance test | PP6 | P0 | done |
+| B115 | The estimate predicts output tokens only, so its point cost is low now that input is priced — calibrate against a real run | PP4 | P1 | todo |
 
 **B080 — a Codespace is the way in.** It runs the stack *and* forwards ports, so each one gets an
 `https://<name>-<port>.app.github.dev` origin openable from a phone — no deploy, no hosting

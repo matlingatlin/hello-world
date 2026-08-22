@@ -40,6 +40,21 @@ interface Pending {
   note: string;
 }
 
+/**
+ * The preview's life, as four states rather than six flags.
+ *
+ * `disconnected` is its own state and not a kind of failure: a preview is a
+ * real build on the server and it carries on without this page. Reported as a
+ * failure it sent the user back to rebuild something that was already being
+ * built; reported as nothing at all — which is what a stream that simply ends
+ * looks like — it left the screen on "Working out what to build…" forever.
+ */
+type Preview =
+  | { kind: "preparing"; lines: string[] }
+  | { kind: "disconnected" }
+  | { kind: "failed"; message: string }
+  | { kind: "ready"; url: string; manifest: Record<string, unknown> | null };
+
 /** The manifest as the engine writes it — enough of it to name a package. */
 interface ManifestShape {
   elements?: Record<string, { package?: string; file?: string; line?: number }>;
@@ -81,24 +96,28 @@ export function DesignPage() {
   const api = useApi();
   const navigate = useNavigate();
 
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [manifest, setManifest] = useState<Record<string, unknown> | null>(null);
+  /**
+   * Where the preview is in its life. One value, four states (B090).
+   *
+   * This was six `useState`s — `previewUrl`, `manifest`, `preparing`, `lines`,
+   * `error`, `disconnected` — which is 2^6 combinations for four real ones, and
+   * the impossible ones were reachable: preparing with a url, an error with a
+   * url, disconnected while preparing. The render had to spell out which
+   * combinations it believed in (`preparing || (!previewUrl && !error)`), and
+   * every new branch had to guess again.
+   */
+  const [preview, setPreview] = useState<Preview>({ kind: "preparing", lines: [] });
   const [whole, setWhole] = useState<string | null>(null);
   const [versions, setVersions] = useState<DesignVersion[]>([]);
-
-  const [preparing, setPreparing] = useState(false);
-  const [lines, setLines] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
   /**
-   * The connection died, which is not the same as the preview failing.
+   * Something the user asked for did not work, while the preview is fine.
    *
-   * A preview is a real build on the server and it carries on without this
-   * page. Reported as a failure it sent the user back to rebuild something
-   * that was already being built; reported as nothing at all — which is what
-   * a stream that just ends looks like — it left this screen on "Working out
-   * what to build…" forever.
+   * Kept apart from the preview's own failure on purpose: "the preview could
+   * not be built" ends the screen, and "that version could not be restored" is
+   * a line above a screen that still works. They were the same `error` before,
+   * which is why the render had to reason about which one it was holding.
    */
-  const [disconnected, setDisconnected] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const [mode, setMode] = useState<"use" | "mark">("use");
   const [pending, setPending] = useState<Pending[]>([]);
@@ -135,10 +154,8 @@ export function DesignPage() {
    * aborting it on a StrictMode remount killed every build in dev (B064).
    */
   const rebuild = useCallback(async () => {
-    setPreparing(true);
-    setLines([]);
-    setError(null);
-    setDisconnected(false);
+    setPreview({ kind: "preparing", lines: [] });
+    setNotice(null);
     setReachable(null);
     try {
       await api.streamDesignPreview(projectId, (frame) => {
@@ -148,28 +165,40 @@ export function DesignPage() {
         switch (frame.event) {
           case "progress":
             if (frame.data.status !== "building") {
-              setLines((prev) => [...prev, frame.data.message]);
+              const line = frame.data.message;
+              setPreview((prev) =>
+                prev.kind === "preparing" ? { ...prev, lines: [...prev.lines, line] } : prev,
+              );
             }
             break;
           case "finished":
-            setPreviewUrl(frame.data.app_url || null);
-            setManifest(frame.data.manifest ?? null);
+            setPreview({
+              kind: "ready",
+              url: frame.data.app_url || "",
+              manifest: frame.data.manifest ?? null,
+            });
             setWhole(frame.data.whole || null);
             setNudge((n) => n + 1);
-            setPreparing(false);
             break;
           case "error":
-            setError(frame.data.message || "The preview could not be built.");
-            setPreparing(false);
+            setPreview({
+              kind: "failed",
+              message: frame.data.message || "The preview could not be built.",
+            });
             break;
         }
       });
     } catch (err) {
       if (!showing.current) return;
-      if (lostConnection(err)) setDisconnected(true);
-      else setError(err instanceof ApiError ? err.message : "The preview could not be built.");
+      setPreview(
+        lostConnection(err)
+          ? { kind: "disconnected" }
+          : {
+              kind: "failed",
+              message: err instanceof ApiError ? err.message : "The preview could not be built.",
+            },
+      );
     } finally {
-      setPreparing(false);
       refreshVersions();
     }
   }, [api, projectId, refreshVersions]);
@@ -180,12 +209,11 @@ export function DesignPage() {
    * that is already running.
    */
   const checkOnPreview = useCallback(async () => {
-    setDisconnected(false);
+    setPreview({ kind: "preparing", lines: [] });
     const current = await api.getDesign(projectId).catch(() => null);
     if (!showing.current) return;
     if (current?.previewUrl) {
-      setPreviewUrl(current.previewUrl);
-      setManifest(current.manifest);
+      setPreview({ kind: "ready", url: current.previewUrl, manifest: current.manifest });
       setWhole(current.whole);
       refreshVersions();
       return;
@@ -205,8 +233,7 @@ export function DesignPage() {
         if (!showing.current) return;
         setWhole(current.whole);
         if (current.previewUrl) {
-          setPreviewUrl(current.previewUrl);
-          setManifest(current.manifest);
+          setPreview({ kind: "ready", url: current.previewUrl, manifest: current.manifest });
           refreshVersions();
           return;
         }
@@ -214,15 +241,26 @@ export function DesignPage() {
       })
       .catch((err) => {
         if (!showing.current) return;
-        setPreparing(false);
-        if (lostConnection(err)) setDisconnected(true);
-        else setError(err instanceof ApiError ? err.message : "The preview could not be built.");
+        setPreview(
+          lostConnection(err)
+            ? { kind: "disconnected" }
+            : {
+                kind: "failed",
+                message:
+                  err instanceof ApiError ? err.message : "The preview could not be built.",
+              },
+        );
       });
 
     return () => {
       showing.current = false;
     };
   }, [api, projectId, refreshVersions, rebuild]);
+
+  // Read straight off the state machine. Derived, not stored: a second copy of
+  // the url is a second thing that can disagree with the first.
+  const previewUrl = preview.kind === "ready" ? preview.url : null;
+  const manifest = preview.kind === "ready" ? preview.manifest : null;
 
   // --- the bridge --------------------------------------------------------
   useEffect(() => {
@@ -298,7 +336,7 @@ export function DesignPage() {
   const generate = useCallback(
     async (batch: Pending[], text: string) => {
       setApplying(true);
-      setError(null);
+      setNotice(null);
       try {
         const res = await api.applyDesignChange(projectId, {
           markings: batch.map((p) => ({
@@ -316,7 +354,9 @@ export function DesignPage() {
         setOutcome(res);
         setConflicts(res.conflicts);
         if (res.applied) {
-          setManifest(res.manifest);
+          setPreview((prev) =>
+            prev.kind === "ready" ? { ...prev, manifest: res.manifest } : prev,
+          );
           // Only what was applied leaves the list. A marking the engine could
           // not address stays, so it can be reworded rather than lost.
           const skipped = new Set(res.skipped.map((s) => s.scioId));
@@ -328,7 +368,7 @@ export function DesignPage() {
         }
         return res;
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : "The change could not be applied.");
+        setNotice(err instanceof ApiError ? err.message : "The change could not be applied.");
         return null;
       } finally {
         setApplying(false);
@@ -360,7 +400,7 @@ export function DesignPage() {
         note: conflict.note,
       });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "The spec could not be changed.");
+      setNotice(err instanceof ApiError ? err.message : "The spec could not be changed.");
       setApplying(false);
       return;
     }
@@ -371,14 +411,16 @@ export function DesignPage() {
 
   async function returnTo(version: DesignVersion) {
     setRestoring(version.id);
-    setError(null);
+    setNotice(null);
     try {
       const res = await api.restoreDesignVersion(projectId, version.id);
       if (!res.restored) {
-        setError(res.error);
+        setNotice(res.error);
         return;
       }
-      setManifest(res.manifest);
+      setPreview((prev) =>
+        prev.kind === "ready" ? { ...prev, manifest: res.manifest } : prev,
+      );
       setPending([]);
       setOutcome(null);
       setConflicts([]);
@@ -386,14 +428,17 @@ export function DesignPage() {
       setNudge((n) => n + 1);
       refreshVersions();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "That version could not be restored.");
+      setNotice(err instanceof ApiError ? err.message : "That version could not be restored.");
     } finally {
       setRestoring(null);
     }
   }
 
   // --- render ------------------------------------------------------------
-  if (disconnected && !previewUrl && !error) {
+  // One branch per state, and the compiler checks there are no others. The
+  // condition this replaces — `preparing || (!previewUrl && !error)` — was the
+  // render deducing which of six flags it was holding (B090).
+  if (preview.kind === "disconnected") {
     return (
       <section>
         <Eyebrow>Design · preparing</Eyebrow>
@@ -411,7 +456,28 @@ export function DesignPage() {
     );
   }
 
-  if (preparing || (!previewUrl && !error)) {
+  if (preview.kind === "failed") {
+    // Its own screen, because there is no preview to put a card above. This is
+    // the branch the old flags did not have: a failed preview fell through to
+    // the main render, which drew an app frame around a `previewUrl` of null.
+    return (
+      <section>
+        <Eyebrow>Design</Eyebrow>
+        <PageTitle>The preview could not be built</PageTitle>
+        <StateCard
+          icon="!"
+          tone="error"
+          title="Something didn't work"
+          action={<Button onClick={rebuild}>Try again</Button>}
+        >
+          {preview.message}
+        </StateCard>
+      </section>
+    );
+  }
+
+  if (preview.kind === "preparing") {
+    const lines = preview.lines;
     return (
       <section>
         <Eyebrow>Design · preparing</Eyebrow>
@@ -467,19 +533,19 @@ export function DesignPage() {
           : "Use the preview like the real app. Switch to Mark to point at something you want changed."}
       </Lede>
 
-      {error && (
+      {notice && (
         <div className="mb-4">
           <StateCard
             icon="!"
             tone="error"
             title="Something didn't work"
             action={
-              <Button variant="ghost" onClick={() => setError(null)}>
+              <Button variant="ghost" onClick={() => setNotice(null)}>
                 Dismiss
               </Button>
             }
           >
-            {error}
+            {notice}
           </StateCard>
         </div>
       )}

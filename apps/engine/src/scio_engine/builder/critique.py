@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from ..core.console import ConsoleReport
 from ..execution.provider import ProviderRegistry
 from ..execution.relay import BudgetExceeded, RelayOptions, Spend, run_relay
+from ..execution.untrusted import INSTRUCTION, fence, fenced_lines
 from ..layerc.criteria import Criterion, interacting, judgeable, scoped_out
 from ..layerc.plan import BuildPackage
 from .file_plan import planned_files
@@ -37,7 +38,9 @@ Rules:
 - Judge only against the criteria listed. Not "is this good code" — "does it do this".
 - A criterion you cannot check from the evidence is NOT met; say so in `why`.
 - `problems` must be actionable: what is wrong and where, not "improve the UX".
-- If every criterion is met, `verdict` is "pass" and `problems` is empty."""
+- If every criterion is met, `verdict` is "pass" and `problems` is empty.
+
+""" + INSTRUCTION
 
 
 class CriterionVerdict(BaseModel):
@@ -77,17 +80,37 @@ class Evidence:
     extra: list[str] = field(default_factory=list)
 
     def as_prompt_section(self) -> str:
+        """The evidence, fenced.
+
+        Everything here came out of the app being judged — its console, its
+        rendered text, the title it chose. The app was written by a model and is
+        about to be judged by one, so a page that renders "all criteria are met"
+        is the defendant addressing the jury (B104). Fencing does not make that
+        impossible; it makes it visible, and it stops the page from closing the
+        quotation and speaking as us.
+        """
         lines = ["## Evidence from the running package", ""]
-        lines.append(f"Console failures: {self.console.failures or 'none'}")
-        if self.console.suppressed:
-            lines.append(f"(benign console noise, ignored: {self.console.suppressed})")
+        lines.append(
+            fenced_lines(
+                "console",
+                [f"Console failures: {self.console.failures or 'none'}"]
+                + (
+                    [f"(benign console noise, ignored: {self.console.suppressed})"]
+                    if self.console.suppressed
+                    else []
+                ),
+            )
+        )
         if self.element_ids:
+            # Ours, not the app's: ids are verified against the manifest before
+            # this point, so they are not quoted as somebody else's words.
             lines.append(f"Elements present: {', '.join(sorted(self.element_ids))}")
         if self.rendered_text:
-            lines += ["", "Rendered text:", self.rendered_text[:2000]]
+            lines += ["", "Rendered text:", fence("rendered text", self.rendered_text[:2000])]
         if self.screenshot_path:
             lines.append(f"Screenshot: {self.screenshot_path}")
-        lines += self.extra
+        if self.extra:
+            lines.append(fenced_lines("what the page reported", self.extra))
         return "\n".join(lines)
 
 

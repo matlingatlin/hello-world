@@ -4,10 +4,16 @@
 # without touching the engine. `rank` 1 = first choice (runs pass 1 and the
 # final pass). latency is a coarse class.
 #
-# cost_per_mtok is USD per 1M **output** tokens — the relay prices a pass on its
-# output (execution/relay.py `_cost`). Input is cheaper on every model here, so
-# this over-estimates rather than under-estimates, which is the safe direction
-# for a budget cap.
+# Two prices per model, both USD per 1M tokens: `input_cost_per_mtok` and
+# `cost_per_mtok` (output). The relay prices a pass on BOTH (execution/relay.py
+# `_cost`).
+#
+# It used to price output only, on the reasoning that "input is cheaper on every
+# model, so this over-estimates". Cheaper per token is not smaller in total: a
+# repair attempt re-sends every file it is fixing, so a codegen call routinely
+# carries 3-5x more input tokens than it returns, and input was a third to a
+# half of the real bill. The figure the product showed the user — and the
+# ceiling it enforced — were both quietly low.
 #
 # OPERATOR: confirm the exact model id strings and current prices in the
 # Anthropic console and docs.claude.com before a real run, and adjust the cost
@@ -24,6 +30,7 @@ models:
   - id: claude-fable-5
     vendor: anthropic
     context_limit: 1000000
+    input_cost_per_mtok: 10.0
     cost_per_mtok: 50.0
     latency: slow
     strength: The most capable model — hardest reasoning and long-horizon agentic work
@@ -31,6 +38,7 @@ models:
   - id: claude-opus-5
     vendor: anthropic
     context_limit: 1000000
+    input_cost_per_mtok: 5.0
     cost_per_mtok: 25.0
     latency: medium
     strength: Complex agentic coding and deep reasoning; the default first choice
@@ -38,6 +46,7 @@ models:
   - id: claude-opus-4-8
     vendor: anthropic
     context_limit: 1000000
+    input_cost_per_mtok: 5.0
     cost_per_mtok: 25.0
     latency: medium
     strength: Previous-generation Opus — strong long-horizon agentic work
@@ -45,6 +54,7 @@ models:
   - id: claude-sonnet-5
     vendor: anthropic
     context_limit: 1000000
+    input_cost_per_mtok: 3.0
     cost_per_mtok: 15.0
     latency: fast
     strength: Near-Opus quality on coding and agentic work, at Sonnet cost
@@ -52,6 +62,7 @@ models:
   - id: claude-haiku-4-5
     vendor: anthropic
     context_limit: 200000
+    input_cost_per_mtok: 1.0
     cost_per_mtok: 5.0
     latency: fast
     strength: Cheap, quick passes and light edits
@@ -60,6 +71,7 @@ models:
   - id: gpt-5
     vendor: openai
     context_limit: 400000
+    input_cost_per_mtok: 2.5
     cost_per_mtok: 10.0
     latency: medium
     strength: Broad general capability, good structured output
@@ -67,6 +79,7 @@ models:
   - id: gemini-2.5-pro
     vendor: google
     context_limit: 1000000
+    input_cost_per_mtok: 2.5
     cost_per_mtok: 10.0
     latency: medium
     strength: Very large context, strong multimodal grounding

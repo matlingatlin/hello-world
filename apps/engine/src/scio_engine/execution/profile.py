@@ -64,6 +64,11 @@ def single_model_matrix(
         id=model_id,
         vendor=vendor,
         context_limit=200_000,
+        # Priced as the dearest model the matrix knows, on both halves: an
+        # unknown model that turns out to be cheap costs the operator a
+        # conservative ceiling, while one that turns out to be dear would
+        # otherwise cost them a real overrun.
+        input_cost_per_mtok=5.0,
         cost_per_mtok=25.0,
         latency="medium",
         strength=f"Operator-selected model ({model_id})",
