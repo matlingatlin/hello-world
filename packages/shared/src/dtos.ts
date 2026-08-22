@@ -160,6 +160,9 @@ export interface DesignPreviewResponse {
   designVersion: DesignVersion | null;
   whole: string | null;
   summary: string;
+  /** Every page the app has. Without it the window shows whichever one the app
+   *  opens on and offers no way to reach the others (B069). */
+  routes?: string[];
 }
 
 export interface ApplyDesignChangeResponse {

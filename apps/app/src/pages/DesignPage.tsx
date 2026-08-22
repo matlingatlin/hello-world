@@ -128,6 +128,18 @@ export function DesignPage() {
   const [confirming, setConfirming] = useState<DesignConflict | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
 
+  /**
+   * Every page the app has, and which one the frame is showing.
+   *
+   * The window used to embed the app's front door and offer no way to reach
+   * anything else, so on a booking app you could mark up the home page and
+   * nothing else — the parts most likely to need changing were the ones you
+   * could not point at (B069). The list comes from the plan that built the app,
+   * so it is what exists rather than what was hoped for.
+   */
+  const [routes, setRoutes] = useState<string[]>([]);
+  const [route, setRoute] = useState("/");
+
   const [reachable, setReachable] = useState<boolean | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [nudge, setNudge] = useState(0); // cache-buster for the iframe
@@ -177,6 +189,7 @@ export function DesignPage() {
               url: frame.data.app_url || "",
               manifest: frame.data.manifest ?? null,
             });
+            setRoutes(frame.data.routes ?? []);
             setWhole(frame.data.whole || null);
             setNudge((n) => n + 1);
             break;
@@ -214,6 +227,7 @@ export function DesignPage() {
     if (!showing.current) return;
     if (current?.previewUrl) {
       setPreview({ kind: "ready", url: current.previewUrl, manifest: current.manifest });
+      setRoutes(current.routes ?? []);
       setWhole(current.whole);
       refreshVersions();
       return;
@@ -234,6 +248,7 @@ export function DesignPage() {
         setWhole(current.whole);
         if (current.previewUrl) {
           setPreview({ kind: "ready", url: current.previewUrl, manifest: current.manifest });
+          setRoutes(current.routes ?? []);
           refreshVersions();
           return;
         }
@@ -320,12 +335,18 @@ export function DesignPage() {
   useEffect(() => {
     setReachable(null);
     setLoaded(false);
-  }, [previewUrl, nudge]);
+  }, [previewUrl, route, nudge]);
 
-  const frameSrc = useMemo(
-    () => (previewUrl ? `${previewUrl}${previewUrl.includes("?") ? "&" : "?"}scio=${nudge}` : ""),
-    [previewUrl, nudge],
-  );
+  const frameSrc = useMemo(() => {
+    if (!previewUrl) return "";
+    // The route is part of the src rather than something the iframe is asked to
+    // navigate to: we cannot script inside it (different origin), and a reload
+    // after a change should come back to the page the user was looking at
+    // rather than dropping them at the front door.
+    const path = route === "/" ? "" : route;
+    const url = `${previewUrl}${path}`;
+    return `${url}${url.includes("?") ? "&" : "?"}scio=${nudge}`;
+  }, [previewUrl, route, nudge]);
 
   // --- the change --------------------------------------------------------
   const setNote = (key: string, note: string) =>
@@ -576,8 +597,31 @@ export function DesignPage() {
             <span className="w-2.5 h-2.5 rounded-full bg-line-strong" />
             <span className="font-mono text-[11px] text-muted ml-2 truncate">
               {previewUrl ?? "no preview"}
+              {route !== "/" && <span className="text-ink">{route}</span>}
             </span>
           </div>
+          {routes.length > 1 && (
+            <div
+              className="flex items-center gap-1 flex-wrap px-3 py-2 border-b border-line"
+              data-testid="routes"
+            >
+              {routes.map((candidate) => (
+                <button
+                  key={candidate}
+                  type="button"
+                  aria-pressed={candidate === route}
+                  onClick={() => setRoute(candidate)}
+                  className={`font-mono text-[11px] px-2 py-1 rounded-btn border cursor-pointer ${
+                    candidate === route
+                      ? "bg-teal text-on-teal border-teal"
+                      : "bg-transparent text-muted border-line"
+                  }`}
+                >
+                  {candidate}
+                </button>
+              ))}
+            </div>
+          )}
           {previewUrl ? (
             <iframe
               ref={frameRef}

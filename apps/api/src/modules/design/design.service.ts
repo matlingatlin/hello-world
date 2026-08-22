@@ -308,6 +308,10 @@ export class DesignService {
       whole: result.whole ?? "",
       change: "the first preview",
       gitSha: result.git_sha ?? "",
+      // Every page the app has. Kept with the version because that is what the
+      // design window needs to offer them, and re-deriving it would mean asking
+      // the engine to re-plan (B069).
+      routes: result.routes ?? [],
     });
 
     await this.client(workspaceId).project.update({
@@ -331,6 +335,7 @@ export class DesignService {
       designVersion: row ? this.asDto(row) : null,
       whole: (ref.whole as string) || null,
       summary: (ref.summary as string) ?? "",
+      routes: (ref.routes as string[]) ?? [],
     };
   }
 

@@ -267,6 +267,10 @@ export interface BuildFinished {
   manifest?: Record<string, unknown> | null;
   /** package -> files, for the isolation proof on a directed change. */
   package_files?: Record<string, string[]>;
+  /** Every page this app has, from the plan that built it. The design window
+   *  showed whichever one the app opens on and offered no way to reach the
+   *  others, so half an app could not be marked up at all (B069). */
+  routes?: string[];
 }
 
 export interface BuildErrorEvent {

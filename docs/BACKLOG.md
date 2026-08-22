@@ -69,7 +69,7 @@
 | B068 | Gate 2b: the design window UI — embed + marking selection + prompt + batch + generate-again + approve | PP6 | P0 | done |
 | B061 | Contribute-back: the library grows from real builds (ids/categories/versions) | PP4 | P0 | done |
 | B062 | Wire the cost estimate from the assemble-vs-generate plan       | PP4 | P0 | done |
-| B069 | Design window: routes and per-route markings (the preview has more than one page) | PP6 | P1 | todo        |
+| B069 | Design window: routes and per-route markings (the preview has more than one page) | PP6 | P1 | done        |
 | B070 | "Build it" recreates the workspace, so the design history is lost at the delivery build | PP6 | P0 | done        |
 | B071 | The whole + estimate are recomputed on every GET /intake: ~12s and a real Layer B+C model call per page load | PP5 | P0 | done |
 | B072 | The wizard shows "Nothing yet — 0 of 6" while that GET is in flight — a false statement, not a spinner | PP5 | P0 | done |
@@ -95,7 +95,7 @@
 | B091 | BLOCKING: the generated app inherits the engine's whole environment (ANTHROPIC_API_KEY, SCIO_CATALOG_DB) — allow-list it | PP9 | P0 | done |
 | B092 | BLOCKING: no CI — a clean-clone workflow would have caught 3 of this week's 4 Codespace bugs | PP10 | P0 | done |
 | B093 | Refuse to boot with LocalProcessSandbox when NODE_ENV=production — it disqualifies itself in its own docstring and nothing enforces it | PP9 | P0 | done |
-| B094 | Builds must become jobs: no id, no queue, no cancellation, no resume — a restart loses every build | PP10 | P0 | todo |
+| B094 | Builds must become jobs: no id, no queue, no cancellation, no resume — a restart loses every build | PP10 | P0 | designed (ADR-0020, proposed) |
 | B095 | Missing indexes on every hot path (Project.workspaceId, User.clerkUserId, UsageEvent, Notification…) | PP3 | P0 | done |
 | B096 | The engine authenticates nobody — a shared secret before it is ever a separate service | PP9 | P0 | done |
 | B097 | No graceful shutdown: previews orphan, streams cut without an error event, Prisma never disconnects | PP10 | P1 | done |

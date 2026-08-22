@@ -28,6 +28,7 @@ from ..execution.provider import ProviderRegistry
 from ..execution.relay import Spend
 from ..intake.schema import AppSpec
 from ..layerb.service import run_layer_b
+from ..layerc.plan import BuildPlan
 from ..layerc.service import run_layer_c
 from ..library.contribute import ContributionReport, contribute_build
 from ..library.verification import VerificationDatabase, verification_enabled
@@ -95,6 +96,12 @@ class BuildFinished(BaseModel):
         "against this, so it travels with the build rather than being re-derived by a caller.",
     )
     package_files: dict[str, list[str]] = Field(default_factory=dict)
+    routes: list[str] = Field(
+        default_factory=list,
+        description="Every page this app has, from the plan that built it. The design window "
+        "used to show whichever one the app opens on and offer no way to reach the others — "
+        "so half a booking app could not be marked up at all (B069).",
+    )
 
     @classmethod
     def of(
@@ -109,6 +116,7 @@ class BuildFinished(BaseModel):
         manifest: Manifest | None = None,
         package_files: dict[str, list[str]] | None = None,
         model: str = "",
+        routes: list[str] | None = None,
     ) -> BuildFinished:
         return cls(
             project_id=project_id,
@@ -133,7 +141,21 @@ class BuildFinished(BaseModel):
             preview=preview,
             manifest=manifest,
             package_files=package_files or {},
+            routes=routes or [],
         )
+
+
+def _routes_of(plan: BuildPlan) -> list[str]:
+    """Every page the plan says this app has, in a stable order.
+
+    Read off the packages' interfaces rather than the architecture, because the
+    plan is what actually got built — a screen Layer B imagined and Layer C
+    never scheduled is not a page anyone can open. "/" leads, then the rest
+    alphabetically: the app opens on it, so it is where the user already is.
+    """
+    routes = {route for package in plan.packages for route in package.interface.routes}
+    ordered = sorted(r for r in routes if r != "/")
+    return (["/"] if "/" in routes else []) + ordered
 
 
 def _remainders(packages: list[PackageBuildResult]) -> list[str]:
@@ -315,6 +337,7 @@ async def stream_full_build(
             manifest=build_manifest(workspace, file_map),
             package_files=file_map,
             model=profile.only_model,
+            routes=_routes_of(plan),
         ),
     )
 
@@ -426,5 +449,6 @@ async def stream_promotion(
             manifest=build_manifest(workspace, file_map),
             package_files=file_map,
             model=profile.only_model,
+            routes=_routes_of(plan),
         ),
     )

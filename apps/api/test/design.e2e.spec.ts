@@ -151,6 +151,7 @@ const PREVIEW_FINISHED = {
   preview: true,
   manifest: MANIFEST,
   package_files: { pkg_feature_booking: ["components/booking-form.tsx"] },
+  routes: ["/", "/booking/new"],
 };
 
 const APPLIED = {
@@ -320,6 +321,10 @@ describe("Design window (e2e): preview + directed change", () => {
     expect(res.body.previewUrl).toBe("http://127.0.0.1:41234");
     expect(res.body.manifest.elements["booking-form-submit"].package).toBe("pkg_feature_booking");
     expect(res.body.designVersion.number).toBe(1);
+    // Every page the app has, so the window can offer them. Stored with the
+    // version rather than re-derived, which would mean asking the engine to
+    // plan the app again (B069).
+    expect(res.body.routes).toEqual(["/", "/booking/new"]);
   });
 
   it("refuses to design against a spec nobody approved", async () => {

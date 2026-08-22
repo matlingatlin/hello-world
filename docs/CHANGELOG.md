@@ -4,6 +4,22 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Added
+- 2026-08-22 — **The design window has more than one page now** (B069). It embedded the app's
+  front door and offered no way to reach anything else, so on a booking app you could mark up
+  the home page and nothing else — the parts most likely to need changing were exactly the
+  ones you could not point at.
+
+  The plan knows every route it built (each package's interface names them), so a build now
+  reports them: `BuildFinished.routes`, stored with the design version and served to the
+  window, which draws a switcher when there is more than one. The route is part of the
+  iframe's `src` rather than something we ask the frame to navigate to — we cannot script
+  inside it, it is a different origin — and it means a reload after a change comes back to the
+  page the user was looking at instead of dropping them at the front door. The marking bridge
+  is pinned to the origin, not the path, so marking keeps working across pages; the pending
+  list already showed which route each marking came from.
+
+
 ### Fixed
 - 2026-08-22 — **Deleting a project now deletes the project** (B100, ADR-0019). It used to set
   a timestamp on a row: the workspace, its git history and its screenshots stayed on disk

@@ -60,6 +60,7 @@ function preview(overrides: Partial<DesignPreviewResponse> = {}): DesignPreviewR
     designVersion: null,
     whole: "You're building a table-booking app for your guests.",
     summary: "",
+    routes: ["/", "/booking/new", "/bookings"],
     ...overrides,
   };
 }
@@ -624,5 +625,41 @@ describe("A connection that stopped, and a preview that did not", () => {
 
     expect(await screen.findByText("Approve a spec first.")).toBeDefined();
     expect(screen.queryByText("We lost the connection")).toBeNull();
+  });
+});
+
+describe("More than one page", () => {
+  it("offers every page the app actually has", async () => {
+    // The window embedded the front door and offered no way to reach anything
+    // else, so on a booking app you could mark up the home page and nothing
+    // else — the parts most likely to need changing were the ones you could
+    // not point at (B069).
+    mockApi({});
+    renderPage();
+    await screen.findByTitle("Your app");
+
+    const bar = screen.getByTestId("routes");
+    expect(bar.textContent).toContain("/booking/new");
+    expect(bar.textContent).toContain("/bookings");
+  });
+
+  it("shows the page you picked", async () => {
+    mockApi({});
+    renderPage();
+    await screen.findByTitle("Your app");
+
+    await userEvent.click(screen.getByRole("button", { name: "/booking/new" }));
+
+    const frame = (await screen.findByTitle("Your app")) as HTMLIFrameElement;
+    expect(frame.src).toContain(`${PREVIEW_ORIGIN}/booking/new`);
+  });
+
+  it("offers no page switcher when there is only one page", async () => {
+    // A bar with one button on it is furniture.
+    mockApi({ getDesign: vi.fn().mockResolvedValue(preview({ routes: ["/"] })) });
+    renderPage();
+    await screen.findByTitle("Your app");
+
+    expect(screen.queryByTestId("routes")).toBeNull();
   });
 });

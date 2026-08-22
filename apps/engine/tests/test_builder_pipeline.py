@@ -160,6 +160,26 @@ class TestFullBuild:
         assert finished.standin is True  # honest: no model wrote this code
 
     @pytest.mark.asyncio
+    async def test_it_reports_every_page_the_app_has(self, tmp_path: Path):
+        # The design window can only offer the pages it is told about, and it
+        # used to be told about none (B069).
+        finished = None
+        async for event, payload in stream_full_build(
+            booking_spec(),
+            project_id="p-routes",
+            registry=ProviderRegistry.fake(),
+            preview=clean(),
+            app_dir=tmp_path,
+        ):
+            if event == "finished":
+                finished = payload
+
+        assert isinstance(finished, BuildFinished)
+        assert "/" in finished.routes  # the front door leads, because that is where you land
+        assert finished.routes[0] == "/"
+        assert len(finished.routes) == len(set(finished.routes))  # named once each
+
+    @pytest.mark.asyncio
     async def test_progress_counts_parts_that_actually_finished(self, tmp_path: Path):
         finished_events = []
         total = 0
