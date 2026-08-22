@@ -57,12 +57,46 @@ back to its stand-ins when there is no key to use.
 
    Sign in with any email — dev auth, no Clerk.
 
-5. **Click it**: new project → wizard → review → build → reveal. On the free path
-   the wizard asks one field at a time (B065) and the build is a stand-in that
-   says so at the reveal. It costs nothing.
+5. **Click it**: new project → wizard → review → *how involved do you want to be?*
+   → design window → **Build it** → reveal. On the free path the build is a
+   stand-in that says so at the reveal, and it costs nothing. The wizard files
+   what a paragraph plainly says, so "guests book a table, no accounts, no
+   payments" answers three questions at once (B065).
+
+   Two things to try, because they are what this product is:
+   - **The design window has a page switcher** when the app has more than one
+     page. Mark something on `/booking/new`, write what should change, *Generate
+     again* — only the marked package is rebuilt.
+   - **"Build it" does not rebuild the app.** It delivers the one you just
+     shaped, re-checks it, and leaves the git history intact (ADR-0017). The
+     reveal's *Open & refine* takes you back into the design window on the same
+     files.
 
 Stop with `scripts/dev-down.sh`, and stop the Codespace itself when you are done
 — an idle Codespace still bills against your included hours.
+
+### If you already have a Codespace
+
+`git pull` and run `scripts/dev-up.sh` again. It is idempotent, applies any new
+migrations, rebuilds `@scio/shared` when it is stale and — since 2026-08-22 —
+regenerates the Prisma client, which `git pull` does not touch. Without that last
+step an existing Codespace runs the *new* schema's migrations against the *old*
+generated client and the api dies on a column it has never heard of.
+
+**A stale `apps/engine/.env` is the other trap.** If you put a key there once, the
+engine still finds it and reports `"providers":"real"` at `/health` — and an
+expired key fails every call rather than falling back to the free path. Either
+remove the file, or force the free path for a run:
+
+```bash
+SCIO_FAKE_PROVIDERS=1 scripts/dev-up.sh
+```
+
+Check which one you got:
+
+```bash
+curl -s localhost:8000/health    # "providers":"fake" = free, "real" = your key
+```
 
 ## What gets wired, and where it comes from
 
