@@ -32,6 +32,13 @@ that step, so we don't over-specify the far future now.
 Each phase lists: **Goal**, **Deliverable**, **Done when** (the test), **Track** (can it
 run in parallel). Status: [ ] todo · [~] in progress · [x] done.
 
+> **The checkboxes below were never ticked.** Every one of the 109 items still says todo,
+> including the ones that have been built, tested and shipped for weeks — so they are not a
+> status signal and should not be read as one. What this document is good for is the *plan*:
+> the phases, their order, and what "done" means for each. For what is actually built, read
+> **docs/BACKLOG.md** (per item) and **docs/CHANGELOG.md** (what changed and why); for the
+> coarse view, **docs/ROADMAP.md**, which was corrected on 2026-08-22.
+
 ---
 
 ## Phase 0 — Foundations & setup
@@ -331,7 +338,14 @@ Captured now so they're not lost; built after the app MVP.
   usable, testable checkpoint — you always have something that works.
 
 ## Immediate next 3 actions
-1. Phase 0.2 stack decisions (I draft ADRs: cloud, sandbox, backend, DB, auth) — these
-   unblock almost everything.
-2. Phase 1.1/1.2 in parallel: lock the logo direction + finalize design tokens.
-3. Then Phase 2: scaffold the shell and start building screens (your "app visual").
+
+_Rewritten 2026-08-22. The three that stood here — draft the stack ADRs, lock the logo,
+scaffold the shell — were done long ago._
+
+1. **Deploy it somewhere a person can open** (B079). The product works and nobody outside
+   this sandbox can reach it; that single gap is what stands between here and a tester.
+2. **Answer ADR-0018 and ADR-0019** in the planning chat: what "Get the code" and "Publish"
+   are, what Settings is, and what deletion keeps. Three screens and a data policy are
+   waiting on decisions, not on code.
+3. **Run a real build with the corrected pricing** and recalibrate the estimate (B115) — the
+   relay now charges for input tokens, and the estimate still predicts output only.

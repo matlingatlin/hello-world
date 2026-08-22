@@ -22,9 +22,11 @@ Two properties keep it honest:
   state it, but the reveal still marks the whole build as stand-in output, and
   the whole at the spec gate is the deterministic one (registry.is_fake).
 
-A real model reads a paragraph and fills six fields at once. This fills one per
-turn. That is a worse spec, not a fake one — and it is the difference between a
-product a person can try for free and a product nobody can open.
+A real model reads a paragraph and fills six fields at once. This fills the one
+that was asked, plus any of three others the same paragraph names unmistakably
+("no payments", "guests and staff", "no accounts" — B065). That is a worse spec,
+not a fake one, and it is the difference between a product a person can try for
+free and a product nobody can open.
 """
 
 from __future__ import annotations
@@ -150,19 +152,67 @@ def answer_extraction(prompt: str) -> str:
     if not field:
         return json.dumps({"fields": {}, "signals": _signals(turns)})
 
-    return json.dumps(
-        {
-            "fields": {
-                field: {
-                    "value": _value_for(field, user_text),
-                    "source": "stated",
-                    "confidence": "medium",
-                    "provenance": [user_id],
-                }
-            },
-            "signals": _signals(turns),
+    fields = {
+        field: {
+            "value": _value_for(field, user_text),
+            "source": "stated",
+            "confidence": "medium",
+            "provenance": [user_id],
         }
-    )
+    }
+    # A paragraph usually answers more than it was asked (B065). Filing only
+    # the asked field meant the free path needed one turn per field, and the
+    # person had already said it.
+    for extra, clause in _extra_fields(user_text, asked=field, recorded=recorded).items():
+        fields[extra] = {
+            "value": _value_for(extra, clause),
+            "source": "stated",
+            "confidence": "low",  # it is a clause we recognised, not one we understood
+            "provenance": [user_id],
+        }
+
+    return json.dumps({"fields": fields, "signals": _signals(turns)})
+
+
+# Clauses that clearly belong to a field OTHER than the one just asked about.
+#
+# Deliberately short, and deliberately only three fields (B065). A person
+# answering "guests book a table, no accounts, and definitely no payments"
+# has just told us three things, and filing two of them away because the
+# question was about something else is what made the free path feel like an
+# interrogation. Anything less obvious than these stays unfiled: a wrong field
+# costs a correction on the review screen, and the whole point of that screen
+# is that it should be nearly empty.
+CLAUSE_CUES: dict[str, tuple[str, ...]] = {
+    "non_goals": ("no ", "not ", "without ", "never ", "don't ", "dont ", "skip "),
+    "users_and_roles": ("guest", "customer", "user", "staff", "admin", "member", "student"),
+    "sign_in": ("log in", "login", "sign in", "signin", "account", "password", "sign up"),
+}
+
+_CLAUSE = re.compile(r"[.;!?\n]|,\s+(?=(?:and|but|no|not)\b)")
+
+
+def _clauses(text: str) -> list[str]:
+    return [part.strip() for part in _CLAUSE.split(text) if part and part.strip()]
+
+
+def _extra_fields(text: str, *, asked: str, recorded: set[str]) -> dict[str, str]:
+    """Fields a paragraph filled on its way past, in the person's own words.
+
+    Only ever fills a field that is EMPTY and was not the one being asked, and
+    only from a clause that names it unmistakably. Every value is still a span
+    the person typed, cited to the message they typed it in — this reads a
+    sentence, it does not understand one.
+    """
+    found: dict[str, str] = {}
+    for clause in _clauses(text):
+        lowered = clause.lower()
+        for field, cues in CLAUSE_CUES.items():
+            if field == asked or field in recorded or field in found:
+                continue
+            if any(cue in lowered for cue in cues):
+                found[field] = clause
+    return found
 
 
 _NEGATED = re.compile(r"\b(no|not|without|never|skip|drop)\b[^.;,]{0,24}$")

@@ -177,7 +177,14 @@ export function WizardPage() {
     <section>
       <Eyebrow>New app · guided setup</Eyebrow>
       <PageTitle>Let's shape your app</PageTitle>
-      <Lede>A few quick questions — answer in your own words. Scio structures it as you go.</Lede>
+      {/* Said out loud, because the screen looks like it wants one answer per
+          question and people give it one. The extractor has always filed
+          everything it could from a single message; the free path can now do a
+          smaller version of the same thing (B065). */}
+      <Lede>
+        A few quick questions — answer in your own words, and say as much at once as you like.
+        Scio structures it as you go.
+      </Lede>
 
       {error && (
         <div className="mb-4">

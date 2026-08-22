@@ -4,6 +4,39 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Corrected
+- 2026-08-22 — **The roadmap said phases 2 to 6 had not started.** They had. The repo holds
+  twenty ADRs, an engine that has completed real builds on real models, a working design
+  window and per-tenant metering — and the document that is supposed to say where the project
+  is claimed none of it existed. Corrected phase by phase, and where a phase is still marked
+  in progress the named gap is what is actually missing rather than a guess.
+
+  `docs/PROJECT-PLAN.md` had a worse version of the same problem: **all 109 of its checkboxes
+  still say todo**, including the ones shipped weeks ago. Ticking them accurately would take
+  an audit per line, and a half-ticked list is a new way to be wrong — so the document now
+  says plainly, at the top, that its checkboxes are not a status signal and points at BACKLOG
+  and CHANGELOG for what is built. Its "immediate next 3 actions" (draft the stack ADRs, lock
+  the logo, scaffold the shell) are replaced with the three that are actually next.
+
+
+### Changed
+- 2026-08-22 — **The free path stopped interrogating people** (B065). Without a key the
+  stand-in extractor filed exactly one field per turn — whatever the last question was about —
+  so a person who wrote "guests book a table, no accounts, and definitely no payments" had
+  told us three things and we recorded one, then asked about the other two.
+
+  It now also files the fields the same paragraph names unmistakably: `non_goals`,
+  `users_and_roles` and `sign_in`, from clauses like "no payments", "guests and staff", "no
+  accounts". Three fields, deliberately: anything less obvious stays unfiled, because a wrong
+  field costs a correction on a review screen whose whole point is that it should be nearly
+  empty. The honesty contract is unchanged and now has tests of its own — every value is a
+  span the person actually typed, cited to the message they typed it in, and a recognised
+  clause is marked `low` confidence because it was recognised, not understood.
+
+  The wizard also says you can answer several things at once. The screen looked like it wanted
+  one answer per question, so that is what people gave it.
+
+
 ### Added
 - 2026-08-22 — **The design window has more than one page now** (B069). It embedded the app's
   front door and offered no way to reach anything else, so on a booking app you could mark up
