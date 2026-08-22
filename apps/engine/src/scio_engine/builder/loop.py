@@ -644,6 +644,7 @@ async def _judge(
     preview: BuildPreview,
     opts: BuildOptions,
     attempt: int,
+    gates: tuple[str, ...] = GATES,
 ) -> tuple[_Gate, Manifest]:
     """Run the gates over whatever is on disk, cheapest and most certain first.
 
@@ -669,6 +670,11 @@ async def _judge(
             Remainder(what=p, where=package.id, source="instrumentation")
             for p in instrumentation_problems
         ]
+        return gate, manifest
+
+    if "validation" not in gates:
+        # An assembled package is judged on the ids and nothing else — the rest
+        # was settled by curation. See `verify_package`.
         return gate, manifest
 
     on_disk = _files_on_disk(app_dir, allowed)
@@ -899,16 +905,24 @@ def _settle(
     *,
     app_dir: Path,
     allowed: list[str],
+    gates: tuple[str, ...] = GATES,
 ) -> None:
     """Turn the last gate into the status and the remainders it can evidence.
 
     Shared by the build loop and the verify-only pass, because "what does this
     result honestly say" must not have two answers depending on who is asking.
+
+    `gates` names which of them were actually run. A package judged on a shorter
+    set must be scored against that set: an assembled part scored 4 out of 2 and
+    was called `needs_look` on a gate — the critique — that was deliberately not
+    run for it.
     """
     result.files = sorted(_files_on_disk(app_dir, allowed))
-    result.checks_passed = gate.score
+    short = gates != GATES
+    result.checks_passed = len(gates) if (short and gate.instrumentation_ok) else gate.score
+    passed = gate.instrumentation_ok if short else gate.passed
 
-    if gate.passed:
+    if passed:
         result.status = PackageStatus.passed
         result.remainders = [
             Remainder(what=f"Not verified: {item}", where=package.id, source="scope")
@@ -935,6 +949,7 @@ async def verify_package(
     preview: BuildPreview,
     options: BuildOptions | None = None,
     close_preview: bool = True,
+    gates: tuple[str, ...] = GATES,
 ) -> PackageBuildResult:
     """Judge code that is already on disk, without writing a line of it.
 
@@ -944,6 +959,16 @@ async def verify_package(
     checked by the same gates, in the same order, as a freshly built package.
     There is no repair loop: nothing here wrote the code, so there is nothing to
     ask a model to fix. What is wrong is reported.
+
+    `gates` is how an ASSEMBLED package is judged the way it was built. A part
+    that came from the library was never subject to the generated-code checks —
+    curation settled "does it run" and "does it meet its done-when", and the
+    build only re-checks that this app's ids resolve (ADR-0016). Re-running the
+    full set here failed a library component for using `createBooking` where the
+    plan says `create_booking`, which is not a defect in the app: it is this
+    pass holding a curated part to a contract it was never written against.
+    That first showed up as a preview saying "5 of 5 parts work" and the
+    delivery of the very same files saying "4 of 5".
     """
     opts = options or BuildOptions()
     app_dir = Path(app_dir).resolve()
@@ -952,7 +977,7 @@ async def verify_package(
     result = PackageBuildResult(
         package_id=package.id,
         status=PackageStatus.failed,
-        checks_total=len(GATES),
+        checks_total=len(gates),
     )
     try:
         gate, _manifest = await _judge(
@@ -960,12 +985,13 @@ async def verify_package(
             app_dir,
             allowed=allowed,
             # Nothing is being regenerated, so there is no "before" for
-            # guardrail 1 to compare against. The other four gates do the work.
+            # guardrail 1 to compare against. The other gates do the work.
             expected_ids=None,
             registry=registry,
             preview=preview,
             opts=opts,
             attempt=1,
+            gates=gates,
         )
     finally:
         if close_preview:
@@ -983,7 +1009,7 @@ async def verify_package(
             problems=gate.problems,
         )
     )
-    _settle(result, gate, package, app_dir=app_dir, allowed=allowed)
+    _settle(result, gate, package, app_dir=app_dir, allowed=allowed, gates=gates)
     return result
 
 

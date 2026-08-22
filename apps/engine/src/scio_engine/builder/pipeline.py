@@ -387,6 +387,15 @@ async def stream_promotion(
     plan = stored.plan
     profile = run_profile()
 
+    # The same choice the build made, for the same reason: with no real key the
+    # fake provider answers a critique with a digest, `parse_critique` cannot
+    # read it, and an unreadable verdict is a failure. Judging a promotion with
+    # the ordinary registry therefore downgraded parts that had *passed* minutes
+    # earlier — the first free-path click-through went "5 of 5 parts work" at
+    # the preview and "3 of 5" at the delivery, on files nobody had touched.
+    using_standin = registry.is_fake
+    judge = standin_registry() if using_standin else registry
+
     database: VerificationDatabase | None = None
     app_env: dict[str, str] = {}
     if verification_enabled():
@@ -418,7 +427,7 @@ async def stream_promotion(
     async for event, payload in stream_verification(
         plan,
         workspace,
-        registry=registry,
+        registry=judge,
         preview=running,
         options=AppBuildOptions(
             package=BuildOptions(critique_passes=1, spend=Spend(ceiling_usd=budget_usd)),
@@ -443,7 +452,7 @@ async def stream_promotion(
             result,
             project_id=project_id,
             whole=stored.whole,
-            standin=registry.is_fake,
+            standin=using_standin,
             workspace=str(workspace),
             preview=False,
             manifest=build_manifest(workspace, file_map),

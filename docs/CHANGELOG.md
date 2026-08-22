@@ -4,6 +4,39 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Fixed
+- 2026-08-22 — **Three things a click-through found that the tests did not**, all in the day's
+  own work, all on the free path a Codespace actually runs.
+
+  **A promotion judged a library part by rules it was never written to.** The preview said
+  "5 of 5 parts work" and the delivery of *the very same files* said "4 of 5". The part came
+  from the component library, where curation settles "does it run" and "does it meet its
+  done-when" and the build only re-checks that this app's ids resolve (ADR-0016) — but the
+  promotion re-ran the full generated-code gate set and failed it for writing `createBooking`
+  where the plan says `create_booking`. An assembled part is now judged on the gates it was
+  built with, and a shorter gate set is scored against itself rather than out of five (it was
+  reporting "4/2").
+
+  **A promotion with no key judged with the wrong registry.** The build uses the stand-in for
+  its critique; the promotion used the ordinary one, whose fake provider answers a critique
+  with a digest — and an unreadable verdict is a failure. Same choice as the build now.
+
+  **The stand-in filed the wrong span.** B065's clause routing put "Guests book a table at my
+  bistro" under `users_and_roles`, because it contains "Guest". The first clause is the answer
+  to the question that was asked and is never routed elsewhere now, and a clause is filed
+  without the "and" that joined it on — `sign_in` had become "and no accounts".
+
+- 2026-08-22 — **`dev-up.sh` regenerates the Prisma client.** It is a build artifact in
+  `node_modules`, and `git pull` does not rebuild it — so an existing Codespace ran the new
+  schema's migrations against the old client and died on a column the client had never heard
+  of. The same lesson as `@scio/shared`, learned the same way.
+
+  Verified by running the whole stack and clicking the product through end to end: new project
+  → wizard → approve → preview (5 of 5, three routes) → **Build it** → 5 of 5 delivered, the
+  workspace still at 5 commits and the same head, one build version — and a retry with the
+  same idempotency key replaying instead of building.
+
+
 ### Changed
 - 2026-08-22 — **The backlog says what each open item is waiting on.** Twenty-one items said
   "todo", which hides the difference between work nobody has done, work that needs a decision

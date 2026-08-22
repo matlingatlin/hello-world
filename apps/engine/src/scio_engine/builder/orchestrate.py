@@ -405,6 +405,10 @@ async def stream_verification(
     total = len(ordered)
     plan_files = file_plan(plan.packages)
 
+    # Imported here rather than at module scope, like the assembler below: the
+    # library reads the file plan, which lives in this package.
+    from ..library.assembler import ASSEMBLY_GATES
+
     results: list[PackageBuildResult] = []
     done = 0
 
@@ -429,6 +433,9 @@ async def stream_verification(
                 preview=preview,
                 options=replace(opts.package, package_files=plan_files, persist=False),
                 close_preview=False,  # one app, one sandbox — it outlives this part
+                # Judged the way it was built: a library part answers to its ids
+                # and to curation, not to this app's operation names.
+                gates=ASSEMBLY_GATES if package.assembled else GATES,
             )
             results.append(result)
             done += 1

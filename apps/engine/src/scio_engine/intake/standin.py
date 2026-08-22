@@ -196,6 +196,9 @@ def _clauses(text: str) -> list[str]:
     return [part.strip() for part in _CLAUSE.split(text) if part and part.strip()]
 
 
+_LEADING_CONJUNCTION = re.compile(r"^(?:and|but|or|so|then)\s+", re.IGNORECASE)
+
+
 def _extra_fields(text: str, *, asked: str, recorded: set[str]) -> dict[str, str]:
     """Fields a paragraph filled on its way past, in the person's own words.
 
@@ -203,15 +206,25 @@ def _extra_fields(text: str, *, asked: str, recorded: set[str]) -> dict[str, str
     only from a clause that names it unmistakably. Every value is still a span
     the person typed, cited to the message they typed it in — this reads a
     sentence, it does not understand one.
+
+    **The first clause is never routed elsewhere.** It is the answer to the
+    question that was just asked, and the asked field already has the whole
+    text. Routing it too filed "Guests book a table at my bistro" under
+    `users_and_roles` on the first real click-through — the person's own words,
+    under a field they were not answering, which is precisely the wrong-field
+    correction this is supposed to save them.
     """
     found: dict[str, str] = {}
-    for clause in _clauses(text):
-        lowered = clause.lower()
+    for clause in _clauses(text)[1:]:
+        trimmed = _LEADING_CONJUNCTION.sub("", clause).strip()
+        if not trimmed:
+            continue
+        lowered = trimmed.lower()
         for field, cues in CLAUSE_CUES.items():
             if field == asked or field in recorded or field in found:
                 continue
             if any(cue in lowered for cue in cues):
-                found[field] = clause
+                found[field] = trimmed
     return found
 
 

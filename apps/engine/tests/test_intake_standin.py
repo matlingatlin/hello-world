@@ -104,6 +104,28 @@ class TestReadingAParagraph:
 
         assert list(reply) == ["purpose"]
 
+    def test_the_first_clause_stays_where_it_was_asked_for(self):
+        # Found by the first click-through: "Guests book a table at my bistro"
+        # was filed under users_and_roles because it contains "Guest". The
+        # person's own words, under a field they were not answering — exactly
+        # the wrong-field correction this is meant to save them.
+        asked = guide_for("purpose").question
+        answer = "Guests book a table at my bistro. No payments."
+
+        reply = fields_of(answer_extraction(prompt(question=asked, answer=answer)))
+
+        assert "users_and_roles" not in reply
+        assert reply["non_goals"]["value"] == ["No payments"]
+
+    def test_a_clause_is_filed_without_the_word_joining_it_on(self):
+        # "and no accounts" is not what anyone would write in that box.
+        asked = guide_for("purpose").question
+        answer = "Guests book a table, and no accounts to sign in with."
+
+        reply = fields_of(answer_extraction(prompt(question=asked, answer=answer)))
+
+        assert reply["sign_in"]["value"] == "no accounts to sign in with"
+
     def test_a_recognised_clause_is_marked_low_confidence(self):
         # It was recognised, not understood, and the review screen shows the
         # difference.

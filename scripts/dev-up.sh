@@ -121,6 +121,17 @@ psql "postgresql://scio@127.0.0.1:$PGPORT/postgres" -tAc \
   "select 1 from pg_database where datname='scio'" | grep -q 1 ||
   psql "postgresql://scio@127.0.0.1:$PGPORT/postgres" -q -c "create database scio owner scio"
 
+# The generated Prisma client is a build artifact in node_modules, and a `git
+# pull` does not regenerate it. A Codespace that already existed therefore runs
+# the NEW schema's migrations against the OLD client, and the api dies at
+# runtime on a column the client has never heard of. Regenerating is a few
+# seconds and idempotent — the same lesson as @scio/shared below, learned the
+# same way.
+say "Prisma client"
+(cd "$ROOT/apps/api" && npx prisma generate) >/dev/null 2>&1 ||
+  die "prisma generate failed — run it in apps/api to see why"
+printf '  generated\n'
+
 say "Migrations"
 (cd "$ROOT/apps/api" && npx prisma migrate deploy) | sed 's/^/  /'
 

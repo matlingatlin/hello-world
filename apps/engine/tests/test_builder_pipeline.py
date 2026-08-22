@@ -305,6 +305,43 @@ class TestPromotion:
         assert checked == stored.plan.order
 
     @pytest.mark.asyncio
+    async def test_a_promotion_does_not_downgrade_what_the_build_passed(self, tmp_path: Path):
+        """Found by clicking through the free path, not by a test.
+
+        The preview said "5 of 5 parts work" and the delivery said "3 of 5", on
+        files nobody had touched. With no key the fake provider answers a
+        critique with a digest, an unreadable verdict is a failure, and the
+        promotion was judging with the ordinary registry while the build had
+        judged with the stand-in.
+        """
+        await self._build(tmp_path)
+
+        built = None
+        async for event, payload in stream_full_build(
+            booking_spec(),
+            project_id="p1",
+            registry=ProviderRegistry.fake(),
+            preview=clean(),
+            app_dir=tmp_path,
+        ):
+            if event == "finished":
+                built = payload
+
+        promoted = None
+        async for event, payload in stream_promotion(
+            project_id="p1",
+            app_dir=tmp_path,
+            registry=ProviderRegistry.fake(),
+            build_version=2,
+            preview=clean(),
+        ):
+            if event == "finished":
+                promoted = payload
+
+        assert isinstance(built, BuildFinished) and isinstance(promoted, BuildFinished)
+        assert promoted.parts_working == built.parts_working
+
+    @pytest.mark.asyncio
     async def test_the_delivered_app_keeps_the_history_it_was_built_with(self, tmp_path: Path):
         await self._build(tmp_path)
         before = (tmp_path / ".git").exists()
