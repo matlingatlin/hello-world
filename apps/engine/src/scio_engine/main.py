@@ -20,10 +20,10 @@ from pydantic import BaseModel, Field
 
 from .builder.pipeline import stream_full_build, stream_promotion
 from .builder.standin import standin_registry
-from .builder.workspace import WorkspaceUnavailable
+from .builder.workspace import WorkspaceUnavailable, discard_workspace
 from .config import LOADED_FROM_ENV_FILE, build_registry, use_fake_providers
 from .core.manifest_builder import build_manifest
-from .core.sandbox import close_all_previews
+from .core.sandbox import close_all_previews, close_preview_at
 from .design import ChangeBatch, DesignChangeResult, RestoreResult, apply_change, restore_version
 from .estimate import BuildEstimate, estimate_plan
 from .execution.matrix import UnknownTaskError, default_matrix
@@ -422,6 +422,28 @@ async def promote(req: PromoteRequest) -> StreamingResponse:
             yield _sse("error", json.dumps({"type": "build_failed", "message": str(exc)}))
 
     return StreamingResponse(with_heartbeat(event_stream()), media_type="text/event-stream")
+
+
+class DiscardRequest(BaseModel):
+    """Delete a project's code and stop its app (B100)."""
+
+    project_id: str = Field(description="Whose workspace to remove")
+    preview_url: str = Field(
+        default="", description="The app still being served for it, if one is"
+    )
+
+
+@app.post("/workspace/discard")
+async def discard(req: DiscardRequest) -> dict[str, object]:
+    """Remove a project's workspace and stop whatever is serving it.
+
+    Reports what it removed and what it could not, and never raises: a
+    workspace that will not delete must not stop the project from being
+    deleted, but it must never be reported as gone either.
+    """
+    stopped = close_preview_at(req.preview_url)
+    outcome = discard_workspace(req.project_id)
+    return {"stopped_preview": stopped, **outcome}
 
 
 class DesignChangeRequest(BaseModel):

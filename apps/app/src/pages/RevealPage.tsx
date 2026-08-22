@@ -176,14 +176,24 @@ export function RevealPage() {
           )}
 
           <div className="flex flex-col gap-2">
-            <Button onClick={() => navigate("/live")}>Open & refine →</Button>
-            <Button variant="ghost" onClick={() => navigate("/ship")}>
+            {/* "Open & refine" is the design window, and always was: since a
+                delivery build promotes the design workspace rather than
+                rebuilding it (ADR-0017), the app you shaped and the app you
+                were just given are the same files. It used to lead to a screen
+                that said it was being ported. */}
+            <Button onClick={() => navigate(`/projects/${projectId}/design`)}>
+              Open & refine →
+            </Button>
+            <Button variant="ghost" onClick={() => navigate(`/projects/${projectId}/ship`)}>
               Get the code
             </Button>
-            <Button variant="ghost" onClick={() => navigate("/ship")}>
-              Publish
-            </Button>
           </div>
+          {/* Said here rather than discovered by clicking. Publishing is not
+              built, and what it should mean — our hosting, their hosting, a
+              domain — is a decision, not an omission (B084). */}
+          <p className="text-[12px] text-muted mt-3">
+            Publishing your app somewhere permanent isn't built yet.
+          </p>
         </aside>
       </div>
     </section>

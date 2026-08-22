@@ -8,6 +8,7 @@ import { AppModule } from "../src/app.module";
 import { IDENTITY_VERIFIER } from "../src/auth/identity-verifier";
 import { ProvisioningService } from "../src/auth/provisioning.service";
 import { WorkspaceScope } from "../src/auth/workspace-scope";
+import { EngineClient } from "../src/engine/engine.client";
 
 /** Fake identity: token "w1-token" → workspace w1, "w2-token" → w2. */
 const fakeVerifier = {
@@ -82,6 +83,16 @@ describe("Project CRUD (e2e, workspace-scoped)", () => {
   let app: INestApplication;
   let http: any;
 
+  /** The engine, as the api sees it during a delete. */
+  const engine = {
+    discarded: [] as Array<{ projectId: string; previewUrl: string }>,
+    problems: [] as string[],
+    async discardWorkspace(projectId: string, previewUrl: string) {
+      engine.discarded.push({ projectId, previewUrl });
+      return { stopped_preview: true, removed: [`/tmp/${projectId}`], problems: engine.problems };
+    },
+  };
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(IDENTITY_VERIFIER)
@@ -90,6 +101,8 @@ describe("Project CRUD (e2e, workspace-scoped)", () => {
       .useValue(fakeProvisioning)
       .overrideProvider(WorkspaceScope)
       .useValue(new FakeScope())
+      .overrideProvider(EngineClient)
+      .useValue(engine)
       .compile();
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
@@ -154,6 +167,32 @@ describe("Project CRUD (e2e, workspace-scoped)", () => {
       .set(w1)
       .send({ status: "not-a-status" })
       .expect(400);
+  });
+
+  it("takes the code and the running app with it", async () => {
+    // Deleting used to set a timestamp and stop: the workspace, its git history
+    // and its screenshots stayed on disk and the preview kept answering on its
+    // port, so a "deleted" project was a hidden one (B100).
+    const created = await request(http).post("/projects").set(w1).send({ name: "Doomed" });
+    const id = created.body.project.id;
+
+    await request(http).delete(`/projects/${id}`).set(w1).expect(204);
+
+    expect(engine.discarded.at(-1)?.projectId).toBe(id);
+  });
+
+  it("deletes the project even when the code will not go — and does not say it did", async () => {
+    engine.problems = ["/tmp/p: Device or resource busy"];
+    const created = await request(http).post("/projects").set(w1).send({ name: "Stuck" });
+    const id = created.body.project.id;
+
+    await request(http).delete(`/projects/${id}`).set(w1).expect(204);
+
+    // Gone from the user's list either way: a directory that will not delete
+    // must not keep the project alive.
+    const list = await request(http).get("/projects").set(w1).expect(200);
+    expect(list.body.projects.map((p: any) => p.id)).not.toContain(id);
+    engine.problems = [];
   });
 
   it("soft-deletes; excluded from list; cross-tenant deletes are 404", async () => {

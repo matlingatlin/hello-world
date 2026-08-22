@@ -12,6 +12,7 @@ verifies the install itself.
 """
 
 import json
+import os
 
 import pytest
 
@@ -20,10 +21,12 @@ from scio_engine.builder.workspace import (
     DEV_DEPENDENCIES,
     WorkspaceUnavailable,
     deps_key,
+    discard_workspace,
     install_dependencies,
     package_json,
     prepare_workspace,
     stack_files,
+    workspace_root,
 )
 from scio_engine.core.sandbox import LocalProcessSandbox, SandboxError
 
@@ -132,3 +135,46 @@ class TestInstalling:
         app.mkdir()
         with pytest.raises(SandboxError, match="installed BEFORE"):
             LocalProcessSandbox().start(app)
+
+
+class TestDiscarding:
+    """B100: deleting a project has to delete the project.
+
+    It used to set a timestamp on a row. The code, the git history and the
+    screenshots stayed on disk, which makes "deleted" mean "hidden".
+    """
+
+    def test_it_removes_the_workspace_and_its_screenshots(self):
+        workspace = prepare_workspace("doomed", install=False)
+        shots = workspace_root() / "doomed-shots"
+        shots.mkdir(parents=True, exist_ok=True)
+        (shots / "attempt-1.png").write_bytes(b"x")
+
+        outcome = discard_workspace("doomed")
+
+        assert not workspace.exists()
+        assert not shots.exists()
+        assert len(outcome["removed"]) == 2
+        assert outcome["problems"] == []
+
+    def test_a_project_with_nothing_on_disk_is_not_a_failure(self):
+        # Deleting a project that was never built must not report a problem —
+        # there is nothing to remove, and that is the correct outcome.
+        outcome = discard_workspace("never-built")
+
+        assert outcome == {"removed": [], "problems": []}
+
+    def test_it_cannot_be_walked_out_of_the_workspace_root(self, tmp_path):
+        # A project id is data. It arrives from the api, which got it from a
+        # database, and one that walks upwards must not take a neighbour with it.
+        workspace_root().mkdir(parents=True, exist_ok=True)
+        outside = tmp_path / "not-ours"
+        outside.mkdir(parents=True, exist_ok=True)
+        (outside / "keep.txt").write_text("still here")
+        walk_up = os.path.relpath(outside, workspace_root())
+
+        outcome = discard_workspace(walk_up)
+
+        assert (outside / "keep.txt").exists()
+        assert outcome["removed"] == []
+        assert outcome["problems"]

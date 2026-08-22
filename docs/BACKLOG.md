@@ -12,7 +12,7 @@
 | B005 | Define MVP scope, non-goals, metrics                     | 1     | P0       | todo        |
 | B006 | Spec customer journey (UX flow, steps 1-7)               | 1     | P0       | done        |
 | B007 | Involvement levels (wizard only / wizard + design)       | 1     | P0       | done        |
-| B008 | Behind-the-scenes engine: directed diff, marking->code   | 2     | P1       | todo        |
+| B008 | Behind-the-scenes engine: directed diff, marking->code   | 2     | P1       | done (B067/B068; engine/design/change.py) |
 | B009 | Name decision: Scio (ADR-0002)                           | PP1   | P0       | done        |
 | B010 | Visual identity (ADR-0003) + DESIGN.md tokens            | PP1   | P0       | done        |
 | B011 | Full project plan -> docs/PROJECT-PLAN.md                | PP1   | P0       | done        |
@@ -26,11 +26,11 @@
 | B019 | Backend skeleton + API contract (NestJS)                 | PP3.2 | P0       | done        |
 | B020 | Auth integration (Clerk)                                 | PP3.3 | P0       | done        |
 | B021 | Project CRUD + persistence                               | PP3.4 | P0       | done        |
-| B022 | Port remaining screens to React (step 2)                 | PP2   | P0       | todo        |
+| B022 | Port remaining screens to React (step 2)                 | PP2   | P0       | in progress (ship done; live/versions/settings/notifications need ADR-0018) |
 | B027 | Layer A: intake schema (doc, ADR-0010)                   | PP4   | P0       | done        |
 | B028 | Build Layer A in engine (Pydantic + is_buildable)        | PP4   | P0       | done        |
-| B029 | Layer B: understanding / architecture (design)           | PP4   | P0       | todo        |
-| B030 | Layer C: build plan / decomposition (design)             | PP4   | P0       | todo        |
+| B029 | Layer B: understanding / architecture (design)           | PP4   | P0       | done (ADR-0012; built in engine/layerb) |
+| B030 | Layer C: build plan / decomposition (design)             | PP4   | P0       | done (ADR-0013; built in engine/layerc) |
 | B031 | Engine: scaffold + provider abstraction + matrix + multi-pass | PP4 | P0     | done        |
 | B032 | Generated-app stack locked (ADR-0011)                    | PP4   | P0       | done        |
 | B033 | Layer B: understanding/architecture (ADR-0012 + doc)     | PP4   | P0       | done        |
@@ -85,7 +85,7 @@
 | B081 | A build has no spend ceiling — budget_usd is plumbed through and never set | PP4 | P0 | done |
 | B082 | Design-window spend is never metered — preview + change costs are returned and dropped | PP4 | P0 | done |
 | B083 | Two builds can run on one project and share (and wipe) one workspace directory | PP5 | P0 | done |
-| B084 | The reveal's actions all lead to placeholders — /ship (own it), /live (refine), /settings | PP8 | P0 | todo |
+| B084 | The reveal's actions all lead to placeholders — /ship (own it), /live (refine), /settings | PP8 | P0 | in progress (refine + ship wired; publish/settings need ADR-0018) |
 | B085 | applyWorkspaceScope fails OPEN for upsert/createMany — make it throw instead | PP9 | P1 | done |
 | B086 | A dropped connection still reads as "the build stopped" — reconnect, do not declare | PP5 | P1 | done |
 | B087 | build_package is 226 lines doing six jobs — split the attempt body out of the loop | PP6 | P1 | done |
@@ -101,7 +101,7 @@
 | B097 | No graceful shutdown: previews orphan, streams cut without an error event, Prisma never disconnects | PP10 | P1 | done |
 | B098 | The engine has zero logging; no tracing, metrics or error reporting anywhere | PP10 | P0 | done |
 | B099 | No rate limiting and no per-workspace quota — the bill is unbounded at three levels | PP9 | P0 | done |
-| B100 | No deletion path: soft-delete leaves workspaces, git history and usage rows; user.deleted does nothing | PP9 | P0 | todo |
+| B100 | No deletion path: soft-delete leaves workspaces, git history and usage rows; user.deleted does nothing | PP9 | P0 | in progress (projects delete for real; account deletion needs ADR-0019) |
 | B101 | Clerk webhook accepts unsigned requests — verify BEFORE implementing the handler | PP9 | P1 | done |
 | B102 | No error boundary in the app — one thrown render blanks the page after a paid build | PP2 | P1 | done |
 | B103 | No API versioning and no idempotency key on POST /build — a retry is a second bill | PP3 | P1 | done |

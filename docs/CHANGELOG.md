@@ -4,6 +4,45 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Fixed
+- 2026-08-22 — **Deleting a project now deletes the project** (B100, ADR-0019). It used to set
+  a timestamp on a row: the workspace, its git history and its screenshots stayed on disk
+  indefinitely and the preview kept answering on its port, so a "deleted" project was a hidden
+  one. `DELETE /v1/projects/:id` now stops the app and removes the workspace
+  (`POST /workspace/discard`, `close_preview_at`), and the row is marked deleted whether or
+  not the files went — a directory that will not delete must not keep the project alive, but
+  it is logged rather than reported as success, because the failure to avoid is telling
+  someone their code is gone while it sits on our disk. The workspace path is checked against
+  the root before anything is removed: a project id is data, and one that walks upwards must
+  not take a neighbour with it.
+
+  Kept deliberately: the metering ledger. `usage_event` says what was spent from a
+  workspace's allowance, and a charge that vanishes with its project is not a ledger. What
+  survives, what does not, and account deletion (`user.deleted` still writes nothing) are in
+  ADR-0019 as proposals, because they trade a person's right to erasure against an auditable
+  record of what they were charged — which is a decision, not an implementation.
+
+### Changed
+- 2026-08-22 — **The reveal's actions go somewhere real** (B022/B084, ADR-0018). All three led
+  to a screen that said it was being ported from the prototype.
+
+  **"Open & refine" is the design window**, and needed no decision: since a delivery build
+  promotes the design workspace rather than rebuilding it (ADR-0017), the app you shaped and
+  the app you were handed are the same files.
+
+  **"Get the code" has a real screen** — the version, the commit, when it was built, the
+  honest status — and a plain list of what is *not* built: downloading the repository, pushing
+  it to your own remote, publishing it. Named individually, because "coming soon" over three
+  different things tells the user nothing about which one they need. On the one screen whose
+  whole subject is ownership, a placeholder apologising for itself was the worst option
+  available.
+
+  **"Publish" is gone as a button** and is one sentence on the reveal instead. What publishing
+  should mean — whose hosting, whose domain, who pays when they stop — is in ADR-0018, along
+  with what Settings should be. Deciding those silently to fill three screens is how you end
+  up with three screens nobody wants.
+
+
 ### Changed
 - 2026-08-22 — **The design window's preview is a state machine now** (B090). Six `useState`s
   described one thing: `previewUrl`, `manifest`, `preparing`, `lines`, `error`,

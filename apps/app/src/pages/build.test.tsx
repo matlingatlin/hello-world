@@ -7,6 +7,7 @@ import { ApiError } from "../lib/api";
 import * as useApiModule from "../lib/useApi";
 import { BuildPage } from "./BuildPage";
 import { RevealPage } from "./RevealPage";
+import { ShipPage } from "./ShipPage";
 
 /**
  * The build view and the reveal, with the API mocked.
@@ -93,6 +94,7 @@ function renderAt(path: string, element: JSX.Element) {
       <Routes>
         <Route path="/projects/:projectId/build" element={element} />
         <Route path="/projects/:projectId/reveal" element={element} />
+        <Route path="/projects/:projectId/ship" element={element} />
       </Routes>
     </MemoryRouter>,
   );
@@ -324,11 +326,52 @@ describe("Reveal", () => {
     expect(screen.queryByTitle("Your app")).toBeNull();
   });
 
-  it("offers refine and export actions", async () => {
+  it("sends 'Open & refine' to the design window, which is where refining happens", async () => {
+    // It used to lead to a placeholder that said it was being ported. Since a
+    // delivery build promotes the design workspace rather than rebuilding it
+    // (ADR-0017), the app you shaped and the app you were given are the same
+    // files — so the button has had somewhere real to go for a while.
     mockApi({});
     renderAt("/projects/p1/reveal", <RevealPage />);
 
     await userEvent.click(await screen.findByRole("button", { name: /Open & refine/ }));
-    expect(navigate).toHaveBeenCalledWith("/live");
+    expect(navigate).toHaveBeenCalledWith("/projects/p1/design");
+  });
+
+  it("says publishing is not built rather than offering a button that isn't", async () => {
+    mockApi({});
+    renderAt("/projects/p1/reveal", <RevealPage />);
+
+    expect(await screen.findByText(/Publishing your app somewhere permanent isn't built yet/))
+      .toBeDefined();
+    expect(screen.queryByRole("button", { name: /Publish/ })).toBeNull();
+  });
+});
+
+describe("Getting the code", () => {
+  it("names the commit the user owns", async () => {
+    mockApi({});
+    renderAt("/projects/p1/ship", <ShipPage />);
+
+    expect(await screen.findByText("3a28a30d9de2aaaa")).toBeDefined();
+  });
+
+  it("says what is not built, one thing at a time", async () => {
+    // "Coming soon" over three different things tells the user nothing about
+    // which one they need. This screen used to be a placeholder apologising for
+    // itself — on the one screen whose whole subject is ownership.
+    mockApi({});
+    renderAt("/projects/p1/ship", <ShipPage />);
+
+    expect(await screen.findByText(/Downloading the repository/)).toBeDefined();
+    expect(screen.getByText(/Pushing to your own remote/)).toBeDefined();
+    expect(screen.getByText(/Publishing it somewhere permanent/)).toBeDefined();
+  });
+
+  it("sends you to build first when there is nothing to hand over", async () => {
+    mockApi({ latestBuild: vi.fn().mockResolvedValue(latest({ buildVersion: null })) });
+    renderAt("/projects/p1/ship", <ShipPage />);
+
+    expect(await screen.findByText("Nothing has been built yet")).toBeDefined();
   });
 });

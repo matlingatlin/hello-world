@@ -370,6 +370,37 @@ def choose_sandbox() -> SandboxProvider:
     return LocalProcessSandbox()
 
 
+def close_preview_at(url: str) -> bool:
+    """Stop the one preview being served at `url`. True if something stopped.
+
+    Deleting a project has to stop its app as well as remove its files (B100):
+    a "deleted" project whose preview is still answering on a port is not
+    deleted, it is hidden. Keyed on the url because that is the only handle the
+    api has — it is what it stored when the build finished.
+    """
+    url = (url or "").rstrip("/")
+    if not url:
+        return False
+
+    container = LocalDockerSandbox._live.pop(url, None)
+    if container is not None:
+        subprocess.run(
+            ["docker", "rm", "-f", container], capture_output=True, timeout=15, check=False
+        )
+        return True
+
+    process = LocalProcessSandbox._live.pop(url, None)
+    if process is not None:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+        return True
+    return False
+
+
 def close_all_previews() -> int:
     """Stop every preview this process started, of either kind. Returns how many.
 

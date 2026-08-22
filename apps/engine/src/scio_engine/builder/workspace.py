@@ -217,6 +217,37 @@ def workspace_root() -> Path:
     return Path(os.getenv(WORKSPACE_ROOT_ENV, str(ENGINE_ROOT / "out" / "projects"))).resolve()
 
 
+def discard_workspace(project_id: str) -> dict[str, object]:
+    """Remove a project's workspace, and say honestly what was removed (B100).
+
+    Deleting a project used to mean setting a timestamp on a row. The code, the
+    git history and the screenshots stayed on disk indefinitely — so a user who
+    deleted a project still had their app sitting on our machine, which is the
+    opposite of what the word means.
+
+    Never raises. A workspace that cannot be removed must not stop the project
+    from being deleted; it must be *reported* instead, because the one thing
+    this must never do is claim something is gone when it is not.
+    """
+    root = workspace_root()
+    removed: list[str] = []
+    problems: list[str] = []
+    # The workspace itself and its screenshot directory, which lives beside it.
+    for target in (root / project_id, root / f"{project_id}-shots"):
+        if not target.exists():
+            continue
+        # Never step outside the root, whatever the project id says.
+        if root not in target.resolve().parents:
+            problems.append(f"{target} is not inside the workspace root")
+            continue
+        try:
+            shutil.rmtree(target)
+            removed.append(str(target))
+        except OSError as exc:
+            problems.append(f"{target}: {exc}")
+    return {"removed": removed, "problems": problems}
+
+
 def deps_cache_root() -> Path:
     """Where installed dependency sets live, shared across projects."""
     return Path(os.getenv(DEPS_CACHE_ENV, str(ENGINE_ROOT / "out" / "deps"))).resolve()

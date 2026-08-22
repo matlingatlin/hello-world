@@ -6,6 +6,7 @@ import { CreatePage } from "./pages/CreatePage";
 import { DesignPage } from "./pages/DesignPage";
 import { InvolvePage } from "./pages/InvolvePage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
+import { ShipPage } from "./pages/ShipPage";
 import { BuildPage } from "./pages/BuildPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { RevealPage } from "./pages/RevealPage";
@@ -15,7 +16,6 @@ import { WizardPage } from "./pages/WizardPage";
 const PLACEHOLDERS: Array<{ path: string; title: string }> = [
   { path: "/live", title: "Refine" },
   { path: "/versions", title: "Versions" },
-  { path: "/ship", title: "Ship" },
   { path: "/settings", title: "Settings" },
   { path: "/states", title: "Error & empty states" },
   { path: "/notifications", title: "Notifications" },
@@ -52,12 +52,14 @@ export function App() {
         <Route path="/projects/:projectId/design" element={<DesignPage />} />
         <Route path="/projects/:projectId/build" element={<BuildPage />} />
         <Route path="/projects/:projectId/reveal" element={<RevealPage />} />
+        <Route path="/projects/:projectId/ship" element={<ShipPage />} />
         <Route path="/wizard" element={<Navigate to="/projects" replace />} />
         <Route path="/spec" element={<Navigate to="/projects" replace />} />
         <Route path="/involve" element={<Navigate to="/projects" replace />} />
         <Route path="/design" element={<Navigate to="/projects" replace />} />
         <Route path="/build" element={<Navigate to="/projects" replace />} />
         <Route path="/reveal" element={<Navigate to="/projects" replace />} />
+        <Route path="/ship" element={<Navigate to="/projects" replace />} />
         {PLACEHOLDERS.map(({ path, title }) => (
           <Route key={path} path={path} element={<PlaceholderPage title={title} />} />
         ))}

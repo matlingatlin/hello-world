@@ -431,6 +431,33 @@ export class EngineClient {
     }
   }
 
+  /**
+   * Delete a project's code and stop its app (B100).
+   *
+   * Never throws: deleting a project must not fail because a directory would
+   * not go. The report says what actually happened, and the caller records it
+   * rather than assuming — the one thing neither of us may do is claim the code
+   * is gone when it is still there.
+   */
+  async discardWorkspace(
+    projectId: string,
+    previewUrl: string,
+  ): Promise<{ stopped_preview: boolean; removed: string[]; problems: string[] }> {
+    try {
+      return await this.post(
+        "/workspace/discard",
+        { project_id: projectId, preview_url: previewUrl },
+        30_000,
+      );
+    } catch (err) {
+      return {
+        stopped_preview: false,
+        removed: [],
+        problems: [`the engine could not be reached: ${(err as Error).message}`],
+      };
+    }
+  }
+
   /** Layer C, for the rough part count. Null rather than throwing. */
   async plan(architecture: Record<string, unknown>, whole: string): Promise<EnginePlanResponse | null> {
     try {
