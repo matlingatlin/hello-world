@@ -651,3 +651,71 @@ class TestContributeBackGate:
 
         explanation = review(candidate).explain()
         assert "Not added" in explanation and "[tested]" in explanation
+
+
+class TestWhatAnEntryNeedsFromTheApp:
+    """B116: naming the package you depend on is not naming what you import.
+
+    The seeded booking feature imports `getSupabaseClient` from
+    `@/lib/supabase`. It was assembled into an app whose `lib/supabase.ts`
+    exported a single boolean and shipped with a green trust receipt, because
+    every gate at the time read one package at a time.
+    """
+
+    def entry(self):
+        from scio_engine.library.store import default_store
+
+        return default_store().catalog().get("feature-booking")
+
+    def test_the_seeded_entry_says_what_it_imports(self):
+        assert [(r.module, r.symbols) for r in self.entry().requires] == [
+            ("@/lib/supabase", ["getSupabaseClient"])
+        ]
+
+    def test_an_app_that_provides_it_has_nothing_missing(self, tmp_path):
+        from scio_engine.library.assembler import unmet_requirements
+
+        (tmp_path / "lib").mkdir()
+        (tmp_path / "lib" / "supabase.ts").write_text(
+            "export function getSupabaseClient() {\n  return null;\n}\n"
+        )
+
+        assert unmet_requirements(tmp_path, self.entry()) == []
+
+    def test_an_app_that_exports_something_else_is_named(self, tmp_path):
+        from scio_engine.library.assembler import unmet_requirements
+
+        (tmp_path / "lib").mkdir()
+        (tmp_path / "lib" / "supabase.ts").write_text("export const ready = true;\n")
+
+        assert unmet_requirements(tmp_path, self.entry()) == ["@/lib/supabase (getSupabaseClient)"]
+
+    def test_a_module_that_does_not_exist_at_all_is_named(self, tmp_path):
+        from scio_engine.library.assembler import unmet_requirements
+
+        assert unmet_requirements(tmp_path, self.entry()) == ["@/lib/supabase (getSupabaseClient)"]
+
+    def test_a_re_export_counts(self, tmp_path):
+        # `export { getSupabaseClient } from "./client"` is how a foundation
+        # would plausibly provide it, and refusing that would send us off to
+        # generate a component we already have.
+        from scio_engine.library.assembler import unmet_requirements
+
+        (tmp_path / "lib").mkdir()
+        (tmp_path / "lib" / "supabase.ts").write_text(
+            'export { getSupabaseClient } from "./client";\n'
+        )
+
+        assert unmet_requirements(tmp_path, self.entry()) == []
+
+    def test_an_npm_module_is_not_our_business(self, tmp_path):
+        from scio_engine.library.assembler import unmet_requirements
+        from scio_engine.library.entry import Requirement
+
+        entry = self.entry().model_copy(
+            update={"requires": [Requirement(module="zod", symbols=["z"])]}
+        )
+
+        # Guessing at a package manager's resolution would produce confident
+        # nonsense; npm dependencies are declared separately and installed.
+        assert unmet_requirements(tmp_path, entry) == []

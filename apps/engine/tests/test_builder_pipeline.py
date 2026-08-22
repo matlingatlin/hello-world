@@ -180,6 +180,26 @@ class TestFullBuild:
         assert len(finished.routes) == len(set(finished.routes))  # named once each
 
     @pytest.mark.asyncio
+    async def test_the_library_still_covers_a_part_it_actually_fits(self, tmp_path: Path):
+        # The other half of B116: refusing to assemble when an import is unmet
+        # must not turn into refusing to assemble at all. Assembly is the cheap
+        # path and the reason the library exists.
+        results = {}
+        async for event, payload in stream_full_build(
+            booking_spec(),
+            project_id="p-library",
+            registry=ProviderRegistry.fake(),
+            preview=clean(),
+            app_dir=tmp_path,
+        ):
+            if event == "package":
+                results[payload.package_id] = payload
+
+        booking = results["pkg_feature_booking"]
+        assert booking.entry_id == "feature-booking"
+        assert booking.status.value == "passed"
+
+    @pytest.mark.asyncio
     async def test_progress_counts_parts_that_actually_finished(self, tmp_path: Path):
         finished_events = []
         total = 0

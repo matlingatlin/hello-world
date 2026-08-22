@@ -30,6 +30,14 @@
     "pkg_schema",
     "pkg_design_tokens"
   ],
+  "requires": [
+    {
+      "module": "@/lib/supabase",
+      "symbols": [
+        "getSupabaseClient"
+      ]
+    }
+  ],
   "npm_dependencies": [
     "zod",
     "@supabase/supabase-js",

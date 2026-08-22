@@ -329,13 +329,41 @@ async def stream_build_plan(
                 ),
             )
 
-            if package.assembled:
-                # Imported here, not at module scope: the library reads the file
-                # plan, which lives in this package — importing it eagerly makes
-                # a cycle that only shows up depending on who imports first.
-                from ..library.assembler import assemble_package
-                from ..library.matcher import package_entity
+            # Imported here, not at module scope: the library reads the file
+            # plan, which lives in this package — importing it eagerly makes a
+            # cycle that only shows up depending on who imports first.
+            from ..library.assembler import assemble_package, unmet_requirements
+            from ..library.matcher import package_entity
+            from ..library.store import default_store
 
+            assemble = package.assembled
+            if assemble:
+                # Does this app provide what the component imports? The entry
+                # names the packages it depends on, and until now that was all
+                # it named — so a component could be dropped into an app whose
+                # foundation exports something else entirely, and did (B116).
+                # Checked BEFORE writing anything, because "generate it instead"
+                # is a working app and a report about a broken one is not.
+                entry = default_store().catalog().get(package.catalog_entry)
+                missing = unmet_requirements(app_dir, entry) if entry else []
+                if missing:
+                    assemble = False
+                    yield (
+                        "progress",
+                        BuildProgress(
+                            package_id=package.id,
+                            index=index,
+                            total=total,
+                            done=done,
+                            status="building",
+                            message=(
+                                f"{package.id}: the library part needs {', '.join(missing)}, "
+                                "which this app does not provide — building it instead"
+                            ),
+                        ),
+                    )
+
+            if assemble:
                 # The library covers this one: no relay, no repair loop. The
                 # instrumentation verifier still runs inside assemble_package —
                 # curation settles whether the part is good, never whether it

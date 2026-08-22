@@ -661,3 +661,53 @@ class TestTheAppWideTypecheck:
 
         assert result.app_unjudged  # recorded
         assert result.works is True  # and never a failure on its own
+
+
+class TestALibraryPartThatDoesNotFit:
+    """B116. An entry names the packages it depends on; it named nothing about
+    what it *imports* from them, so a component was assembled into an app whose
+    foundation exported something else entirely — and shipped."""
+
+    def _plan_with_an_assembled_booking(self):
+        plan = make_plan()
+        booking = plan.get(BOOKING)
+        assert booking is not None
+        booking.source = "assemble"
+        booking.catalog_entry = "feature-booking"
+        return plan
+
+    async def test_a_part_whose_imports_are_unmet_is_generated_instead(self, tmp_path):
+        # The app's foundation exports the wrong thing — which is exactly what
+        # the stand-in used to write into lib/supabase.ts.
+        (tmp_path / "lib").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "lib" / "supabase.ts").write_text("export const ready = true;\n")
+
+        result, _, _ = await run(tmp_path, ALL_GOOD, plan=self._plan_with_an_assembled_booking())
+
+        booking = result.get(BOOKING)
+        assert booking is not None
+        assert booking.entry_id == ""  # not assembled — generated
+        assert booking.files  # and it really was built
+
+    async def test_the_build_says_why_rather_than_quietly_generating(self, tmp_path):
+        (tmp_path / "lib").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "lib" / "supabase.ts").write_text("export const ready = true;\n")
+
+        messages = []
+        async for event, payload in stream_build_plan(
+            self._plan_with_an_assembled_booking(),
+            tmp_path,
+            contracts=CONTRACTS,
+            registry=ProviderRegistry.scripted(ALL_GOOD, loop_last=False),
+            preview=CountingPreview([clean()]),
+            options=options(),
+        ):
+            if event == "progress":
+                messages.append(payload.message)
+
+        assert any("which this app does not provide" in m for m in messages)
+
+    # The other half — a part whose imports ARE met is still assembled — is held
+    # in test_builder_pipeline, against Layer C's real plan. This file's plan is
+    # hand-written and its file list does not match what the entry writes, so
+    # assembly here would fail for a reason that has nothing to do with B116.

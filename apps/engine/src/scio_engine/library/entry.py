@@ -127,6 +127,22 @@ class Provides(BaseModel):
         return {canonical_name(name) for name in self.entities if canonical_name(name)}
 
 
+class Requirement(BaseModel):
+    """A module this entry imports from, and the names it expects to find there.
+
+    An entry saying it depends on `pkg_foundation` says nothing about what it
+    needs from it. The seeded booking feature imports `getSupabaseClient` from
+    `@/lib/supabase`, was assembled into an app whose `lib/supabase.ts` exported
+    a single boolean, and shipped with a green trust receipt — because every
+    gate at the time read one package at a time (B116).
+    """
+
+    module: str = Field(description="The specifier as the code writes it, e.g. '@/lib/supabase'")
+    symbols: list[str] = Field(
+        default_factory=list, description="Exports the entry's own code refers to by name"
+    )
+
+
 class CatalogEntry(BaseModel):
     """One curated, reusable part of an app."""
 
@@ -167,6 +183,12 @@ class CatalogEntry(BaseModel):
     package_dependencies: list[str] = Field(
         default_factory=list,
         description="Build-package ids this entry's code expects to exist (foundation, schema…)",
+    )
+    requires: list[Requirement] = Field(
+        default_factory=list,
+        description="What this entry's code IMPORTS from those packages. Naming the package "
+        "was never enough: a component can depend on pkg_foundation and still be dropped into "
+        "an app whose foundation exports something else entirely (B116).",
     )
     npm_dependencies: list[str] = Field(default_factory=list)
 

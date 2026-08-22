@@ -5,6 +5,24 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Added
+- 2026-08-22 — **A library entry says what it imports, not just who it depends on** (B116).
+  The seeded booking feature declared `package_dependencies: [pkg_foundation, …]` and nothing
+  about the fact that its code calls `getSupabaseClient` from `@/lib/supabase`. That is how it
+  ended up assembled into an app whose foundation exported one boolean.
+
+  Entries now carry `requires` — a module and the names expected from it — and the build
+  checks them against the app **before** writing anything. A part that does not fit is
+  *generated* instead, and the build says so in its progress rather than quietly swapping
+  strategies: "the library part needs @/lib/supabase (getSupabaseClient), which this app does
+  not provide — building it instead".
+
+  Before, not after, is the whole point: a working app beats an honest report about a broken
+  one. The typecheck gate stays the backstop for what a text check misses, and the positive
+  case is pinned too — a part the app *can* satisfy is still assembled, because assembly is
+  the cheap path and the reason the library exists.
+
+
+### Added
 - 2026-08-22 — **The build asks whether the app compiles** (B048, first half). It never had,
   and the first answer was no: a build that reported **"5 of 5 parts work"** shipped a
   `lib/db/booking.ts` importing `getSupabaseClient` from a `lib/supabase.ts` that exports one

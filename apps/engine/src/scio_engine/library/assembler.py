@@ -22,6 +22,7 @@ What adaptation actually is:
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from ..builder.file_plan import planned_files
@@ -52,6 +53,56 @@ def token_values(tokens: DesignTokens | None) -> dict[str, str]:
     if tokens is None:
         return {}
     return {**tokens.palette, **tokens.typography, **tokens.radius}
+
+
+def _module_path(app_dir: Path, specifier: str) -> Path | None:
+    """Where a module specifier lands in this app, if it lands anywhere.
+
+    Only the app's own modules are resolved. A package from npm is the package
+    manager's problem, and guessing at one here would produce confident nonsense.
+    """
+    if not specifier.startswith(("@/", "./", "../")):
+        return None
+    relative = specifier[2:] if specifier.startswith("@/") else specifier
+    for suffix in (".ts", ".tsx", "/index.ts", "/index.tsx"):
+        candidate = app_dir / f"{relative}{suffix}"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def unmet_requirements(app_dir: Path, entry: CatalogEntry) -> list[str]:
+    """What this entry imports that the app in front of us does not provide.
+
+    A text check, not a compiler — `export function x`, `export const x`,
+    `export { x }`, or a re-export. It runs BEFORE the files are written, which
+    a compiler cannot do, and the app-wide typecheck (builder/typecheck.py) is
+    the backstop that catches whatever this misses.
+
+    The point is the timing: knowing a component does not fit *before* dropping
+    it in means the package can simply be generated instead, which is a working
+    app rather than an honest report about a broken one (B116).
+    """
+    missing: list[str] = []
+    for requirement in entry.requires:
+        if not requirement.module.startswith(("@/", "./", "../")):
+            # An npm package. Whether it resolves is the package manager's
+            # answer, and guessing at it here would produce confident nonsense;
+            # what an entry needs installed is declared as `npm_dependencies`.
+            continue
+        target = _module_path(Path(app_dir), requirement.module)
+        if target is None:
+            missing += [f"{requirement.module} ({name})" for name in requirement.symbols]
+            continue
+        source = target.read_text()
+        for name in requirement.symbols:
+            exported = re.search(
+                rf"export\s+(?:async\s+)?(?:function|const|let|var|class|type|interface)\s+{re.escape(name)}\b",
+                source,
+            ) or re.search(rf"export\s*\{{[^}}]*\b{re.escape(name)}\b", source, re.DOTALL)
+            if not exported:
+                missing.append(f"{requirement.module} ({name})")
+    return missing
 
 
 def assemble_package(
