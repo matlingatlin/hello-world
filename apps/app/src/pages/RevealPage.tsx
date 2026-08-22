@@ -88,13 +88,32 @@ export function RevealPage() {
 
   const status = build?.honestStatus ?? null;
   const works = status?.works ?? false;
+  /**
+   * There is a preview running, and nothing has been delivered.
+   *
+   * `latestBuild` returns the project's preview URL whether or not a build ever
+   * happened, so a project that has only been through the design window
+   * rendered here as "Ready — here's your app", with a running app in the frame
+   * and no trust receipt, offering to hand over code that does not exist yet.
+   * Found by clicking the real app.
+   */
+  const previewOnly = build !== null && build.buildVersion === null && !!build.previewUrl;
 
   return (
     <section>
-      <Eyebrow>Ready</Eyebrow>
-      <PageTitle>{works ? "Here's your app" : "Here's your app — with a few notes"}</PageTitle>
+      <Eyebrow>{previewOnly ? "Preview" : "Ready"}</Eyebrow>
+      <PageTitle>
+        {previewOnly
+          ? "This is your preview — nothing has been built yet"
+          : works
+            ? "Here's your app"
+            : "Here's your app — with a few notes"}
+      </PageTitle>
       <Lede>
-        {status?.summary?.split("\n")[0] ?? "Running from your project's own code, which you own."}
+        {previewOnly
+          ? "The design window built this so you could click it and mark it up. Building it is the step that produces a version you own."
+          : (status?.summary?.split("\n")[0] ??
+            "Running from your project's own code, which you own.")}
       </Lede>
 
       {error && (
@@ -149,7 +168,7 @@ export function RevealPage() {
             <div className="bg-surface border border-line rounded-card p-[18px] relative">
               <span className="absolute top-3 left-3 w-2.5 h-2.5 border-t-[1.5px] border-l-[1.5px] border-line-strong" />
               <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-2.5">
-                What you built
+                {previewOnly ? "What this is" : "What you built"}
               </div>
               <p className="text-[13px] leading-relaxed whitespace-pre-wrap">{build.whole}</p>
             </div>
@@ -184,9 +203,17 @@ export function RevealPage() {
             <Button onClick={() => navigate(`/projects/${projectId}/design`)}>
               Open & refine →
             </Button>
-            <Button variant="ghost" onClick={() => navigate(`/projects/${projectId}/ship`)}>
-              Get the code
-            </Button>
+            {previewOnly ? (
+              // Not "get the code": there is no version to hand over yet, and
+              // offering one would be a promise this screen cannot keep.
+              <Button variant="ghost" onClick={() => navigate(`/projects/${projectId}/build`)}>
+                Build it →
+              </Button>
+            ) : (
+              <Button variant="ghost" onClick={() => navigate(`/projects/${projectId}/ship`)}>
+                Get the code
+              </Button>
+            )}
           </div>
           {/* Said here rather than discovered by clicking. Publishing is not
               built, and what it should mean — our hosting, their hosting, a

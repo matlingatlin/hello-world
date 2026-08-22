@@ -152,6 +152,7 @@ against ours).
 | B114 | SandboxProvider declares env in its abstract signature and one of two implementations ignores it — add a provider conformance test | PP6 | P0 | done |
 | B115 | The estimate predicts output tokens only, so its point cost is low now that input is priced — calibrate against a real run | PP4 | P1 | todo |
 | B116 | A library entry names the packages it depends on but not the SYMBOLS it needs from them — the assembler can drop a component into an app that cannot provide them | PP4 | P1 | done |
+| B117 | Scio's own shell render-blocks on a Google Fonts stylesheet — the mistake B078 fixed in generated apps, in our own product | PP2 | P2 | todo |
 
 **B080 — a Codespace is the way in.** It runs the stack *and* forwards ports, so each one gets an
 `https://<name>-<port>.app.github.dev` origin openable from a phone — no deploy, no hosting

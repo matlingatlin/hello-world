@@ -38,6 +38,29 @@ function SkeletonCard() {
   );
 }
 
+/**
+ * Where opening a project puts you: back where you left off.
+ *
+ * The status is the only thing the list knows, and it is enough — each value
+ * names the gate the project is waiting at. Sending everyone to the wizard
+ * would make a finished app ask its owner to describe it again.
+ */
+function resumeAt(project: { id: string; status: string }): string {
+  const at = `/projects/${project.id}`;
+  switch (project.status) {
+    case "draft":
+      return `${at}/wizard`;
+    case "spec_locked":
+      return `${at}/involve`;
+    case "building":
+      return `${at}/build`;
+    default:
+      // ready, error, and anything a later phase adds: the reveal reads the
+      // build back and says honestly when there is not one yet.
+      return `${at}/reveal`;
+  }
+}
+
 export function ProjectsPage() {
   const api = useApi();
   const navigate = useNavigate();
@@ -106,9 +129,17 @@ export function ProjectsPage() {
             New project
           </button>
           {projects.map((p) => (
-            <div
+            // A button, not a div: it says `cursor-pointer` and it is the only
+            // way back into a project, so it has to be clickable AND reachable
+            // from a keyboard. It was neither — the card was decorated to look
+            // like it opened something and did nothing at all, which meant a
+            // person who left a project could not get back to it.
+            <button
               key={p.id}
-              className="bg-surface border border-line rounded-card overflow-hidden cursor-pointer hover:border-line-strong"
+              type="button"
+              aria-label={`Open ${p.name}`}
+              onClick={() => navigate(resumeAt(p))}
+              className="text-left bg-surface border border-line rounded-card overflow-hidden cursor-pointer hover:border-line-strong focus-visible:border-teal"
             >
               <Thumb />
               <div className="px-4 py-3.5">
@@ -120,7 +151,7 @@ export function ProjectsPage() {
                   </span>
                 </div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}

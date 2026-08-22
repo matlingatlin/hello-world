@@ -352,6 +352,24 @@ describe("Reveal", () => {
     expect(screen.queryByTitle("Your app")).toBeNull();
   });
 
+  it("does not call a preview a delivered app", async () => {
+    // `latestBuild` returns the project's preview URL whether or not a build
+    // ever happened, so a project that had only been through the design window
+    // rendered as "Ready — here's your app": a running app in the frame, no
+    // trust receipt, and an offer to hand over code that did not exist. Found
+    // by clicking the real app.
+    mockApi({
+      latestBuild: vi.fn().mockResolvedValue(
+        latest({ buildVersion: null, honestStatus: null, previewUrl: "http://127.0.0.1:41234" }),
+      ),
+    });
+    renderAt("/projects/p1/reveal", <RevealPage />);
+
+    expect(await screen.findByText(/nothing has been built yet/)).toBeDefined();
+    expect(screen.queryByRole("button", { name: /Get the code/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Build it/ })).toBeDefined();
+  });
+
   it("sends 'Open & refine' to the design window, which is where refining happens", async () => {
     // It used to lead to a placeholder that said it was being ported. Since a
     // delivery build promotes the design workspace rather than rebuilding it

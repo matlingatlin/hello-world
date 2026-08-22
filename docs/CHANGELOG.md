@@ -4,6 +4,38 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Fixed
+- 2026-08-22 — **Two things a browser found that no API call could**, driving the real UI with
+  a real browser for the first time this session.
+
+  **A project could not be reopened.** The cards on the projects list were styled
+  `cursor-pointer`, hovered like links — and had no click handler at all. They were `<div>`s,
+  so they were not reachable from a keyboard either. Anyone who left a project could only get
+  back through browser history. They are buttons now, labelled for a screen reader, and each
+  one resumes where the project actually is: a draft to the wizard, an approved spec to the
+  involvement question, a running build to the build screen, a finished one to the reveal.
+  Sending everyone to the wizard would make a finished app ask its owner to describe it again.
+
+  **The reveal called a preview a delivered app.** `latestBuild` returns the project's preview
+  URL whether or not a build ever happened, so a project that had only been through the design
+  window rendered as *"Ready — here's your app"*: a running app in the frame, no trust receipt,
+  and an offer to hand over code that did not exist. It now says *"This is your preview —
+  nothing has been built yet"* and offers **Build it** instead of **Get the code**.
+
+### Verified
+- 2026-08-22 — **The whole product, clicked through in a real browser** (Chromium via
+  Playwright), on the free stand-in path: sign in → new project → wizard → *Continue to
+  review* → *Yes, build it* → the involvement question → the design window (**preview built,
+  three routes offered in the switcher**) → *Build it* → the build screen (**parts listed, a
+  working Stop control**) → the reveal, with **6 of 6 parts work** and the code actions. No
+  page errors at any step.
+
+  One finding for later: Scio's own shell loads its typefaces from `fonts.googleapis.com` and
+  render-blocks on them — the exact mistake B078 fixed in *generated* apps, in our own product
+  (**B117**). It fails outright in this sandbox, where egress is blocked; in a Codespace it
+  merely costs a round trip to a third party.
+
+
 ### Added
 - 2026-08-22 — **A build is a job now** (B094, ADR-0020 slice 1). It used to exist only as a
   stack frame in one api process and one engine process: restart either and a forty-minute
