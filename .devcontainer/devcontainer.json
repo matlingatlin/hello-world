@@ -33,7 +33,15 @@
         "charliermarsh.ruff",
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
-        "Prisma.prisma"
+        "Prisma.prisma",
+
+        // Diagnostics where the error is, rather than in a panel nobody opens.
+        "usernamehw.errorlens",
+        "yoavbls.pretty-ts-errors",
+
+        // The two suites, runnable from the editor.
+        "vitest.explorer",
+        "ms-playwright.playwright"
       ]
     }
   }

@@ -47,6 +47,14 @@ step "chromium for the preview" bash -c '
 
 step "prisma client" bash -c 'cd apps/api && npx prisma generate'
 
+# The language servers behind the typescript-lsp and pyright-lsp plugins
+# declared in .claude/settings.json. The plugins do NOT install these; without
+# them on PATH the plugins load and report "Executable not found", which is
+# config that silently does nothing.
+step "language servers" bash -c '
+  npm install -g typescript-language-server typescript pyright &&
+  command -v typescript-language-server && command -v pyright-langserver' 
+
 printf '\n'
 if [ ${#failed[@]} -eq 0 ]; then
   printf '▸ ready — run scripts/dev-up.sh\n'

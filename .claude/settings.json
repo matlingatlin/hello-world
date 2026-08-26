@@ -1,0 +1,41 @@
+{
+  "enabledPlugins": {
+    "typescript-lsp@claude-plugins-official": true,
+    "pyright-lsp@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(pnpm -r lint)",
+      "Bash(pnpm -r build)",
+      "Bash(npx vitest run *)",
+      "Bash(npx tsc *)",
+      "Bash(apps/engine/.venv/bin/python -m pytest *)",
+      "Bash(apps/engine/.venv/bin/ruff *)",
+      "Bash(scripts/dev-up.sh)",
+      "Bash(scripts/dev-down.sh)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)"
+    ],
+    "deny": [
+      "Read(./apps/engine/.env)",
+      "Read(./.env)",
+      "Bash(npx prisma migrate reset *)",
+      "Bash(git push --force *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/lint-fix.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
