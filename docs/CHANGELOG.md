@@ -4,6 +4,28 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Added
+- 2026-08-26 — **graphify, vendored into `.claude/skills/` rather than installed**
+
+  Added the `/graphify` skill: point it at a folder and it returns a knowledge graph of
+  what is in there — an interactive `graph.html`, a queryable `graph.json`, and a
+  `GRAPH_REPORT.md` naming the heavily-depended-on nodes and the cross-file connections
+  nobody would think to ask about. Code is parsed locally and deterministically via
+  tree-sitter AST; docs, PDFs and images go through the calling assistant's model and so
+  cost tokens. On a repo this size the value is reading architecture before touching it.
+
+  Upstream's own install is `uv tool install graphifyy && graphify install`, which writes
+  the skill into `~/.claude/skills/`. That is the wrong place for this repo: a home
+  directory is per-machine, and a web session gets a fresh one each time, so an installed
+  copy is gone by the next session. `SKILL.md` is instead copied verbatim into the repo
+  with its sha256 and re-fetch command recorded next to it, for the same reason `8e571eb`
+  put the tooling in the repo — a fresh session inherits it.
+
+  Note that the skill installs its own Python package (`pip install graphifyy`) on first
+  invocation, not at checkout; `.claude/skills/graphify/README.md` says so plainly rather
+  than letting it surprise someone. `graphify-out/` is gitignored. No product or
+  architectural decision is implied — this is a tool for reading the codebase, so no ADR.
+
 ### Fixed
 - 2026-08-22 — **What an external production-readiness review found, and what we did about it**
   (review of commit `4ccef44`; four items it called blocking, three of them fixed here).
