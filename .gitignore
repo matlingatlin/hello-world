@@ -40,4 +40,4 @@ apps/engine/out/
 
 # graphify output: generated graph, rendered HTML, SHA256 cache
 graphify-out/
-.graphify_*.json
+.graphify_*
