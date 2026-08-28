@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# PreToolUse gate for the `architect` subagent.
+#
+# Why this exists as a hook and not as a sentence in the agent prompt:
+# a PreToolUse hook runs before every permission check, including
+# bypassPermissions, and can only ever tighten. A sentence in the prompt is a
+# convention; this is a wall.
+#
+# What it enforces: the architect may write ADRs, plans and design documents.
+# It may not write source code, tests, configuration, or its own definition.
+# The decision has to survive contact with an implementer who disagrees, which
+# it cannot do if the architect can quietly implement it itself.
+#
+# Contract: stdin is the PreToolUse JSON payload. Exit 0 always; the decision
+# is carried in the JSON on stdout. Silence (no output) means "no opinion".
+set -uo pipefail
+
+payload=$(cat)
+
+path=$(printf '%s' "$payload" | python3 -c '
+import json,sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+ti = d.get("tool_input") or {}
+p = ti.get("file_path") or ti.get("notebook_path") or ""
+print(p)
+' 2>/dev/null)
+
+# No path in the payload: nothing for this gate to judge. Deny rather than
+# wave through, because a Write we cannot resolve is a Write we cannot scope.
+if [ -z "$path" ]; then
+  printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"architect-write-scope: no file path in the tool call, so its scope cannot be checked."}}'
+  exit 0
+fi
+
+root="${CLAUDE_PROJECT_DIR:-$PWD}"
+# Resolve without requiring the file to exist yet.
+abs=$(python3 -c '
+import os,sys
+p, root = sys.argv[1], sys.argv[2]
+if not os.path.isabs(p):
+    p = os.path.join(root, p)
+print(os.path.normpath(os.path.realpath(os.path.dirname(p)) + "/" + os.path.basename(p)))
+' "$path" "$root" 2>/dev/null)
+absroot=$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$root" 2>/dev/null)
+
+case "$abs" in
+  "$absroot"/docs/*)
+    exit 0
+    ;;
+  *)
+    printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"architect-write-scope: the architect writes only under docs/. This path is outside it. Produce the ADR, the decomposition or the review finding as a document; hand the change to an implementer."}}'
+    exit 0
+    ;;
+esac

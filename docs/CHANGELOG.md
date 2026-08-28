@@ -4,6 +4,52 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Added
+- 2026-08-28 — **An architect subagent, three procedures, and a wall** (ADR-0021).
+
+  The as-built analysis closes on *"where the missing architect pass shows — not in the
+  ideas, which are good. In the seams."* Everything in this repo was built without a single
+  skill or subagent; the rebuild starts by building the talent whose absence was already
+  measured.
+
+  `.claude/agents/architect.md` preloads exactly three skills — `architecture-decision`,
+  `system-decomposition`, `architecture-review` — covering derive, choose, decompose, plan,
+  review, conformance-check, record and re-decide. Three because SkillsBench measured focused
+  skills of at most three modules outperforming larger bundles (1-3 ≈ +19.0pp, 4+ ≈ +10.1pp),
+  and because preloaded skills are re-attached on compaction at up to 5,000 tokens each
+  against a 25,000-token shared budget.
+
+  **No persona.** The obvious build — "a principal architect with twenty-five years" — is the
+  one the evidence refuses: 162 personas over 2,410 questions and four model families showed
+  no improvement and a "largely random" effect; a second study measured MMLU 71.6% → 66.3%
+  under persona framing. What twenty-five years actually buys is the list of ways systems
+  fail, and that is content. Each skill carries it as counter-rules with named mechanisms —
+  Yuan's 92% of catastrophic failures from mishandled *signalled* errors, Huang's
+  retry-sustained metastability, DAGOR's queuing-time overload signal, Knight Capital,
+  Kinesis — alongside this system's own six observed failures, each traced to `file:line`.
+
+  **Every step ends in an artefact** — a number, a module name, a `file:line`, a table row, a
+  falsifier sentence. Fischhoff measured that a consideration merely raised recovers a
+  fraction of the gap it should, and that thinking harder recovers almost none. Borowa et al.
+  measured *no* debiasing effect from teaching architects about bias, and a real one from
+  applying the techniques as a procedure. So these are numbered steps, not principles.
+
+  **The boundary is a wall.** The architect writes only under `docs/`. `tools:` omits Bash and
+  Agent; a `PreToolUse` hook — which runs before every permission check, `bypassPermissions`
+  included, and can only tighten — refuses every other path. Nine controls pass, including
+  traversal through `docs/`, a prefix-lookalike directory, an empty path and malformed JSON.
+  A decision whose author can implement it in the same breath never meets an implementer who
+  disagrees, and that meeting is the only test it gets before production.
+
+  **Written, not validated.** All three ship with eval sets scored against ground truth that
+  already existed — the as-built analysis labels this system's real defects at `file:line` —
+  and each set carries a negative control, because a review skill that confirms everything
+  scores well without one. The results tables are empty on purpose: the author does not score
+  its own work. Three of four architecture skills measured elsewhere in this project did not
+  discriminate and one made the answer worse; nothing here is exempt from that base rate
+  until a tester says so (B125).
+
+
 ### Fixed
 - 2026-08-22 — **What an external production-readiness review found, and what we did about it**
   (review of commit `4ccef44`; four items it called blocking, three of them fixed here).

@@ -29,6 +29,10 @@ the data model, security model, and cost model.
 Deliverable: completed ARCHITECTURE.md + ADRs for the major choices.
 _Done: ADR-0001…0020. Three are Proposed and need the planning chat — 0018 (what Ship,
 Refine and Settings are), 0019 (deletion and retention), 0020 (builds as jobs)._
+_2026-08-28: the phase's deliverables are done; its **method** was not. `docs/as-built/`
+locates the gap in the seams rather than the ideas. **ADR-0021** (Proposed) builds the
+architect that pass needed — one subagent, three procedures, no persona, and no ability to
+write source code. It is unvalidated until B125 runs its eighteen evals._
 
 ## Phase 3 — Vertical slice  ☑
 Goal: thinnest runnable path end-to-end — prompt → generation → sandbox → preview —

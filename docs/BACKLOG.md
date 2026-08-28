@@ -315,3 +315,42 @@ does not isolate fails the second.
 tested here; the run itself is operator-driven — it needs an Anthropic key and an
 environment we don't have in CI. See `docs/RUNBOOK-FIRST-RUN.md`. B053 closes when
 the operator has done the run; whatever it surfaces becomes B054.
+
+---
+
+## The talent layer (2026-08-28)
+
+Opened with ADR-0021. Everything in this repo was built without a skill or a subagent; these
+are the items the first one created.
+
+**B124 — skills held outside this repo do not resolve.** A subagent's `skills:` field resolves
+against skills visible to the project, and ours live in `.claude/skills/`. The eighty-four
+tested skills in `skills-repo` and the twenty-seven in the Scio repo are not reachable from
+here as things stand — they would need packaging as a plugin. Until that is done, every talent
+this project uses must be authored here, which is a real constraint on how fast the roster can
+grow and a reason not to duplicate. This also answers the open question in Scio's
+`OPERATING-MODEL.md` §1 about how the build repo reads the library: it does not, yet.
+
+**B125 — nobody has run the architect's evals.** Eighteen cases across three skills
+(`.claude/skills/*/evals.md`), written against ground truth that already exists in
+`docs/as-built/`, results tables empty. The author does not score its own work. This is the
+gate on ADR-0021 moving from Proposed to Accepted, and its shipping bars are stated per set:
+≥4/6 for `architecture-decision` (D4 and D6 among them), ≥4/6 for `system-decomposition` (S5
+mandatory), ≥5/7 for `architecture-review` (R2 and R6 among them). Below the bar the rule is
+**cut the skill, do not revise it** — three of four architecture skills measured elsewhere in
+this project did not discriminate, and one made the answer worse.
+
+**B126 — the roster past the architect is unbuilt.** ADR-0021 covers one discipline. The
+system being rebuilt implies others by its own shape: a data/schema discipline (migrations,
+tenancy scoping, retention — ADR-0007, ADR-0009, ADR-0019), an authorisation discipline
+(ADR-0008, and finding F-03 is exactly its absence), a design-system discipline (tokens,
+adherence, the design window), a library/contract discipline (`Contract`, generalisation,
+quality evidence), and a per-language codegen discipline whose languages are not knowable
+until the generated-app stack is settled per ADR-0011. Each of those is an ADR of its own and
+none should be authored before the architect's evals say the pattern works.
+
+**B127 — the architect's own priors need re-checking against the code.** ADR-0021's skills
+cite this system's failures from `docs/as-built/`, and two of the four findings that document
+carries forward were taken on another document's word rather than verified against code
+(F-17, F-04). A skill that teaches an unverified finding as ground truth is teaching a claim.
+Verify both, or downgrade their status where they appear in the eval sets.
