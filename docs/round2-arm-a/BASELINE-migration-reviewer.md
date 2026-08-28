@@ -88,7 +88,7 @@ Only `teach` rows became procedure content; only `wall` rows became mechanisms.
 | B4 no explicit negative | **teach** | `migration-blast-radius` §6 and `migration-lock-risk` §4 (zero findings is written, not omitted) |
 | B5 undeclared scope widening | **teach** (weak) | agent body, "Scope" — what is routed and to whom. Weak because the widening produced the best finding in the set; the rule is *declare it*, not *stop*. |
 | B6 containment unobserved | **wall** | `hooks/migration-reviewer-scope.md` — writes confined to the review root, `apps/api/prisma/**` denied, `Bash` and `Agent` absent |
-| The whole leave-alone list | **leave alone** | Not taught. No procedure step re-states any of it. |
+| The whole leave-alone list | **leave alone** | Intended to be untaught. ~~No procedure step re-states any of it.~~ **False, and shown to be false by the test dispatch:** five of `migration-blast-radius`'s six steps restate it line-for-line (its §2 pre-flight SELECT is F1; its §3 nullability paragraph is F12 generalised). See `EVALS-migration-reviewer.md` R1. |
 
 ## 5 · What this baseline does not license
 

@@ -19,7 +19,7 @@ Deviations are listed in `RUN-NOTES.md`.
 |---|---|---|
 | `.claude/agents/` (2 files) | `agent-builder`, `architect` | `architect` reviews *designs, diffs and layers against what they claim to be* and emits ADRs and review findings. It has no procedure for lock behaviour, backfill or rollback, and its one occurrence of the word "migration" (`architect.md:98`) is about the cost of a future migration, not about reviewing one. |
 | `.claude/skills/` (6 skills) | `architecture-review`, `architecture-decision`, `system-decomposition`, `agent-*` | `architecture-review` is a general design-review procedure. Nothing in it reaches SQL, locks, or data. |
-| `grep -ril migration .claude/ docs/` | 14 files | All either the agent-building skills using migration review as their *example*, or docs reporting the gap: `docs/REVIEW-PRODUCTION-READINESS.md:272` — *"No down migrations, no plan for a failed deploy."* |
+| `grep -ril migration .claude/ docs/` | 15 files (excluding this run's own directory; re-counted by the test dispatch — the original figure of 14 did not reproduce) | All either the agent-building skills using migration review as their *example*, or docs reporting the gap: `docs/REVIEW-PRODUCTION-READINESS.md:272` — *"No down migrations, no plan for a failed deploy."* |
 | `/home/user/skills-repo/.claude/skills/` — the 84-talent library the reuse gate is supposed to run against | **absent in this session** (`ls: No such file or directory`) | The reuse check against the library **could not be run**. This is a gap in the evidence, not a clear result. |
 
 **Verdict: author** — with the caveat above recorded rather than buried. The
@@ -62,8 +62,17 @@ and narrow on other people's conclusions.
   produces source-bound restatements. The migration's own SQL comments are part of
   the artefact and are read as claims to check, not as findings.
 - **any live database credential.** `DATABASE_URL`, connection strings, anything in
-  `.env`. It reviews text; it never connects. Enforced by the absence of `Bash`,
-  not by this sentence.
+  `.env`. It reviews text; it never connects.
+
+  **Correction, from the test dispatch:** an earlier version of this line claimed
+  this was *"enforced by the absence of `Bash`"*. That is false and it is the exact
+  antipattern this repo names — a must-never written as a sentence with a mechanism
+  attached that does not do the work. Absent `Bash` stops the agent *connecting*; it
+  does nothing about `Read`. `.claude/settings.json` denies `Read(./.env)` and
+  `Read(./apps/engine/.env)` and **not** `apps/api/.env`, which is where
+  `scripts/dev-up.sh:38` shows a real `DATABASE_URL` lives. Until
+  `Read(./apps/api/.env)` and `Read(./apps/*/.env)` are added to that deny list,
+  **this one is unenforced**, and it is listed as unenforced rather than dressed up.
 
 ## 3 · Split test — one agent
 

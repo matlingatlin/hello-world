@@ -63,16 +63,56 @@ so the test can go looking for it rather than around it.
 `EVALS-migration-reviewer.md`, written by a subagent that did not author any of
 this, and an agent below its bar is cut, not defended.
 
+## The test verdict: DO NOT SHIP AS STAGED
+
+The test dispatch ran 26 verdicts — 13 executed, 13 reasoned over the text — and
+failed **3 of 6 mandatory cases**. Recorded here rather than left for a reader to
+find at the bottom of a 778-line file:
+
+1. **`migration-blast-radius` should be CUT.** Five of its six steps restate the
+   baseline's leave-alone list, shown line-by-line. Two named regression mechanisms:
+   its nullability paragraph is a worked exemplar (the antipattern this repo warns
+   gets copied), and the three skills together demand ~40 near-uniform rows for
+   migration 0006, competing with the one statement that actually blocks the deploy.
+   Two skills, not three; its explicit-negative line moves into the agent body.
+2. **The wall has two HIGH defects** and is not installed. See the banner on
+   `hooks/migration-reviewer-scope.md`.
+3. **Two claims in these documents were false** and are corrected in place, marked
+   as corrections: the credential must-never had a mechanism attached that does not
+   enforce it, and the gate does not deny a write whose parent is missing.
+4. **The description mis-routes.** It attracts schema-design work that belongs to
+   `architect`, and fails to attract the post-failure case ("the deploy stopped and
+   `_prisma_migrations` has a failed row") that `migration-reversibility` §4 exists
+   to answer.
+5. **The comparison nobody has run** is the thing that would settle this: the same
+   three migrations, unaided versus the repaired agent, graded by a third party.
+
+Those five repairs are **not applied here.** Applying them would mean re-grading
+work against a test that no longer describes it, and the dispatch budget for a
+re-test was spent. They are the next assembly cycle's input — which is what
+`agent-assembly` means when it says a repair is an assembly against a new failure
+list.
+
 ## If it passes: installation
 
 A human does this — `tools:`, `hooks:` and `model:` are privilege lines, and an
 agent that can write them can attach or remove a wall.
 
-1. `docs/round2-arm-a/agents/migration-reviewer.md` → `.claude/agents/migration-reviewer.md`
-2. `docs/round2-arm-a/skills/*` → `.claude/skills/*` (keep the `references/` subdirectory)
-3. The script in `docs/round2-arm-a/hooks/migration-reviewer-scope.md` →
-   `.claude/hooks/migration-reviewer-scope.sh`, `chmod +x`, then **re-run its control
-   table in place**. A gate that was never exercised where it will run is an assumption.
-4. Create `docs/reviews/migrations/` — it is the only path the agent may write to,
-   and the gate denies a write whose parent does not exist as surely as one that is
-   out of bounds.
+**Order corrected after the test dispatch: the wall goes in before the thing it
+contains.** The original listing installed the agent first, which is exactly wrong —
+a `PreToolUse` hook whose command does not exist does not deny, so an install that
+stops halfway leaves an agent holding `Write` and `Edit` with no gate at all.
+
+1. Repair the gate's fallback branch first — it has two HIGH defects
+   (`EVALS-migration-reviewer.md` H1, H2). Do not install it as written.
+2. `.claude/hooks/migration-reviewer-scope.sh`, `chmod +x`, then **re-run its control
+   table in place, on both branches**. A gate that was never exercised where it will
+   run is an assumption.
+3. Create `docs/reviews/migrations/`.
+4. `docs/round2-arm-a/skills/*` → `.claude/skills/*` (keep `references/`).
+5. **Last:** `docs/round2-arm-a/agents/migration-reviewer.md` →
+   `.claude/agents/migration-reviewer.md`.
+
+One claim in the previous version of this list was false and is withdrawn: the gate
+does **not** deny a write whose parent directory does not exist — the test dispatch
+executed that case and got `allow`. Step 3 is a real step, not a formality.

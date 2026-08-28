@@ -1,5 +1,33 @@
 # Hook proposal — migration-reviewer-scope
 
+> **DO NOT INSTALL AS WRITTEN.** An independent test dispatch found two HIGH
+> defects in the fallback branch of the script below, after this document was
+> finished. Both are in the pure-shell path that runs when `realpath -m` is
+> unavailable — which is the **live** path on macOS, where BSD `realpath` has no
+> `-m`, so this is not dead code:
+>
+> 1. **Non-terminating loop.** Any path with two or more `/./` segments loops
+>    forever (the `%`/`#` halves overlap and the string grows). Three inputs were
+>    killed at an 8-second timeout.
+> 2. **Symlink escape.** The fallback is purely lexical, so with a symlink inside
+>    the review root, writes to `/etc/passwd` and to
+>    `apps/api/prisma/schema.prisma` return **allow**. The GNU branch denies both.
+>
+> Also found: a terminal `..` is allowed in the fallback; with `CLAUDE_PROJECT_DIR`
+> unset the root follows `$PWD`, which allowed a write under `/tmp/docs/...`; and
+> a two-object JSON stream yields `allow`.
+>
+> The control table below is real and reproduces exactly — the test dispatch re-ran
+> all 13 cases and got the documented verdict every time. **It only ever exercises
+> the GNU branch.** That is the lesson worth keeping from this document: a control
+> table that covers one of two code paths reads exactly like one that covers both.
+>
+> Repair before installing: bound the loop, make the fallback **deny** when it
+> cannot resolve symlinks, and re-run the controls on both branches with symlink,
+> `/./` and terminal-`..` rows added. Details in `../EVALS-migration-reviewer.md`
+> (H1, H2, H3, A4-X1).
+
+
 **For:** `migration-reviewer`  **Event:** `PreToolUse`
 **Matcher:** `^(Write|Edit|NotebookEdit)$`
 **Install at:** `.claude/hooks/migration-reviewer-scope.sh` — **by a human.** An agent
