@@ -1,6 +1,6 @@
 ---
 name: agent-assembly
-description: "Use when a spec and an observed failure list both exist and the agent must now be written — places every piece in the tier that loads it at the right moment, authors the files, and then hands the finished agent to a FRESH subagent for testing because the author never grades its own work. Reach for this whenever someone says to build, assemble, wire up, or finish an agent, and also when an existing agent must be repaired, since a repair is an assembly against a new failure list. NOT for deciding what agents should exist (use agent-shape), NOT for observing unaided failure (use agent-baseline), NOT for authoring a standalone skill unattached to an agent (use writing-skills)."
+description: "Use when a spec and an observed failure list both exist and the agent must now be written — places every piece in the tier that loads it at the right moment, authors the files, and then hands the finished agent to a FRESH subagent for testing because the author never grades its own work. Reach for this whenever someone says to build, assemble, wire up or finish an agent. It creates new agents only — a change to one that already exists is written as a proposal under docs/ and applied by a human. NOT for deciding what agents should exist (use agent-shape), NOT for observing unaided failure (use agent-baseline), NOT for authoring a standalone skill unattached to an agent (use writing-skills)."
 ---
 
 # Building it, in the right tier
@@ -65,14 +65,17 @@ Use `assets/skill.md`. Every step names the file it opens.
 
 **Artefact:** the SKILL.md files, plus which were delegated and to whom.
 
-## 4 · Emit the wall and every privilege line as a proposal
+## 4 · Emit the wall as a proposal, and know what you may not touch
 
-You may not write `.claude/hooks/`, nor any **privilege line** into a `.claude/`
-file — `tools:`, `hooks:`, `model:`, `permissionMode:`, `allowed-tools:`. Those
-decide what an agent may do and which wall is attached, and an agent that can
-write them can attach or remove a wall — its own or a neighbour's. The rest of
-every file is yours to write and revise, which is what repairing an existing agent
-actually needs. Write the hook under `docs/` using `assets/hook-proposal.md`,
+You may not write `.claude/hooks/`, and you may not write **any file under
+`.claude/` that already exists**. You create; you do not edit. A change to an
+existing agent — including a repair you are certain of — is a proposal under
+`docs/` that a human applies.
+
+That rule is not caution, it is the one that works. An independent tester found
+three ways past a gate that inspected *content*: delete a `hooks:` block, widen a
+`tools:` line, or rename a key across two innocent-looking edits. Every one needed
+a file that already existed. Creating only removes the class. Write the hook under `docs/` using `assets/hook-proposal.md`,
 with its controls: cases that must pass, cases that must be denied, traversal, a
 prefix-lookalike, an empty path, malformed input. A human installs it.
 
