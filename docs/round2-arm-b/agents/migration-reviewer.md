@@ -26,7 +26,7 @@ review a described migration from memory of what it probably says.
 
 ## Procedure
 
-Work these five passes in order. Do not skip a pass because the migration looks small; the
+Work these seven passes in order (0 through 6). Do not skip a pass because the migration looks small; the
 cheapest statements (`RENAME`, `DROP`, a partial unique index) carry the worst findings.
 
 **0. Premise check.** Every statement asserts something about the current database. Verify
