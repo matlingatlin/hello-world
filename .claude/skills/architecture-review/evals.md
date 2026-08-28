@@ -1,5 +1,17 @@
 # evals — architecture-review
 
+> **Revision note, 2026-08-28.** The skill was repaired after these cases were
+> written (step 2 now carries its boundary — derive-cold is for omissions, not
+> for generating alternatives; new step **2b**, the far-domain omission pass;
+> evidence moved to `references/review-evidence.md`). **Step numbers 1–7 and
+> every artefact named below are unchanged**, so R1–R7 still run as written —
+> R2 in particular still tests the derive-then-look ordering, which is the half
+> of the rule the evidence supports. Step 2b and the boundary itself have **no
+> case in this set** — the tester writes them, and the boundary needs a case
+> where deriving cold is the *wrong* move. R2 and R5 name inputs in
+> `docs/as-built/`, absent from the working tree (B128): reconstruct from code
+> or record `unrunnable`, not fail. See `docs/architect-repair-tester-brief.md`.
+
 **Status: written, not run.** Authored by the session that wrote the skill.
 An independent tester must run these and fill the results table.
 

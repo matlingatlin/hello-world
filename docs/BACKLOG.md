@@ -354,3 +354,25 @@ cite this system's failures from `docs/as-built/`, and two of the four findings 
 carries forward were taken on another document's word rather than verified against code
 (F-17, F-04). A skill that teaches an unverified finding as ground truth is teaching a claim.
 Verify both, or downgrade their status where they appear in the eval sets.
+
+**B128 — `docs/as-built/` is cited eleven times and is not in the working tree.** Verified
+2026-08-28 by two glob passes (`**/as-built/**` and `**/graph.json`): neither
+`docs/as-built/ARCHITECTURE-AS-BUILT.md` nor `docs/as-built/graph/graph.json` exists here,
+while `.claude/agents/architect.md`, all three architecture skills, all three eval sets,
+ADR-0021, ROADMAP, BACKLOG and CHANGELOG all cite them — the agent body instructing the
+architect to *"read the relevant layer before deciding anything that touches it."* As written
+that instruction is unsatisfiable, and the graph-backed arrow check in `system-decomposition`
+step 4 has no graph. The skills and the agent body now carry an explicit absent-file fallback
+(mark `unverified`, grep instead of the graph), which is a mitigation, not a fix. **Somebody
+with a shell must settle whether the directory was committed and deleted or never committed**
+— `git log --oneline -- docs/as-built`. If it never existed, the ground truth behind eval
+cases S1, S2, S4, R2 and R5 has never existed either and B125's bars cannot be met as written.
+
+**B129 — the repaired architect is untested, and the repair was not delegated.** The
+2026-08-28 repair (analogy step, the derive-before-look boundary, the Fischhoff correction,
+evidence moved to tier 3) was made by a session with no `Bash` and no `Agent` tool: no eval
+was run, no mechanical check was executed as a command, and no independent tester was
+dispatched. The suite the repair needs — including the containment and trigger cases the
+eighteen existing cases lack entirely — is specified in `docs/architect-repair-tester-brief.md`
+and must be written and run by someone who did not author the repair. Until then ADR-0021
+stays **Proposed** and the repair is a hypothesis.

@@ -54,12 +54,28 @@ biased than students, attributed to attachment to systems they had built. The
 *as a procedure to the architecture in hand*. Hence: numbered steps, each
 ending in an artefact, rather than principles to bear in mind.
 
-Fischhoff (1978) supplies the reason the artefact is not optional. Restoring a
-pruned branch of a fault tree moved the probability subjects assigned to "all
-other causes" from .078 to .468; merely asking them to think harder roughly
-doubled it, and 1 of 55 got it right. Expertise made no difference. Directing
-attention at the omitted branch moved .227 to .346 — real, and a fraction of
-the gap. A consideration raised and not written down does not land.
+Fischhoff (1978) supplies the reason the artefact is not optional. Shown a fault
+tree with three of six branches deleted, subjects assigned "all other problems"
+**.140**, against .078 for the full tree. The **normative** value — what they
+should have assigned — was **.468**. They recovered 30% of the gap. Directing
+attention explicitly at what was missing moved the second pruned condition from
+.227 to .346, recovering 57% instead of 37%: real, marginally significant
+(p ≈ .06–.08), and still a fraction. **1 subject of 55** assigned enough.
+Detection was uncorrelated with experience (τ = .058). A consideration raised
+and not written down does not land.
+
+> **Erratum, 2026-08-28.** The paragraph above previously read *"moved the
+> probability subjects assigned to 'all other causes' from .078 to .468"*, and
+> `architecture-decision/SKILL.md` carried the same sentence. That reversed the
+> finding: **.468 is the normative value, not an observed one.** Subjects moved
+> to .140. The original wording also claimed that asking subjects to think
+> harder "roughly doubled it", which the source table does not support and which
+> has been removed rather than rewritten. Corrected against
+> `knowledge/notes/design-fixation-and-anchoring.md`, which carries the full
+> five-row table. The error's direction flattered the intervention: it described
+> subjects correcting themselves almost completely when they barely corrected at
+> all. Nothing in the Decision below turns on it — the conclusion "write the
+> artefact down" survives, and is in fact better supported by the true numbers.
 
 ## Decision
 

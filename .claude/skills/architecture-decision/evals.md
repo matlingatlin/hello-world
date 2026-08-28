@@ -1,5 +1,12 @@
 # evals — architecture-decision
 
+> **Revision note, 2026-08-28.** The skill was repaired after these cases were
+> written (corrected Fischhoff figure; new step **2a**, the far-domain analogy
+> pass; evidence moved to `references/`). **Step numbers 0–5 and every artefact
+> named below are unchanged**, so D1–D6 still run as written. Steps 2a and the
+> reference-opening behaviour have **no case in this set** — the tester writes
+> those. See `docs/architect-repair-tester-brief.md`.
+
 **Status: written, not run.** Authored by the same session that wrote the
 skill, which is the conflict this repo's own rule forbids: the author does not
 score its own work. These cases are the ground truth; an independent tester

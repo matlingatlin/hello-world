@@ -1,5 +1,14 @@
 # evals — system-decomposition
 
+> **Revision note, 2026-08-28.** The skill was repaired after these cases were
+> written (new step **0b**, the borrowed far-domain division; evidence moved to
+> `references/decomposition-evidence.md`). **Step numbers 0–6 and every artefact
+> named below are unchanged**, so S1–S6 still run as written. Step 0b has **no
+> case in this set** — the tester writes it. Note also that S1, S2 and S4 name
+> inputs in `docs/as-built/`, which is absent from the working tree (B128); a
+> tester must either reconstruct the input from code or record the case as
+> `unrunnable`, not as a fail. See `docs/architect-repair-tester-brief.md`.
+
 **Status: written, not run.** Authored by the session that wrote the skill.
 An independent tester must run these and fill the results table.
 

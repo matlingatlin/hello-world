@@ -4,6 +4,49 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 
 ## [unreleased]
 
+### Changed
+- 2026-08-28 — **The architect repaired against a known defect list** (ADR-0021 amended;
+  B128, B129 opened).
+
+  Four defects, three of them found by an independent review of the agent and one by a
+  mechanical check during the repair.
+
+  **A misquoted number.** `architecture-decision` and ADR-0021 both said Fischhoff's subjects
+  *"moved the probability they assigned to 'everything else' from .078 to .468"*. They did
+  not: **.468 is the normative value** — what they should have answered — and they answered
+  **.140**, recovering 30% of the gap. The error flattered the intervention, describing
+  subjects as nearly self-correcting when they barely corrected at all. Corrected in the
+  skill, in the new `references/evidence.md`, and in ADR-0021 under an explicit erratum
+  rather than silently.
+
+  **No analogy step existed anywhere.** `grep -ic 'analog'` returned 0 across all three
+  skills, and structured far-domain analogy is the largest measured lever in either
+  literature the skills draw on — fixation 52.4% → 26.9% (p < 0.001, 73 professionals) and
+  +90–173% idea diversity from explicit cross-domain *relational mapping*. One shared
+  procedure now lives in `architecture-decision/references/far-domain-analogy.md` and is
+  entered from three places: `architecture-decision` step 2a (carry back a mechanism),
+  `system-decomposition` step 0b (carry back a division of labour), `architecture-review`
+  step 2b (carry back an omission). Each demands a written table; an empty result is a row,
+  a missing table is a failure, because the measured effect comes from the mapping being
+  written down and ~15% of runs in the nearest study silently skipped the step.
+
+  **A rule stated without its boundary.** "Derive on a blank page before you look" is
+  supported for finding **omissions** (SEI 57:25, Fischhoff) and refuted as anti-anchoring
+  protection: a **self-generated** first concept fixates *harder* than a provided one
+  (0.32 vs 0.24, F(1,165) = 4.4, p < 0.04). `architecture-review` step 2 and the agent body
+  now split the rule in two and route the second half to the analogy pass.
+
+  **Tier correction.** The three skills carried 1,300–1,600 words each of preloaded evidence
+  tables and citations. Sources, effect sizes, sample sizes and limits moved to `references/`
+  (four new files); the numbered steps and every artefact they demand stayed in tier 1, and
+  every step names the file it opens. Step numbering was preserved deliberately so the
+  eighteen existing eval cases still run unchanged.
+
+  **Not done, and why.** No eval was run and no independent tester was dispatched: the
+  repairing session had neither `Bash` nor an `Agent` tool. The mechanical checks a shell
+  would run are written out in `docs/architect-repair-tester-brief.md` and are unverified.
+  ADR-0021 stays **Proposed**.
+
 ### Added
 - 2026-08-28 — **An architect subagent, three procedures, and a wall** (ADR-0021).
 
