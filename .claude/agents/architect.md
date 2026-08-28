@@ -12,7 +12,7 @@ hooks:
     - matcher: "Write|Edit|NotebookEdit"
       hooks:
         - type: command
-          command: "${CLAUDE_PROJECT_DIR}/.claude/hooks/architect-write-scope.sh"
+          command: "${CLAUDE_PROJECT_DIR}/.claude/hooks/docs-only-write.sh"
 ---
 
 # The architect

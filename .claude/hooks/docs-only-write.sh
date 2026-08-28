@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# PreToolUse gate for the `architect` subagent.
+# PreToolUse gate for planning subagents (architect, rebuild-brainstorm).
 #
 # Why this exists as a hook and not as a sentence in the agent prompt:
 # a PreToolUse hook runs before every permission check, including
 # bypassPermissions, and can only ever tighten. A sentence in the prompt is a
 # convention; this is a wall.
 #
-# What it enforces: the architect may write ADRs, plans and design documents.
+# What it enforces: the agent may write ADRs, plans and design documents.
 # It may not write source code, tests, configuration, or its own definition.
 # The decision has to survive contact with an implementer who disagrees, which
 # it cannot do if the architect can quietly implement it itself.
@@ -31,7 +31,7 @@ print(p)
 # No path in the payload: nothing for this gate to judge. Deny rather than
 # wave through, because a Write we cannot resolve is a Write we cannot scope.
 if [ -z "$path" ]; then
-  printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"architect-write-scope: no file path in the tool call, so its scope cannot be checked."}}'
+  printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"docs-only-write: no file path in the tool call, so its scope cannot be checked."}}'
   exit 0
 fi
 
@@ -51,7 +51,7 @@ case "$abs" in
     exit 0
     ;;
   *)
-    printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"architect-write-scope: the architect writes only under docs/. This path is outside it. Produce the ADR, the decomposition or the review finding as a document; hand the change to an implementer."}}'
+    printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"docs-only-write: this agent writes only under docs/. This path is outside it. Produce the ADR, the decomposition or the review finding as a document; hand the change to an implementer."}}'
     exit 0
     ;;
 esac
