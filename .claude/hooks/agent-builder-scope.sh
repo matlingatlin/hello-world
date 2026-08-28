@@ -24,6 +24,26 @@ deny() {
   exit 0
 }
 
+# --- privilege keys ---------------------------------------------------------
+# The real risk is not modification, it is PRIVILEGE. An agent that can write a
+# `hooks:` block into a .claude/ file can attach or remove a wall; one that can
+# write `tools:` can widen a surface. Those lines are a human decision, so the
+# builder designs them in a proposal and a human installs them. Everything else
+# in those files -- bodies, descriptions, references, procedures -- it may write
+# and revise freely, which is what repairing an existing agent actually needs.
+priv=$(printf '%s' "$payload" | python3 -c '
+import json,re,sys
+try: d=json.load(sys.stdin)
+except Exception: sys.exit(0)
+ti=d.get("tool_input") or {}
+body="\n".join(str(ti.get(k,"")) for k in ("content","new_string","new_source"))
+keys=("hooks","tools","allowed-tools","disallowed-tools","disallowedTools","permissionMode","model")
+for line in body.split("\n"):
+    m=re.match(r"^\s*([A-Za-z-]+)\s*:", line)
+    if m and m.group(1) in keys:
+        print(m.group(1)); break
+' 2>/dev/null)
+
 rel=$(printf '%s' "$payload" | python3 -c '
 import json,os,sys
 try: d=json.load(sys.stdin)
@@ -54,7 +74,21 @@ esac
 
 # --- allowed roots -----------------------------------------------------------
 case "$rel" in
-  docs/*|.claude/agents/*|.claude/skills/*) exit 0 ;;
+  docs/*) exit 0 ;;
+  .claude/agents/*|.claude/skills/*)
+    # Privilege keys only mean anything where frontmatter is parsed: an agent
+    # definition, or a SKILL.md. A reference file that DESCRIBES `hooks:` in
+    # prose is documentation, and blocking it would stop the builder writing
+    # about the very mechanism it must reason with.
+    fm_file=no
+    case "$rel" in
+      .claude/agents/*.md) fm_file=yes ;;
+      .claude/skills/*/SKILL.md) fm_file=yes ;;
+    esac
+    if [ "$fm_file" = yes ] && [ -n "$priv" ]; then
+      deny "\`$priv:\` is a privilege line -- it decides what an agent may do or which wall is attached. Put it in a proposal under docs/ for a human to install; write the rest of the file freely."
+    fi
+    exit 0 ;;
 esac
 
 deny "agent-builder writes only under docs/, .claude/agents/ and .claude/skills/."

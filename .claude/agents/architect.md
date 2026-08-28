@@ -9,7 +9,7 @@ skills:
   - architecture-review
 hooks:
   PreToolUse:
-    - matcher: "Write|Edit|NotebookEdit"
+    - matcher: "^(Write|Edit|NotebookEdit)$"
       hooks:
         - type: command
           command: "${CLAUDE_PROJECT_DIR}/.claude/hooks/docs-only-write.sh"

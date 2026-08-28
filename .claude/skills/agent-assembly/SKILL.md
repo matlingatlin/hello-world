@@ -65,10 +65,14 @@ Use `assets/skill.md`. Every step names the file it opens.
 
 **Artefact:** the SKILL.md files, plus which were delegated and to whom.
 
-## 4 · Emit the wall as a proposal
+## 4 · Emit the wall and every privilege line as a proposal
 
-You may not write `.claude/hooks/` — an agent that writes executable hooks can
-remove its own wall. Write the hook under `docs/` using `assets/hook-proposal.md`,
+You may not write `.claude/hooks/`, nor any **privilege line** into a `.claude/`
+file — `tools:`, `hooks:`, `model:`, `permissionMode:`, `allowed-tools:`. Those
+decide what an agent may do and which wall is attached, and an agent that can
+write them can attach or remove a wall — its own or a neighbour's. The rest of
+every file is yours to write and revise, which is what repairing an existing agent
+actually needs. Write the hook under `docs/` using `assets/hook-proposal.md`,
 with its controls: cases that must pass, cases that must be denied, traversal, a
 prefix-lookalike, an empty path, malformed input. A human installs it.
 

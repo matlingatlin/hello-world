@@ -1,4 +1,3 @@
-<!-- TEMPLATE — SKILL.md. Empty on purpose. -->
 ---
 name: <directory name, hyphenated>
 description: "<Use when … — triggering conditions and symptoms in the words a
@@ -29,3 +28,7 @@ A step that ends in a consideration does not land.>
 
 <The cases where running it produces noise, and which neighbour owns them.
 A procedure that never declines is a procedure that cannot discriminate.>
+
+<!-- TEMPLATE. Fields are empty on purpose: a filled-in exemplar is a
+     near-domain stimulus and gets reproduced, choices included. Delete this
+     comment and everything in angle brackets. -->

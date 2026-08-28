@@ -1,5 +1,3 @@
-<!-- TEMPLATE — agent file. Fields empty on purpose: a filled-in exemplar gets
-     copied, including its choices. Fill each field; delete these comments. -->
 ---
 name: <the job, hyphenated — not a clever label>
 description: "<Trigger-shaped and third person. What situation hands work to this
@@ -44,3 +42,10 @@ drift and the base does not.>
 
 <What is settled and not this agent's to reopen, and what it may argue with —
 and in what form an argument has to arrive.>
+
+<!-- TEMPLATE. Fields are empty on purpose: a filled-in exemplar is a near-domain
+     stimulus and gets reproduced, choices included. Delete this comment and
+     everything in angle brackets.
+     NOTE: `tools:`, `hooks:`, `model:` and `permissionMode:` are PRIVILEGE lines.
+     agent-builder designs them in the spec and a human installs them; the gate
+     refuses to write them. -->
