@@ -19,7 +19,9 @@ outage — and worse, a lock request *queues*, so a blocked DDL statement blocks
 behind it too (the "lock queue pile-up": one slow `ALTER` stops all reads on the table even
 though `ALTER` was only waiting).
 
-Assume Postgres 14+ (this repo: Azure Flexible Server, ADR-0007). Assume the table under
+Assume Postgres 14+ (this repo: Azure Flexible Server, ADR-0007) and Prisma 5.x
+(`apps/api/package.json` pins `^5.22.0`) — the "one transaction per migration file" rule
+below is Prisma's behaviour and must be re-checked when that pin moves. Assume the table under
 review is large unless a row count says otherwise; `usage_event`, `message`,
 `reference_embedding` and `build_job` grow with traffic and are never small in production.
 
@@ -33,13 +35,14 @@ review is large unless a row count says otherwise; `usage_event`, `message`,
 | `ALTER COLUMN x SET NOT NULL` | ACCESS EXCLUSIVE + full scan | Scans every row to prove no NULLs, holding a lock that blocks reads and writes. | `ADD CONSTRAINT c CHECK (x IS NOT NULL) NOT VALID` → `VALIDATE CONSTRAINT c` (SHARE UPDATE EXCLUSIVE, does not block writes) → `SET NOT NULL` (then O(1): PG 12+ trusts the validated constraint) → drop the CHECK |
 | `CREATE INDEX` | SHARE lock: **blocks all writes** for the whole build | On a hot table this is a write outage lasting as long as the build. | `CREATE INDEX CONCURRENTLY` — but see the transaction rule below |
 | `DROP INDEX` | ACCESS EXCLUSIVE, fast | Fine on time, but it is a performance cliff, not a schema change: the queries that used it now scan. | `DROP INDEX CONCURRENTLY`; check what used it first |
-| `ADD CONSTRAINT ... FOREIGN KEY` | ACCESS EXCLUSIVE on **both** tables + full scan of the child | Two tables locked, one scanned. The parent lock is the one people miss. | `... NOT VALID` (catalog-only, still enforced for new rows) then `VALIDATE CONSTRAINT` in a separate statement/migration |
+| `ADD CONSTRAINT ... FOREIGN KEY` | SHARE ROW EXCLUSIVE on **both** tables + full scan of the child | Blocks writes and concurrent DDL on both tables — reads still run (it has not been ACCESS EXCLUSIVE since PG 9.5). The lock on the *parent* is the one people miss. | `... NOT VALID` (catalog-only, still enforced for new rows) then `VALIDATE CONSTRAINT` in a separate statement/migration |
 | `ADD CONSTRAINT ... CHECK` | ACCESS EXCLUSIVE + full scan | same | `NOT VALID` → `VALIDATE` |
 | `ALTER COLUMN TYPE` | full table rewrite + index rebuilds | Rewrites the whole table under ACCESS EXCLUSIVE. Exceptions that are catalog-only: `varchar(n)` → `varchar(m>n)` or `text`, and `numeric` precision *increases*. Narrowing is never free and can fail mid-way. | new column → dual-write → backfill → swap (expand/contract) |
 | `RENAME COLUMN` / `RENAME TABLE` | ACCESS EXCLUSIVE, fast | The lock is not the problem. The old name disappears *instantly*, so every running instance of the old code breaks the moment it commits. There is no deploy ordering that makes a rename safe on its own. | never rename in place on a live table — add the new name, dual-write, migrate readers, drop the old one in a later release |
 | `DROP COLUMN` / `DROP TABLE` | ACCESS EXCLUSIVE, fast | Irreversible. The data is gone and a rollback of the *code* cannot bring it back. | see `migration-rollout-plan` — drop only after the column has been unread for a full release |
 | `TRUNCATE` | ACCESS EXCLUSIVE, fast, unrecoverable | Almost never belongs in a migration. | block it |
 | `UPDATE`/`DELETE` over a whole table | row locks + one long transaction | Holds locks and bloats the table; on this repo it also holds every DDL lock in the same file (see below). | batch it, outside the DDL — `migration-rollout-plan` |
+| `ALTER TYPE ... ADD VALUE` | brief, but transaction-bound | PG 12+ allows it inside a transaction **only if the new value is not used in that same transaction** — so an `ADD VALUE` followed by an `UPDATE` using it fails. The value can never be removed. This repo does it twice (`0007`, `0009`) and has four enums. | add the value in its own migration; use it in the next |
 | `VACUUM FULL`, `REINDEX` (non-concurrent), `CLUSTER` | ACCESS EXCLUSIVE for the duration | Full outage on the table. | `REINDEX CONCURRENTLY`, or an operational task, not a migration |
 
 ## Three rules that override the table

@@ -34,8 +34,16 @@ if [ -z "$path" ]; then
   exit 2
 fi
 
-case "$path" in
-  */docs/reviews/*|docs/reviews/*)
+# Canonicalize before matching. A substring match on "*/docs/reviews/*" accepts
+# docs/reviews/../../apps/api/prisma/migrations/0013/migration.sql — verified: it
+# returned exit 0 in testing. Resolve the path, then prefix-match the resolved form.
+root="${CLAUDE_PROJECT_DIR:-$PWD}"
+case "$path" in /*) abs="$path" ;; *) abs="$root/$path" ;; esac
+resolved="$(realpath -m "$abs" 2>/dev/null || printf '%s' "$abs")"
+allowed="$(realpath -m "$root/docs/reviews" 2>/dev/null || printf '%s' "$root/docs/reviews")"
+
+case "$resolved" in
+  "$allowed"/*)
     exit 0
     ;;
   *prisma/migrations/*|*schema.prisma)

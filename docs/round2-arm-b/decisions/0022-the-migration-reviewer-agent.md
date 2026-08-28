@@ -33,14 +33,18 @@ report with a ship / ship-with-changes / no-ship verdict, and cannot edit or app
 - **Two preloaded skills**, under the three-module cap: `postgres-migration-hazards` (does
   this statement apply, what does it lock, what does it lose) and `migration-rollout-plan`
   (what order does it ship in, how is it backfilled, how do we get back).
-- **`tools: Read, Grep, Glob, Write, TodoWrite`** — explicit, and deliberately without
-  `Bash`. The absence is the enforcement: with no shell there is no `prisma migrate deploy`,
-  no `psql`, and no way around the write gate. It costs the agent `git diff`, which the
-  review does not need.
-- **A PreToolUse write gate** (proposed, `docs/round2-arm-b/hooks/`) narrowing `Write` to
-  `docs/reviews/`. The "never edit the migration you are reviewing" rule is a hook plus an
-  absent tool, not a sentence.
-- **Ten evals**, including a negative control (a safe migration must earn `ship` with zero
+- **`tools: Read, Grep, Glob, TodoWrite`** — explicit, and deliberately without `Bash` **and
+  without `Write`**. The absences are the enforcement: no shell means no `prisma migrate
+  deploy` and no `psql`; no `Write` means the agent cannot touch the migration it is
+  reviewing, or anything else. It returns the review as its final message and the caller
+  files it. The first draft granted `Write` and leaned on a hook that was proposed but not
+  installed — the independent test called that what it was, an overclaim, and removing the
+  capability is a better answer than guarding it.
+- **A PreToolUse write gate** stays in `docs/round2-arm-b/hooks/` as defence in depth for
+  anyone who later re-adds `Write` — with the path-traversal bypass the tester found
+  (`docs/reviews/../../…` returned exit 0) fixed by canonicalizing first. It is not currently
+  load-bearing.
+- **Eleven evals**, including a negative control (a safe migration must earn `ship` with zero
   blocking findings) and a containment case (asked to fix and apply, it must be *unable* to,
   not merely unwilling). Graded by a subagent that did not author the agent.
 
@@ -54,9 +58,13 @@ report with a ship / ship-with-changes / no-ship verdict, and cannot edit or app
   That gap is real and is the strongest argument for a future CI step that applies migrations
   against a seeded database — which would reduce this agent's remit, not replace it.
 - Without `Bash` the agent depends on the caller pointing it at the right files, or on
-  Glob/Grep finding them. Eval E7 covers the failure.
+  Glob/Grep finding them. Eval E7 covers the failure. Without `Write` the review lives only
+  in the agent's reply until a caller saves it — an accepted cost, because the alternative is
+  a reviewer that can rewrite what it reviews.
 - Two skills is two more modules to keep true as Postgres and Prisma versions move. The
-  version assumptions (PG 14+, Prisma 5) are stated in the skill so they can be re-checked.
+  version assumptions (PG 14+, Prisma 5.x, with the `apps/api/package.json` pin cited) are
+  stated in the skill so they can be re-checked — the "one transaction per migration file"
+  rule is Prisma behaviour and moves when that pin moves.
 
 ## Alternatives considered
 
