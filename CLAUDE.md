@@ -32,6 +32,28 @@ stop and flag it, and propose an ADR in `docs/decisions/` rather than deciding s
 - `docs/COSTS.md` — cost & metering model.
 - `docs/decisions/` — ADRs (one architectural decision per file).
 
+## Building agents in this repo
+Rules bind here rather than in `.claude/rules/`, because a canary probe measured that
+rules — scoped and unscoped — **do not reach a subagent**; only this file does.
+
+- **`agent-builder` owns it.** Do not hand-write an agent file. The expensive
+  mistakes are made before the first line, and it runs the procedure that catches them.
+- **`tools:` is always explicit.** Omitting it inherits every tool, not none.
+- **At most three preloaded `skills:` per agent.** A measured quality finding
+  (1–3 modules ≈ +19.0pp, 4+ ≈ +10.1pp), not a context budget. A fourth function
+  is the signal that you have two agents.
+- **A "must never" is a hook or an absent tool, never a sentence.** Prose warnings
+  failed in three studies and backfired in a fourth. And a path-scoped write gate
+  next to `Bash` is decorative.
+- **No persona for correctness work.** Measured negative. What a persona seems to
+  promise is content, and content belongs in the failure tables.
+- **No agent grades its own work.** The test goes to a subagent that did not author
+  it. That separation found 81 defects in our own library.
+- **Every agent ships with evals carrying a negative control and a containment
+  case** — can it exceed its remit? A skill has no remit; an agent does.
+- Knowledge is **queried** from `/home/user/skills-repo/knowledge/notes/`, not copied.
+  Copies drift; the base does not. A value that moves on its own is read live.
+
 ## Conventions
 - Commits: Conventional Commits style (`feat:`, `fix:`, `chore:`, `docs:` …).
 - ADRs: copy `docs/decisions/0000-adr-template.md`, number sequentially, set status.
