@@ -745,12 +745,21 @@ added in its own words that the comparison is worth nothing while the evidence c
 empty. That is not the point. An agent that can write its own row can write itself
 `in use`, and nothing but its disposition stood in the way.
 
-Closed for `agent-builder`: its gate now denies `docs/agent-registry.md` by name, with
-control `RG` behind it (30 rows). **Still open for every other agent with a `docs/`
-gate** — `architect`, `rebuild-adjudicator`, `agent-fitness-review` and
-`llm-component-architect` itself all write under `docs/` through `docs-only-write.sh`,
-which has no such carve-out and no harness at all. The general fix is one deny in that
-shared gate plus its first control table.
+**CLOSED 2026-08-29.** Both gates now deny `docs/agent-registry.md` by name —
+`agent-builder-scope.sh` (control `RG`, 30 rows) and the shared `docs-only-write.sh`
+that `architect`, `rebuild-adjudicator` and `agent-fitness-review` depend on.
+
+That shared gate had **no harness at all**, which made it the gate protecting the most
+agents and the only one nobody could re-run. It has one now:
+`.claude/validate/docs-only-write-controls.sh`, **26 cases, 26 pass**, mutation-tested —
+a silent fail-open mutant scores 5/26 and a deny-everything mutant 21/26, so the harness
+discriminates in both directions.
+
+Two things it measured rather than assumed. The registry hole was real: before the fix,
+case `RG` returned **allow**. And the gate's `python3` dependence **fails closed** —
+cases `PY` and `PZ` confirm that with `bash` present and `python3` absent it denies
+everything, including a legitimate `docs/` write. That was previously a reading of the
+control flow; it is now a measurement.
 
 **B156 — the first real use of the template found five defects in it, all now fixed
 (template `1.1.0`).** Recorded because the pattern matters more than the list: a

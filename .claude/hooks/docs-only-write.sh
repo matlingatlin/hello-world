@@ -47,6 +47,15 @@ print(os.path.normpath(os.path.realpath(os.path.dirname(p)) + "/" + os.path.base
 absroot=$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$root" 2>/dev/null)
 
 case "$abs" in
+  # The release record. docs/ is otherwise this agent's whole world, and that is why
+  # the registry needs naming here: it is the one document under docs/ that decides
+  # whether an agent may be used, and an agent that can write its own row can write
+  # itself `in use`. Found when the first agent built to the template did exactly
+  # that — honestly, as it happens, but the mechanism allowed the other outcome.
+  "$absroot"/docs/agent-registry.md)
+    printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"docs-only-write: the registry is the release record, and release is a human decision. Report what you produced; a human writes the row."}}'
+    exit 0
+    ;;
   "$absroot"/docs/*)
     exit 0
     ;;
