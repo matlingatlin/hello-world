@@ -46,6 +46,12 @@ and in what form an argument has to arrive.>
 <!-- TEMPLATE. Fields are empty on purpose: a filled-in exemplar is a near-domain
      stimulus and gets reproduced, choices included. Delete this comment and
      everything in angle brackets.
-     NOTE: `tools:`, `hooks:`, `model:` and `permissionMode:` are PRIVILEGE lines.
-     agent-builder designs them in the spec and a human installs them; the gate
-     refuses to write them. -->
+     NOTE on `tools:`, `hooks:`, `model:`, `permissionMode:` — these decide what
+     the agent may do. An earlier gate refused to write them; it was removed
+     because content inspection proved evadable (five YAML spellings, a two-step
+     rename, a symlink) and because it inverted the safety property, denying a
+     compliant file while allowing one that omitted `tools:` and inherited every
+     tool. The gate now enforces CREATE-ONLY instead, which closes the same holes
+     structurally. So you CAN write these lines on a new agent — and nothing
+     mechanical will stop you getting them wrong. `tools:` omitted inherits ALL.
+     A reviewer, not a gate, is what checks them. -->
