@@ -20,7 +20,16 @@ as its name. Then say plainly: reuse, extend, or author — and **where you look
 
 **Artefact:** the search, and the verdict.
 
-### 0b · Establish that the base knows anything about this domain
+
+## 1 · State the job as one sentence and one artefact
+
+*"It reviews a migration and produces a findings list at `file:line` with a
+verdict."* If you cannot name the artefact it produces, the job is not defined
+yet, and every later step will be guesswork.
+
+**Artefact:** the sentence, and the thing it emits.
+
+### 1b · Establish that the base knows anything about this domain
 
 The reuse gate asks whether an *agent* exists. This one asks whether **evidence**
 does, and it is a different question with a different failure: an agent shaped for
@@ -32,12 +41,12 @@ symptoms. Then rule:
 
 | Verdict | When | What happens next |
 |---|---|---|
-| `covered` | notes carry per-claim verdicts on this domain | proceed to step 1, and name the notes the later steps will draw on |
+| `covered` | notes carry per-claim verdicts on this domain | proceed to step 2, and name the notes the later steps will draw on |
 | `thin` | the domain appears, but as `REPEATED` claims or without per-claim verdicts | proceed, and mark every step that leans on it `unevidenced` |
 | `absent` | nothing | **stop and commission `domain-researcher`** |
 
 To commission: write `docs/research/commissions/<id>.md` carrying the candidate
-sentence from step 1 — that sentence is what scopes the sweep, and it is the whole
+sentence you just wrote — that sentence is what scopes the sweep, and it is the whole
 reason research runs *after* a candidate exists and *before* shaping. Then dispatch
 `domain-researcher`, and `primary-source-verifier` after it. Shaping resumes when a
 verified note exists.
@@ -49,14 +58,6 @@ before it has the information to make it. One, not a series.
 
 **Artefact:** the grep, the verdict, and — where it is `absent` — the commission
 path and the note the sweep produced.
-
-## 1 · State the job as one sentence and one artefact
-
-*"It reviews a migration and produces a findings list at `file:line` with a
-verdict."* If you cannot name the artefact it produces, the job is not defined
-yet, and every later step will be guesswork.
-
-**Artefact:** the sentence, and the thing it emits.
 
 ## 2 · Decide the context diet — this is the step people skip
 

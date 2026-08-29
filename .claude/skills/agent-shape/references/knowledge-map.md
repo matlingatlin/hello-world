@@ -2,9 +2,21 @@
 
 You do not carry this knowledge. You **query** it. Copies drift; the base does not.
 
-Base: `/home/user/skills-repo/knowledge/notes/`. Every note carries per-claim
-**MEASURED** (a study with numbers) or **REPEATED** (asserted, no measurement).
-Never cite a REPEATED claim as though it were measured.
+Base: `/home/user/skills-repo/knowledge/notes/`. Where a note carries per-claim
+**MEASURED** (a study with numbers) or **REPEATED** (asserted, no measurement),
+never cite a REPEATED claim as though it were measured.
+
+**Not every note does.** An audit on 2026-08-29 counted the tokens: of the twelve
+notes this map routes to, **five carry neither anywhere** — `claude-md-and-memory`,
+`dynamic-workflows`, `hooks`, `mcp` and `skill-anatomy`. An earlier version of this
+file asserted that every note carried them, which would have had step 1b grade its
+own core references `thin` on their own evidence.
+
+Those five are documentation transcriptions rather than research syntheses, and the
+distinction is real: a documented behaviour is checkable against one page, where an
+effect size needs a study. But the note does not say which it is, so **treat an
+unmarked claim as unverified** and check the note's `status:` — one note in the base
+now reads `partly-verified` with a `verified_by`, and the other 25 self-attest.
 
 | Open this | When | It settles |
 |---|---|---|

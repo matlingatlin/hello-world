@@ -482,3 +482,41 @@ four**: stage 1 was built, walled and tested with nothing routing into it. Fixed
 parts that precede it, and the pipeline's own arrow list (`decomposition-agent-pipeline.md` §4)
 is marked `unverified against the graph`. A mechanical reachability check belongs in
 `.claude/validate/agents.py`.
+
+**B138 — the loop cannot close its own last stage, and two procedures said it could.**
+`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` in this environment: nesting is off, every agent
+is a leaf, and `agent-builder` therefore cannot run a baseline or dispatch a test. Four
+agents reported it independently before it was written down. `agent-baseline` §2b and the
+correction to `agent-builder.md` close the *documentation* half. The structural half is
+open: **there is no tester agent** — `ls .claude/agents/ | grep -icE 'test|eval|grader'`
+→ 0 — and building one is `agent-builder`'s job, which cannot test what it builds. Three
+options in `docs/review-agent-builder-loop.md` §5; naming the orchestrator is owed
+regardless.
+
+**B139 — the construction rules are restated in seven places and the validator is named
+in one.** Two independent audits on different perspectives reached this seam without
+contact (P5 A-02, P4 F-P4-01). `agents.py` is declared the single home of the rules by
+the decomposition's change matrix; `19.0pp` appears in **7** places, and three of the four
+loop artefacts still do not name the validator. `agent-assembly` §5 now runs it. The other
+three are open.
+
+**B140 — `agent-builder` has no spec, and `agent-builder-scope.sh` has no proposal.**
+Three specs for seven agents; the agent that enforces "no assembly without a spec" was
+assembled without one, and A-03 means nothing could have caught it. Seven hooks, four
+proposals, and `git log --all` shows the builder's own wall never had one. Four of seven
+hooks also have no re-runnable harness.
+
+**B141 — 12 of 26 knowledge notes are cited zero times by the loop**, including
+`testing-skills-methodology.md` and `skill-authoring-eval-methodology.md`. Two measured
+eval failure modes have no step anywhere: variance across repeated runs (required at the
+baseline, absent at the eval) and pressure/rationalisation scenarios. `grep -rniE
+'variance|repeat[- ]n|multiple runs' .claude/` → 1, unrelated.
+
+**B142 — the notes the map routes to are not uniformly evidenced, and five carry no
+verdict token at all.** `claude-md-and-memory`, `dynamic-workflows`, `hooks`, `mcp`,
+`skill-anatomy` → 0 occurrences of MEASURED or REPEATED. They are documentation
+transcriptions rather than research syntheses, which is a real distinction the notes do
+not record. Until they do, `agent-shape` §1b will grade the loop's own core references
+`thin`. The route is `primary-source-verifier`, one note at a time; `subagents.md` is the
+first and is now `partly-verified`.
+

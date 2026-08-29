@@ -9,8 +9,15 @@ You cannot observe your own baseline. This procedure delegates the failure.
 
 The reason is not ceremony. SkillsBench measured skills lifting task success from
 33.9% to 50.5% overall — **and roughly 15% of tasks regressing**, concentrated
-where the base model was already competent. Software engineering was its weakest
-domain at +4.5%. Adding a procedure is not free and not reliably positive. The
+where the base model was already competent. Adding a procedure is not free and not reliably positive.
+
+An earlier version of this line added *"software engineering was its weakest domain at
++4.5%"*. **That is v1 of the paper and three revisions have overtaken it** — an audit
+fetched v4 Table 3 and read software engineering at **+11.6 pp**, with the weakest
+domain **Mathematics & OR at +9.7 pp**. Stale, not invented: v1 does say +4.5. The
+figure is removed rather than replaced, because it rests on one agent's single fetch
+and has not been through `primary-source-verifier`; the two numbers above are the
+load-bearing ones and they survived the same audit's disconfirming check. The
 baseline is how you find out which way yours pushed.
 
 Three of four architecture skills measured elsewhere in this project **did not
@@ -37,6 +44,38 @@ Give them the task, the repo, and no guidance. Ask for the artefact and a short
 rationale — the rationale is where the reasoning that produced the mistake shows.
 
 **Artefact:** N transcripts and N outputs.
+
+### 2b · When you cannot dispatch at all
+
+You may hold no `Agent` tool. This is not hypothetical and it is not rare: with
+`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` — the setting in the only environment this
+loop has run in — nesting is off and **every agent is a leaf**. Four separate agents
+reported it independently before anyone wrote it down here, and both real builds of
+this loop hit it. `agent-assembly` has carried a clause for the same problem all
+along; this step did not, so both builds improvised a substitute without the
+procedure telling them they were permitted to.
+
+Take these in order, and say in the artefact which one you used:
+
+1. **Ask the session above you to dispatch.** It is not a leaf. Emit the exact task
+   prompt you would have sent, verbatim, so the runs are the ones this step
+   specifies and not an approximation of them.
+2. **Use recorded real runs** — output produced by unaided attempts at this job that
+   *already exists*, written by someone other than you, before this agent was
+   proposed. This is **stronger** than a dispatched baseline on one axis: nobody
+   constructed it to be a baseline, so it cannot have been shaped to the answer. It
+   is weaker on another: you did not control the task. Cite every row at a
+   `file:line` or a query.
+3. **Neither.** Then you have no baseline, and the consequence is stated plainly and
+   not worked around: **the agent's content is opinion.** It goes to the spec's open
+   questions, the agent is not shipped as done, and the missing baseline is named in
+   the spec as owed.
+
+What you may **not** do is write a failure table from what you expect agents to get
+wrong. That is the speculation this whole step exists to replace, and it is
+indistinguishable from a real table once written down.
+
+**Artefact:** which route, and — for route 1 — the verbatim prompt you handed up.
 
 ## 3 · Record what they got wrong — quoted, not summarised
 

@@ -598,6 +598,9 @@ agent-shape/SKILL.md      OK 0, 0b, 1, 2, 3, 4, 5, 6, 7      MISS  §8 (line 176
 agent-baseline/SKILL.md   OK 1, 2, 3, 5                      MISS  §4 (line 58)  Separate what the agent must fix
 agent-assembly/SKILL.md   OK 1, 2, 3, 4, 5, 6                MISS  §7 (line 125) Report what is true
 ```
+Re-run against the working tree at the end of this pass (the concurrent P5 edits shifted §5–§7): the
+result is identical — the same three sections miss, §7 now at line 147.
+```
 Unit: numbered `##` sections in the three files (21 total, `0b` counted). **3 of 21 carry no
 `**Artefact:**` line.**
 
