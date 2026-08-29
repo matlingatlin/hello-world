@@ -331,6 +331,89 @@ def main(root):
           f"{', ' + str(len(warns)) + ' warnings' if warns else ''}")
     return 1 if fails else 0
 
+def emit_factors(root="."):
+    """One JSON object per agent: the factors we may vary, derived from the tree.
+
+    Split deliberately. A CONSTANT is fixed by the platform or the spec — we record
+    it as context so an old run stays interpretable when Anthropic changes it, and we
+    never treat it as an experimental factor. A VARIABLE is something we chose and
+    could have chosen otherwise, so it is a candidate cause when outcomes differ.
+
+    Nothing here is an outcome. Outcomes live in the run records; this is the
+    configuration a run was produced under, and the join key is the agent name plus
+    the commit.
+    """
+    import subprocess
+    root = os.path.abspath(root)
+    try:
+        commit = subprocess.check_output(
+            ["git", "-C", root, "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL).decode().strip()
+    except Exception:
+        commit = None
+    # The template version in the tree RIGHT NOW. This is context, not a factor:
+    # it says nothing about what any given agent was built against.
+    tv_now = None
+    for vf in glob.glob(os.path.join(root, ".claude", "skills", "*", "assets",
+                                     "template", "VERSION")):
+        try: tv_now = open(vf, encoding="utf-8").read().strip()
+        except OSError: pass
+
+    # What each agent was ACTUALLY built against is a decision, not a derivation, so
+    # it is read from the registry. An earlier version of this function emitted the
+    # tree's current version under a field named for the built-against one — every
+    # agent would have reported `1.0.0` while the registry said `pre-template`, and
+    # any later analysis would have been comparing a constant against itself.
+    built = {}
+    rp = os.path.join(root, "docs", "agent-registry.md")
+    if os.path.exists(rp):
+        try:
+            for line in open(rp, encoding="utf-8", errors="replace"):
+                cells = [c.strip() for c in line.split("|")]
+                if len(cells) > 4 and cells[1].startswith("`"):
+                    built[cells[1].strip("`")] = cells[3].strip("`") or None
+        except OSError:
+            pass
+
+    agents = sorted(set(glob.glob(os.path.join(root, ".claude/agents/*.md")) +
+                        glob.glob(os.path.join(root, "agents/*.md"))))
+    out = []
+    for ap in agents:
+        fm, body, err = frontmatter(ap)
+        if err or fm is None:
+            out.append({"agent": os.path.basename(ap)[:-3], "commit": commit,
+                        "error": err or "unparseable frontmatter"})
+            continue
+        name = os.path.basename(ap)[:-3]
+        tools = [t.strip() for t in (scalar(fm, "tools") or "").split(",") if t.strip()]
+        pre = block_list(fm, "skills")
+        desc = scalar(fm, "description") or ""
+        out.append({
+            "agent": name,
+            "commit": commit,
+            # ---- variables: chosen, and could have been chosen otherwise ----
+            "v_model": scalar(fm, "model"),
+            "v_tool_count": len(tools),
+            "v_tools": tools,
+            "v_preload_count": len(pre),
+            "v_preloads": pre,
+            "v_body_words": len(body.split()),
+            "v_desc_chars": len(desc),
+            "v_has_wall": "hooks:" in fm,
+            "v_template_built_against": built.get(name),
+            "c_template_version_in_tree": tv_now,
+            "v_holds_bash": "Bash" in tools,
+            "v_holds_agent": "Agent" in tools,
+            "v_holds_websearch": "WebSearch" in tools,
+            # ---- constants: platform-fixed. Context, never a factor ----
+            "c_desc_cap": DESC_MAX,
+            "c_roster_budget": ROSTER_MAX_T,
+            "c_preload_cap": PRELOAD_MAX,
+            "c_spawn_depth": os.environ.get("CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH"),
+        })
+    return "\n".join(json.dumps(r, sort_keys=True) for r in out)
+
+
 def emit_limits():
     """The single source for every limit this checker enforces.
 
@@ -368,6 +451,9 @@ def emit_limits():
 
 
 if __name__ == "__main__":
+    if "--factors" in sys.argv:
+        a = [x for x in sys.argv[1:] if not x.startswith("--")]
+        print(emit_factors(a[0] if a else ".")); sys.exit(0)
     if "--limits" in sys.argv:
         print(emit_limits()); sys.exit(0)
     sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "."))

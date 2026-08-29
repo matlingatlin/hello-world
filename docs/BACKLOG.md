@@ -713,3 +713,23 @@ worse than a narrow one that holds.
 row carries the version its agent was built against. A change to the standard drifts silently through
 every agent already built. Each agent's spec must record the template version it was built
 against, so a change produces a migration list rather than invisible divergence.
+
+**B153 — two of our variables have zero variance, so they cannot explain anything.**
+`agents.py --factors` emits each agent's configuration split into `v_` (chosen, could
+have been otherwise) and `c_` (platform-fixed, context only). Run across the eight
+agents it shows **`v_model` is `inherit` in all eight** and
+**`v_template_built_against` is `pre-template` in all eight**. A factor with no
+variance is not a factor: no volume of further runs can measure the effect of a model
+choice nobody has ever varied. Learning anything about either requires *deliberately*
+varying it — and the template is the cheaper of the two, because one agent built to the
+standard and compared against its own predecessor is a comparison where the variable
+actually moves.
+
+**B154 — the competence layer has a protocol and no runs.** `docs/measurement-protocol.md`
+fixes what the single null A/B got wrong: criteria committed before the run, arms
+differing only in the agent, n fixed in advance at three or more per arm (B147 showed a
+single draw disagreeing with itself), tasks drawn from the agent's own trigger including
+one deliberately out of scope, and an evaluator that neither built the agent nor ran the
+arms, judging unlabelled arms after catching its own planted defect. `runs.jsonl` is
+empty. Every evidence cell in `docs/agent-registry.md` is still conformance or
+containment — **not one says an agent does its job better than not having it.**
