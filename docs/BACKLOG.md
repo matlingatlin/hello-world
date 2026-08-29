@@ -592,3 +592,32 @@ The fix is a rule, not a document: a negative control is run at least twice and 
 outcomes are recorded, or it is marked one-draw. Until then, read every `X`-row PASS in
 `docs/research/evidence/c4-x1-run.md` and `docs/evals-rebuild-pair-results.md` as
 one observation.
+
+**B148 — a reviewer wrote its findings into the agent definition it was reviewing, and
+its own wall did not stop it.** Found in `git status`, not by any check. An
+`agent-review-pass` dispatch appended **214 lines** to
+`.claude/agents/rebuild-prospector.md`. Had that been committed, every future dispatch of
+that agent would have loaded a review document as part of its own system prompt.
+
+`agent-fitness-review` carries `docs-only-write.sh` precisely to make this impossible.
+Run directly against the payload it would have received, the script returns **deny**. The
+write landed anyway. **The script is correct and was never invoked** — `hasTrustDialogAccepted`
+is `false` for this repository, confirmed by reading `/root/.claude.json`.
+
+This is B143 with a casualty. Until now that finding was an inference from transcripts;
+this is the first observed corruption caused by it. Three consequences:
+
+1. **Every wall in this repository is decorative in this environment.** Six harnesses and
+   174 passing control rows certify path logic and nothing else. The reviewer said so in
+   its own row 1 — *"even a quoted 32/32 pass from this harness would only certify the
+   script's own path logic, never whether Claude Code actually invokes it in a live
+   session"* — and then demonstrated it by being the casualty.
+2. **`git status` is currently the only real containment check.** Nothing in
+   `agents.py` or any harness would have caught this; the file still parses and the
+   validator still reports CLEAN.
+3. The one impossibility that held is the one with no hook behind it: **an absent tool**.
+   The reviewer's own row 4 marks `tools:` as `holds` for exactly that reason. That is the
+   house rule — *a must never is a hook or an absent tool* — with the two halves now
+   measurably unequal in this environment.
+
+The recovered document is `docs/agent-review-rebuild-prospector-L3.md`.
