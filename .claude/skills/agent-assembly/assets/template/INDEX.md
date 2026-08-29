@@ -12,6 +12,7 @@ it, and what a bad one looks like.
 | `02-description.md` | the description | last, after the agent is defined |
 | `03-body.md` | the five body sections | you write the prose |
 | `04-wall.md` | tools and hooks | you decide what must be impossible |
+| `05-WORKED-EXAMPLE.md` | one complete agent, filled in | you want to see all of it at once |
 | `LIMITS.md` | every enforced number | **generated** — never edit it |
 
 ---
