@@ -40,7 +40,7 @@ d=$(mk t7);  printf -- 'skills:\n  - a\n  - b\n  - c\n  - d\n' >> /dev/null
              python3 -c "
 import sys;p=sys.argv[1];t=open(p).read()
 open(p,'w').write(t.replace('tools: Read','tools: Read\nskills:\n  - good-skill\n  - good-skill\n  - good-skill\n  - good-skill'))" "$d/.claude/agents/good-agent.md"
-                                                                       expect "more than 3 preloaded skills" catch "over the cap" "$d"
+                                                                       expect "more than 3 preloaded skills" catch "signal you have two agents" "$d"
 d=$(mk t8);  python3 -c "
 import sys;p=sys.argv[1];t=open(p).read()
 open(p,'w').write(t.replace('tools: Read','tools: Read\nskills:\n  - ghost-skill'))" "$d/.claude/agents/good-agent.md"

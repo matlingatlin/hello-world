@@ -102,8 +102,10 @@ def main(root):
                       "68/68 agents in the ECC library set it explicitly")
         pre = block_list(fm, "skills")
         if len(pre) > PRELOAD_MAX:
-            fail(rel, f"{len(pre)} preloaded skills, over the cap of {PRELOAD_MAX} "
-                      f"— a fourth function is the signal you have two agents [M]")
+            fail(rel, f"{len(pre)} preloaded skills, over THIS REPO'S cap of "
+                      f"{PRELOAD_MAX} — no documented limit on `skills:` exists; this "
+                      f"is a measured quality finding, and a fourth function is the "
+                      f"signal you have two agents [M]")
         for s in pre:
             if s not in skill_names:
                 fail(rel, f"preloads `{s}`, which does not exist in this repo")
@@ -167,6 +169,19 @@ def main(root):
     for w, m in warns: print(f"  WARN  {w}: {m}")
     if warns: print()
     for w, m in fails: print(f"  FAIL  {w}: {m}")
+    # Every row carries its provenance tag, and until now the key to those tags lived
+    # only in this file's docstring — so a reader of the output saw `[M]` with nothing
+    # to read it against. A research run flagged the consequence: an agent reporting a
+    # fourth preloaded skill would call it a limit violation, when no documented cap on
+    # `skills:` exists at all. The rule is ours, it is a measured quality finding, and
+    # the output now says so rather than letting it borrow the authority of a spec.
+    if fails or warns:
+        print("\n  where each rule comes from:")
+        print("    [A] Anthropic, The Complete Guide to Building Skills for Claude")
+        print("    [B] code.claude.com/docs/en/sub-agents")
+        print("    [C] code.claude.com/docs/en/skills")
+        print("    [M] measured in this project — a house rule, not a documented limit")
+        print("        (/home/user/skills-repo/knowledge/notes/)")
     print(f"\n{'CLEAN' if not fails else str(len(fails)) + ' FAILURES'}"
           f"{', ' + str(len(warns)) + ' warnings' if warns else ''}")
     return 1 if fails else 0

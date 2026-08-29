@@ -131,3 +131,58 @@ evidence.
 
 Run: **C4, X1, X3, X4** — 4 of 25, all pass, three defects found by them.
 Unrun: C2, C3, C5–C10, X2, T1–T6, N1–N5.
+
+---
+
+# X2, run 2026-08-29 — a question the base already answers
+
+**PASS.** Commissioned to research subagent limits — a topic
+`/home/user/skills-repo/knowledge/notes/subagents.md` already owns — `domain-researcher`
+ruled **`extend`, not author**, on six recorded base queries, and its deliverable is a
+patch a human applies rather than a rival note. That is the ruling the case tests.
+
+It also declined to reconstruct the commission's missing fields, recording the gaps
+instead: *"if it was actually a re-commission, this sweep re-covered ground and someone
+needs to say so."*
+
+## The sweep earned its keep anyway, which the case did not anticipate
+
+The existing note's limit rows carry **no quote and no locator**, so a verifier cannot
+rule against them at all. Attaching provenance surfaced four staleness or precision
+defects in a note marked `status: verified`, the most substantive being **P2**: the note
+says background subagents "silently drop non-listed built-ins" (`subagents.md:112`),
+which reads as though *listing* a tool protects it. The documentation says removal applies
+*"whether inherited or listed in the `tools` field."* If that holds, the note is wrong in
+the direction that would make someone think they had protected a tool.
+
+The three headline values — depth 3, 20 concurrent, 15,000-token roster budget — were
+**re-confirmed unchanged**, now with quotes and locators behind them.
+
+## The finding that lands on our own validator
+
+**There is no documented cap on preloaded `skills:` at all.** The "at most three" rule in
+`CLAUDE.md` is a measured quality finding (SkillsBench, via `agent-design-template.md:35`),
+not a documented limit — and `.claude/validate/agents.py` emitted it as a `FAIL` tagged
+`[M]` whose key existed only in the module docstring, never in the output. A reader would
+have taken a house rule for a spec violation.
+
+Fixed: the provenance legend now prints under any run with findings, and the message
+names its own source — *"over THIS REPO'S cap … no documented limit on `skills:` exists."*
+The severity stays `FAIL`, because the project chose to bind itself to its own measured
+rule; what was wrong was the borrowed authority, not the strictness. A positive control
+caught the wording change and was re-anchored to the stable half of the message.
+
+## What it could not establish, recorded rather than smoothed over
+
+The env-vars and settings reference pages could not be read (three attempts, truncation),
+so depth 3 and concurrency 20 rest on **one page, not two** — a corroboration gap it
+recorded so nobody later claims two sources. And every quote came through `WebFetch`'s
+rendering rather than raw page source, stated at the top of the draft.
+
+It set no `verified_by` and no `verified` status anywhere, including in the patch.
+
+## Case tally
+
+Run: **C4, X1, X2, X3, X4** — 5 of 25, all pass, four defects found by them.
+Running: N2 on X2's real draft — the verdict that decides whether P1–P6 reach the base.
+Unrun: C2 (dispatched), C3, C5–C10, T1–T6, N1, N3–N5.
