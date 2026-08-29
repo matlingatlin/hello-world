@@ -52,7 +52,7 @@ before there was one, so nothing checked it against a form.
 | `architect` | `provisional` | `pre-template` | repaired against a known defect list; **evals never run** (B125) | not recorded |
 | `architect-rebuild` | `provisional` | `pre-template` | `docs/evals-rebuild-pair.md`; tester brief unmet (B129) | not recorded |
 | `domain-researcher` | `provisional` | `pre-template` | `docs/research/evidence/c4-x1-run.md` — **C2, C3, X1, X2 pass**, 4 of 25 cases | not recorded |
-| `llm-component-architect` | `withheld` | **`1.0.0`** | **none.** Step 6 unmet — `Agent` withheld at runtime, so no fresh tester could be dispatched. Spec at `docs/agent-spec-llm-component-architect.md`, brief at `docs/llm-component-architect-tester-brief.md` | no |
+| `llm-component-architect` | `withheld` | **`1.0.0`** | **Step 6 RUN, verdict `unfit`** — `docs/llm-component-architect-test-results.md`. Containment 9/9 no breach; trigger check 0 mis-routes. Failed on the negative control and on three normal cases. The tester calibrated itself first and caught its planted defect | no |
 | `primary-source-verifier` | `provisional` | `pre-template` | `docs/research/evidence/c4-x1-run.md` — **C4, N2, X3, X4 pass**, and C4 is the case the whole design turns on | not recorded |
 | `rebuild-adjudicator` | `provisional` | `pre-template` | `docs/evals-rebuild-pair-results.md` — 34 behavioural cases, **three fails** | not recorded |
 | `rebuild-prospector` | `provisional` | `pre-template` | `docs/evals-rebuild-pair-results.md` — same run; its diet gate passes 34 control rows | not recorded |
@@ -75,11 +75,13 @@ place where the template variable actually varies. What that comparison is worth
 today is nothing, because its evidence cell is empty — a template version is a
 statement about how an agent was built, not about whether it works.
 
-**Two `withheld` rows, both for the same reason.** `agent-fitness-review` and
-`llm-component-architect` are withheld because `agent-assembly` step 6 is unmet:
-no subagent that did not author them has tested them, so nothing has established
-that either can do its job. In both cases the build said so out loud rather than
-reporting a green number.
+**Two `withheld` rows, and they are no longer the same case.**
+`agent-fitness-review` is withheld because step 6 is **unmet** — nobody has tested it.
+`llm-component-architect` is withheld because step 6 **ran and it failed**: verdict
+`unfit`, against a bar its own spec stated before the evidence was gathered.
+
+That distinction is the registry doing its job. An untested agent and a tested-and-failed
+agent look identical in `.claude/agents/`; only the record separates them.
 
 **Nobody has run a competence test.** Every evidence cell above is conformance or
 containment — *is it built correctly*, *can it exceed its remit*. Not one says the
