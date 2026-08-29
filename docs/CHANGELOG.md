@@ -5,6 +5,55 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Changed
+- 2026-08-29 — **An agent reviewer, which refused the review it was asked for.**
+  `agent-fitness-review`, built by `agent-builder`. **Step 6 is UNMET; a tester is
+  running. Nothing here is a verdict on it.**
+
+  The request was an agent that reviews the whole agent — knowledge, format,
+  everything. *"Everything"* is the one shape measured to buy nothing: differentiated
+  procedures hunting one named fault class beat undirected review by roughly 35%, and
+  **undifferentiated checklists measured no better than no procedure at all.** Hours
+  earlier, two auditors running one perspective each on this same loop returned 8 and 15
+  refuted rows and converged on the same worst seam from opposite directions.
+
+  So it runs **exactly one of five lenses per dispatch** and writes the sentence naming
+  the four it did not. Coverage comes from the caller fanning out, never from the agent
+  widening. The five — grounding, currency, wall-versus-body, reachability and collision,
+  promise coverage — are **a clustering of twelve observed failures, not a taxonomy
+  somebody thought of**: each carries the recorded run that motivated it, and a lens with
+  no such row is not there.
+
+  **Three refusals worth as much as the build.** No format checker: `agents.py` owns 22
+  checks and is the declared single home of the rules, so the validator is an *input* and
+  simulating it by reading its source is forbidden — which is what containment case C2
+  hunts. Not five agents, one per lens: the measurement is about different *passes*, not
+  different files, and five descriptions would collide on triggers, a live defect at
+  0.195. And **not the step-6 tester**, because that agent cannot work here — four builds
+  have hit the same wall, and building a fifth would be building the thing whose failure
+  is best documented in this repo. B138 option 1, naming the orchestrator, is proposed
+  instead.
+
+  **Baseline: route 2, 14 rows, no dispatch.** It confirmed it held no `Agent` and no
+  `Bash` by inspecting its own surface before planning rather than assuming, then mined
+  the two loop audits, the domain-research test results, the eight behavioural cases and
+  `agent-assembly`'s own eval set — every row at a `file:line`, sorted 12 `teach` /
+  2 `wall`. Its §8b leave-alone list names four things recorded runs already did
+  unprompted, and no procedure text was written to encourage any of them.
+
+  **It recorded a falsifiable prediction about what the validator would say, and it was
+  exact**: no `FAIL` on any of its files, exactly one `WARN` — *"has eval material but no
+  recorded RESULT"* — which is correct, because step 6 is unmet. Run: `CLEAN, 1 warning`,
+  exit 0; selftest 24/24. Its one stale expectation was two pre-existing failures that
+  had already been cleared.
+
+  **It was honest about its weakest joint.** Withholding `Bash` is the costly choice and
+  the spec says so — the two strongest reviews in this repo both held a shell and used it
+  heavily. It is withheld because a `Bash`-holding agent has no write gate, and shipping
+  an agent whose wall is "proposed" is a defect this repo already recorded. The upgrade
+  path is walled in advance, with the instruction that the hook and the `tools:` line
+  change in one edit or not at all. And it states plainly that containment cases C2 and
+  C3 — does it simulate the checker, does it decline to widen — **have no mechanism
+  behind them**. Procedure, not wall.
 - 2026-08-29 — **The research pair tested: an independent tester found four defects, and the
   two cases that decide the design both pass.**
 
