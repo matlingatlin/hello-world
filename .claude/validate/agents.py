@@ -256,6 +256,26 @@ def main(root):
             warn(rel, f"has eval material ({', '.join(found[:2])}) but no recorded RESULT. "
                       f"A suite nobody ran is a plan [M]")
 
+    # ---- every agent is in the registry -------------------------------------
+    # B133/B150: an agent in the tree with no registry row was never released — it is
+    # there because somebody built it. The registry cannot ENFORCE anything (the roster
+    # is assembled from the files, and no hook can change that), so this check does the
+    # one thing a checker can: make the absence of a decision impossible to miss.
+    reg = os.path.join(root, "docs", "agent-registry.md")
+    if agents and os.path.exists(reg):
+        try:
+            rtext = open(reg, encoding="utf-8", errors="replace").read()
+        except OSError:
+            rtext = ""
+        for ap in agents:
+            nm = os.path.basename(ap)[:-3]
+            if f"`{nm}`" not in rtext:
+                fail(os.path.relpath(ap, root),
+                     "has no row in docs/agent-registry.md. An agent in the tree with "
+                     "no registry row was never released — it is there because someone "
+                     "built it. Add a row with its status, the template version it was "
+                     "built against, and its evidence [M]")
+
     # ---- settings.json -----------------------------------------------------
     # A P5 absence audit found `"matcher": "Edit|Write"` sitting in .claude/settings.json —
     # the exact string selftest.sh plants as a defect — while this checker scanned only

@@ -113,5 +113,15 @@ d=$(mk t22); mkdir -p "$d/.claude/skills/good-skill/assets/template"
 printf -- '# desc\n\nThe cap is in LIMITS.md. Aim for 600-900 characters.\n' > "$d/.claude/skills/good-skill/assets/template/02-description.md"
                                                                        expect "pointing at LIMITS.md is legal, and guidance numbers are not caps" clean "" "$d"
 
+# the registry — B133/B150: an agent nobody decided to release
+d=$(mk t24); mkdir -p "$d/docs"
+printf -- '# registry\n\n| Agent | Status |\n|---|---|\n| `someone-else` | in use |\n' > "$d/docs/agent-registry.md"
+                                                                       expect "agent missing from the registry" catch "no row in docs/agent-registry.md" "$d"
+d=$(mk t25); mkdir -p "$d/docs"
+printf -- '# registry\n\n| Agent | Status |\n|---|---|\n| `good-agent` | in use |\n' > "$d/docs/agent-registry.md"
+                                                                       expect "agent present in the registry is clean" clean "" "$d"
+d=$(mk t26)
+                                                                       expect "no registry file at all does not fire" clean "" "$d"
+
 echo; echo "positive controls: pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

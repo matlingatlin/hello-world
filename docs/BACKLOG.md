@@ -658,7 +658,23 @@ was found by running something, never by reading it.
 manufacturing because finding a bad batch at release wastes the batch. `agent-assembly`
 should call the checker per part as it is written.
 
-**B150 — no release step, and no record of one.** We produce verdicts; nothing records
+**B150 and B152 CLOSED, and B133 with them, 2026-08-29.** `docs/agent-registry.md`
+is the batch record and the release decision in one: per agent a status, the template
+version it was built against, its evidence, and who released it. The validator fails any
+agent in `.claude/agents/` with no registry row (three controls behind it).
+
+**What the register makes visible on day one is worse than the gap it closed.** Eight
+agents, **not one with a recorded release** — every one is in the tree because it was
+built, not because anyone decided it should be used. Seven read `provisional`, one
+`withheld`. And **all eight read `pre-template`**: the standard now exists and nothing
+has been built to it, so the version column doubles as the refactor worklist.
+
+The registry is deliberately **not** a mechanism, and says so in its own text: the roster
+is assembled from the files, so `withheld` stops nothing and no hook can make it. Its job
+is to make the absence of a decision impossible to miss. Deleting the file is the
+enforcement.
+
+~~**B150 — no release step, and no record of one.**~~ We produce verdicts; nothing records
 that a human decided to put an agent into use, when, against which template version, and
 on what evidence. A verdict is an input to that decision, not the decision.
 
@@ -692,6 +708,8 @@ constants. Four controls behind it (28 total). Scanned literals are deliberately
 and `500` are too common in prose — a check with false positives gets disabled, which is
 worse than a narrow one that holds.
 
-**B152 — the template is unversioned.** A change to the standard drifts silently through
+~~**B152 — the template is unversioned.**~~ Closed with B150 —
+`.claude/skills/agent-assembly/assets/template/VERSION` is `1.0.0`, and every registry
+row carries the version its agent was built against. A change to the standard drifts silently through
 every agent already built. Each agent's spec must record the template version it was built
 against, so a change produces a migration list rather than invisible divergence.
