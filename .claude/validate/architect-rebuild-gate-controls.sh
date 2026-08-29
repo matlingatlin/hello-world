@@ -57,6 +57,19 @@ chk 19 deny ''
 chk 20 deny '{"tool_name":"Bash","tool_input":{"command":"echo hi > /etc/x"}}'
 chk 21 deny "$(w 'docs/decisions/0023-x.md')" noproj
 
+echo "the interpreter the adjudicator is written in"
+NOPY="${NOPY:-/tmp/claude-0/-home-user-hello-world/166da4b5-1b2a-5916-b4ac-2e347fa567c1/scratchpad/nopy}"
+if [ -x "$NOPY/bash" ]; then
+  got="$(printf '%s' "$(w 'apps/api/src/main.ts')" | env PATH="$NOPY" CLAUDE_PROJECT_DIR="$R" "$GATE" 2>/dev/null \
+        | python3 -c 'import sys,json
+try: print(json.load(sys.stdin)["hookSpecificOutput"]["permissionDecision"])
+except Exception: print("UNPARSEABLE")')"
+  if [ "$got" = deny ]; then printf '  ok    %-3s %s\n' 23 deny; pass=$((pass+1))
+  else printf '  FAIL  %-3s expected deny got %s (a hook that emits nothing is not a denial)\n' 23 "$got"; fail=$((fail+1)); fi
+else
+  printf '  SKIP  23  no bash-without-python3 PATH staged at %s\n' "$NOPY"
+fi
+
 echo "symlinked parent"
 ln -sfn /tmp "$R/docs/out"
 chk 22 deny "$(w 'docs/out/x.md')"

@@ -9,6 +9,14 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-}"
 
 payload="$(cat)"
 
+# python3 is the whole adjudicator below. Without it the script would die on line 1
+# of the heredoc with no stdout, and a PreToolUse hook that emits nothing is not a
+# denial — the write proceeds. Fail closed, in shell, before that can happen.
+command -v python3 >/dev/null 2>&1 || {
+  printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"architect-rebuild-write-gate: python3 unavailable; the payload cannot be inspected, so its scope cannot be checked."}}'
+  exit 0
+}
+
 PROJECT_DIR="$PROJECT_DIR" payload="$payload" python3 - <<'PY'
 import json, os, sys
 

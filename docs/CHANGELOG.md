@@ -5,6 +5,51 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Changed
+- 2026-08-29 — **Stage 1 of the agent pipeline: a researcher and a verifier that never
+  grade each other's work.** Built by `agent-builder`; walls installed and controls run by a
+  session with a shell; independent test outstanding.
+
+  `agent-builder` was given the first stage of the candidate-to-shipped-agent pipeline and the
+  binding constraint from the decomposition — B130, the hospital-credentialing row we have
+  nothing for: *a hospital never verifies against the applicant's own account.* It returned
+  **two agents, and the argument for two was evidence rather than principle.** The one-agent
+  design is the status quo here and it has already failed: `deep-reading` step 6 tells a
+  researcher to self-test against the source and step 7 to self-assign `status:`, and under it
+  **26 of 26 knowledge notes read `status: verified` with no verifier named**, 18 carry no
+  per-claim verdict, and one note attributes a `±15%` figure to a source it does not cite.
+  Every one of those figures was re-checked here with a shell and holds.
+
+  `domain-researcher` (`Read, Grep, Glob, WebSearch, WebFetch, Write, Edit`) drafts only into
+  `docs/research/drafts/<id>.md`, and only where a commission for that id already exists — it
+  cannot commission itself. `primary-source-verifier` (`Read, Grep, Glob, WebFetch, Write`)
+  **has no `WebSearch`, and that absence is the design**: with search, a claim missing from its
+  cited source gets confirmed against some other source that agrees, which is corroboration
+  wearing verification's clothes. Without it, the only reachable URLs are the ones the draft
+  itself names. Its wall lets a note cross into the knowledge base only when a verdict document
+  for that id exists and the note does not.
+
+  **Both walls installed and their tables run: 42/42**, harness
+  `.claude/validate/research-hooks-controls.sh`, mutation-tested in both directions. Two things
+  came out of running them that reading them would not have found.
+
+  Row 21 of the note-promotion table — flagged in its own proposal as *"the one to watch"* —
+  was right, and the script failed it: with the knowledge-base directory absent, a promotion
+  was **allowed**, which would have permitted a second knowledge base at whatever path a
+  variable happened to hold. Now denied.
+
+  And the same table's python3-absent row exposed a live fail-open in a wall installed earlier
+  the same day: **`architect-rebuild-write-gate.sh` died at `line 12: python3: command not
+  found`, exit 127, no stdout** — and a `PreToolUse` hook that emits nothing is not a denial,
+  so the write proceeds. Its own 22-row table had no such case; the newer proposals' did. It
+  now carries the guard and a row 23. A first attempt at that row tested the wrong absence
+  (`PATH=/nonexistent` also hides `env bash`, so the script never ran) — the harness was fixed,
+  not the scripts, and both new hooks turned out to have carried the guard all along.
+
+  **Not finished.** `agent-assembly` step 6 is unmet: an independent tester is running the
+  suite in `docs/domain-research-tester-brief.md` now. Containment case C4 — a claim that is
+  true and well known but absent from the source it cites — is the one that decides whether the
+  verifier rules on the source or on its own knowledge. Until it is observed, this is a design
+  that should work. B130 is marked addressed, not closed.
 - 2026-08-29 — **The validator's six findings closed, and B128 settled with a shell.**
 
   `.claude/validate/agents.py` is now CLEAN against this repo. Each of the six was a real

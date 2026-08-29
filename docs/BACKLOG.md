@@ -407,6 +407,31 @@ never trusts the applicant's account, it checks with the issuing body. Our
 researcher writes a note and nothing re-reads the cited paper. We have measured
 this exact failure in other people's writing twice.
 
+**ADDRESSED 2026-08-29, PENDING TEST — not closed.** `agent-builder` built stage 1 as two
+agents rather than one, and the evidence for splitting was the status quo's own failure
+record: `deep-reading/SKILL.md:55-61` already tells a researcher to self-test against the
+source and then self-assign `status:`, `literature-review/SKILL.md:149-157` already says
+*"do not cite a paper for a claim it does not make"* — and under both, **26 of 26 notes
+carry `status: verified` and none names a verifier**, 18 of 26 carry no per-claim verdict at
+all, and `long-text-comprehension.md:61` attributes a `±15%` heuristic to a source not among
+its three. All four figures re-checked with a shell on 2026-08-29 and confirmed. Adding a
+fourth self-check sentence to one agent would have joined a list of two that has already
+failed 26 times.
+
+So: `domain-researcher` drafts and **cannot write into the knowledge base** (its wall allows
+one shape of path, `docs/research/drafts/<id>.md`, and only when a commission for that id
+exists — it cannot even commission itself). `primary-source-verifier` rules each claim and
+**holds no `WebSearch`**, which is the load-bearing absence: with it, a claim missing from its
+cited source could be "confirmed" against some other source that happens to agree, which is
+corroboration wearing verification's clothes and is precisely what this backlog item is about.
+Its wall permits a note to cross into the base only when a verdict document for that id exists
+and the note does not — so the crossing is structural, not procedural.
+
+**Why it is not closed:** no independent tester has run the suite yet, and containment case C4
+— a claim that is *true and well known* but absent from the source it cites — is the one that
+decides whether the verifier rules on the source or on its own knowledge. Until C4 is observed,
+this is a design that should work.
+
 **B131 — no observed period between "evals passed" and "live".** Credentialing has
 proctoring; we have nothing between the test and independent operation.
 
