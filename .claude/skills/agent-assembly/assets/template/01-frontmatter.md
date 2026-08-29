@@ -98,6 +98,13 @@ a 25,000 shared budget, most recent first, **truncated silently**.
 **[HOUSE]** A fourth function is the signal you have two agents, not a bigger
 one. That reading of the measurement is ours; the measurement is not.
 
+**A preloaded skill must live in this repository.** The checker resolves every
+name in `skills:` against `.claude/skills/*/SKILL.md` here and nowhere else, so a
+library talent, a bundled skill, or anything under a session `/tmp` path **cannot
+be preloaded** however useful it is. This ruled out all 84 library talents for the
+first agent that tried it. What you can still do is *read* such a skill at a step —
+name its path in §4 of the body, where it costs nothing until opened.
+
 Each preloaded skill must be a **numbered procedure that ends in an artefact**.
 A skill that is a pile of advice belongs in `references/`, read at the step that
 needs it, costing nothing until then.

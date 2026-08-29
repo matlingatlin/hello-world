@@ -52,9 +52,27 @@ agent whose return value is unstated will be invoked and then second-guessed.
 
 **4 · NOT-clauses routing to named neighbours.**
 
-`NOT for <the adjacent job> (<the agent or skill that owns it>)`. One per
-plausible confusion. **The neighbour must exist and must be named** — a NOT-clause
-pointing nowhere sends the caller in a circle.
+One per plausible confusion. **The neighbour must exist and must be named** — a
+NOT-clause pointing nowhere sends the caller in a circle.
+
+**Two forms, and the checker only understands one of them.**
+
+*In this repository:* `NOT for the adjacent job (neighbour-name)`. The checker
+resolves the parenthesised name against `.claude/agents/` and `.claude/skills/`
+and warns when it finds nothing. Use this form and the routing is verified.
+
+*Outside this repository* — a library talent, another repo's agent: the same form
+produces a **warning**, because the checker cannot see the target. Phrasing it
+without parentheses makes the warning go away and makes the route invisible.
+Neither is good. **Name the job and where it lives, in prose**, and accept that
+nothing verifies it:
+
+> NOT for retrieval, chunking or embedding quality — that is a separate job and
+> the talent for it lives in the library at `/home/user/skills-repo`, not here.
+
+The template's own rule calls an unverifiable route a defect. It is one; it is
+just a defect with no better alternative until the checker can resolve across
+repositories. Say so in the spec rather than choosing a phrasing that hides it.
 
 This is **[HOUSE]**, not measured. The argument for it is mechanical rather than
 empirical: two descriptions competing on the same vocabulary give the caller no

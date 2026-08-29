@@ -751,3 +751,39 @@ gate** — `architect`, `rebuild-adjudicator`, `agent-fitness-review` and
 `llm-component-architect` itself all write under `docs/` through `docs-only-write.sh`,
 which has no such carve-out and no harness at all. The general fix is one deny in that
 shared gate plus its first control table.
+
+**B156 — the first real use of the template found five defects in it, all now fixed
+(template `1.1.0`).** Recorded because the pattern matters more than the list: a
+standard nobody has built to is a draft, and the defects were invisible until an agent
+tried to satisfy it.
+
+1. **The hook bootstrap was unsatisfiable.** The skeleton invites a `hooks:` block,
+   `agent-assembly` §4 forbids the builder from writing `.claude/hooks/`, and `agents.py`
+   fails an agent whose hook command does not exist. **All three cannot hold on a first
+   build.** The builder took the only green-and-true route available and pointed at
+   `architect-rebuild-write-gate.sh` — a script named for a different agent — creating a
+   coupling where tightening that gate for `architect-rebuild` silently changes this
+   agent's wall. `04-wall.md` now names two legitimate routes and requires the coupling
+   to be written into both agents' §2 when route B is taken.
+2. **Nothing said a preloaded skill must be repo-local.** The checker resolves `skills:`
+   against this repo only, which silently rules out all 84 library talents and every
+   bundled skill. Decisive for this agent; now stated, with the alternative (read it at a
+   step, do not preload it).
+3. **The NOT-clause rule contradicted the checker for out-of-roster neighbours.** The
+   checker only understands the `(use x)` form and only resolves it locally, so routing
+   to a library talent is either invisible or a warning. Both forms are now described,
+   with the honest note that an unverifiable route is a defect with no better alternative
+   yet.
+4. **`unevidenced` had no home.** `agent-shape` §1b produces a fourth provenance state
+   and the template never said where to carry it. Adopted the builder's own convention: a
+   *What is not evidenced here* table at the foot of each reference file, including
+   `unevidenced by transfer` for a measurement borrowed from an adjacent domain — the
+   more dangerous of the two, because it arrives carrying a number.
+5. **`INDEX.md`'s mandatory list omitted two rules the checker enforces** — an eval
+   artefact whose *filename* names the agent, and a registry row. A builder following only
+   the template failed the checker twice.
+
+**And `05-WORKED-EXAMPLE.md` concealed defect 1.** It is green only because
+`worked-example-check.sh` stands up "the hook a real build would also have produced" —
+quietly assuming an installation step the procedure forbids. The example is still
+correct as an example; the harness is doing something the builder cannot.

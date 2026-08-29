@@ -120,6 +120,33 @@ a version number attached is in this category.
 
 ---
 
+### Carrying `unevidenced`
+
+`agent-shape` §1b rules the knowledge base `covered`, `thin` or `absent` for the
+agent's domain. **`thin` produces a fourth provenance state** beyond
+`[DOC]`/`[MEASURED]`/`[HOUSE]`: a step that had to be written anyway, resting on
+material nobody has verified.
+
+It has a home, and it is not the body. **Mark the step in the reference file the
+step opens**, and close every such file with:
+
+```markdown
+## What is not evidenced here
+
+| Row | Rests on | State |
+|---|---|---|
+| ... | the note or the reasoning | `unevidenced` · `unevidenced by transfer` |
+```
+
+`unevidenced by transfer` is for a measurement borrowed from an adjacent domain —
+real, measured, and measured on something else. It is the more dangerous of the
+two, because it arrives carrying a number.
+
+Keeping this out of the body is deliberate: the body is paid every invocation and
+this is read at the step that needs it. Keeping it out of the *knowledge note* is
+also deliberate — the note records what a source says; this records what **we**
+did without one.
+
 ## §5 · When you are done, and when you stop short
 
 Two halves, and the second is the one that makes the agent trustworthy.

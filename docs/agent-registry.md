@@ -34,6 +34,12 @@ the *decision* visible, not to enforce it. Removing the file is the enforcement.
 
 ## The register
 
+**Template `1.0.0` is superseded.** The first agent built to it —
+`llm-component-architect` — found five defects in the standard by using it, and fixing
+them made `1.1.0`. Its row still reads `1.0.0`, which is the truth: that is what it was
+built against. **That is the versioning working, not a discrepancy to tidy.** A row
+rewritten to the current version would erase the only fact that makes it useful.
+
 **Template version** is the version of
 `.claude/skills/agent-assembly/assets/template/` the agent was built against.
 `pre-template` means the agent predates the standard entirely — it was written

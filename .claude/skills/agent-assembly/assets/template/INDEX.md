@@ -34,9 +34,23 @@ it, and what a bad one looks like.
 **Mandatory:** `name`, `description`, `tools`, the five body sections, and a
 stated stopping condition including how it fails.
 
-**Mandatory but not in the file:** the spec that records the decisions, an eval
-suite carrying a negative control and a containment case, and a test run by
-somebody who did not write the agent.
+**Mandatory but not in the file** — and the checker enforces the first two, which
+an earlier version of this page never said:
+
+- **an eval artefact whose *filename* names the agent** — `docs/agent-spec-<name>.md`,
+  `docs/<name>-tester-brief.md`, or a result under `docs/research/evidence/`. A
+  document that merely mentions the agent in passing does not count: a count of
+  mentions is not a count of things.
+- **a row in `docs/agent-registry.md`** — status, the template version it was built
+  against, its evidence. An agent in the tree with no row was never released; it is
+  there because somebody built it. **You do not write this row.** The registry is the
+  release record and release is a human decision; report what you built and let a
+  human write it.
+- the spec that records the decisions, and a test run by somebody who did not write
+  the agent.
+
+A builder following only this page, before these lines were added, failed the
+checker twice.
 
 **Optional:** `hooks` — only where a tool boundary cannot express the constraint.
 `skills` — an agent with no preloaded procedure is legitimate if its judgement is

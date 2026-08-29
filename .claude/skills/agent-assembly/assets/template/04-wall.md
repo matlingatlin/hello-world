@@ -76,6 +76,39 @@ cannot be spelled around.
 
 ---
 
+## The first build cannot install its own wall
+
+Three rules collide, and a builder hits it on every new agent:
+
+| Rule | Says |
+|---|---|
+| `00-SKELETON.md` | declare a `hooks:` block |
+| `agent-assembly` §4 | you may not write `.claude/hooks/` — emit a proposal, a human installs it |
+| `agents.py` | **fails** an agent whose hook command does not exist |
+
+**All three cannot be satisfied by a first build.** Pick one of two, and say which
+in the spec:
+
+**A · Omit the `hooks:` block.** Legal — the checker only fails a hook you
+*declare* and do not provide. The agent ships with its absent tools as its only
+wall, its §2 says exactly that, and the proposal waits for a human. Prefer this
+when the tool surface already carries most of the constraint.
+
+**B · Reference a gate that is already installed**, when one exists whose logic
+genuinely fits. Cheap and green — and it creates a coupling nobody expects.
+
+The first agent built to this template took route B and pointed at
+`architect-rebuild-write-gate.sh`, a script named for a different agent. The logic
+is agent-agnostic and it works. But **someone tightening that gate for
+`architect-rebuild` would silently change this agent's wall too**, and nothing in
+either file says so. If you take route B, name the shared script in **both**
+agents' §2 and in the proposal, so the coupling is written down where a maintainer
+will hit it.
+
+**What is not an option** is declaring a hook you have not provided. That is the
+one combination the checker rejects, and it rejects it for the right reason: an
+agent whose wall is a path to nothing has no wall and claims one.
+
 ## Controls — the part that makes it real
 
 A wall nobody ran is a claim about a wall.

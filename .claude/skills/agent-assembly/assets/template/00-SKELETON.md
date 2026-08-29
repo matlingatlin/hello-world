@@ -5,12 +5,17 @@ model: <see 01-frontmatter.md>
 tools: <EXPLICIT LIST, ALWAYS — omitting inherits every tool available to subagents>
 skills:
   - <at most three; each a numbered procedure ending in an artefact>
+# hooks: OPTIONAL, and read 04-wall.md before you declare one. Three rules collide
+# on a first build: this skeleton invites a hooks: block, the assembly procedure
+# forbids you from writing .claude/hooks/, and the checker FAILS an agent whose hook
+# command does not exist. Declare a hook only when its script is already installed.
+# Otherwise omit the block entirely — that is legal — and ship the proposal.
 hooks:
   PreToolUse:
     - matcher: "^(Write|Edit|NotebookEdit)$"
       hooks:
         - type: command
-          command: "${CLAUDE_PROJECT_DIR}/.claude/hooks/<name>.sh"
+          command: "${CLAUDE_PROJECT_DIR}/.claude/hooks/<an-ALREADY-INSTALLED-script>.sh"
 ---
 
 # <Name in prose>
