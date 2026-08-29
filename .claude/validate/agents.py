@@ -232,7 +232,13 @@ def main(root):
                 body = open(cand, encoding="utf-8", errors="replace").read()
             except OSError:
                 continue
-            if name in b or body.count(name) >= 3:
+            # Lowercase BOTH sides. An earlier version lowercased only the
+            # candidate's basename and compared it against the agent name as
+            # spelled, so any agent whose filename carried a capital could never
+            # match its own spec. Found by the calibration set on first use,
+            # before any judge ran — every real agent here is lowercase, so
+            # nothing had exercised it.
+            if name.lower() in b or body.count(name) >= 3:
                 found.append(os.path.relpath(cand, root))
         if not found:
             fail(rel, f"no eval artefact anywhere names `{name}` — not an evals.md, not a "

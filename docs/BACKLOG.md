@@ -631,6 +631,23 @@ evaluator.** When a reviewer returns "no findings", we cannot distinguish a clea
 from a blind reviewer. The fix is a set of deliberately defective agents, one specified
 defect each, that every judge must catch before its verdict on a real agent counts.
 
+**B148 CLOSED 2026-08-29 — the calibration set exists.**
+`.claude/validate/calibration/` — five specimens, one per lens of
+`agent-review-pass`, each a plausible otherwise-clean agent carrying exactly one
+planted defect of that lens's class, with `MANIFEST.md` holding the answers and the
+rule: **a judge's verdict on a real agent counts only after it has caught its own class
+here.** Verified inert against the mechanical checker — five specimens, 22 checks,
+**CLEAN**, which is the measurement that makes the set worth having: every defect in it
+is invisible to `agents.py`, so a reading judge is the only thing that can catch it.
+
+It found a checker defect on first contact, before any judge ran: the eval-artefact rule
+derived the agent name from the filename and case-folded only one side, so an agent whose
+filename carried a capital could never match its own spec. Every real agent here is
+lowercase, so nothing had exercised it.
+
+**Still open:** no judge has yet been run against the set, so the reviewer's own
+sensitivity is unmeasured. That is the next step, not a gap in the set.
+
 **B149 — validation runs after assembly, never during.** In-process control exists in
 manufacturing because finding a bad batch at release wastes the batch. `agent-assembly`
 should call the checker per part as it is written.
