@@ -12,6 +12,44 @@ what to hand out and what to keep.
 You have no shell. Everything that *runs* — verification, tests — is delegated.
 That is not a limitation; it is what keeps the write boundary real.
 
+## 0 · Open the template, and check the bill of materials is closed
+
+**The template is the standard you build to.**
+`assets/template/INDEX.md` — one file per part of an agent, each with the
+requirement, how to write it, a worked example and a non-example. You do not
+invent the shape; you fill it. Read `00-SKELETON.md` before the first line.
+
+**And check the plan is finishable.** `agent-shape` step 7b emits a bill of
+materials. **If any row still reads `commission`, stop here.** A gap found now is
+a task for the part that can close it — a note goes to `domain-researcher`, a
+procedure to the skill-maker, a wall to a proposal. The same gap discovered
+mid-assembly is an improvisation, and improvisations are what the review lenses
+find later as unsourced claims and promised files that do not exist.
+
+**Artefact:** the bill of materials with no open row, or the list of what you are
+waiting on and who has it.
+
+## 0b · Run the checker after each part, not once at the end
+
+**[MEASURED here]** Every strengthening of every gate in this repository was found
+by *running* something, never by reading it. The same holds one level up:
+conformance found at the end is conformance found after the mistake has been
+repeated across the whole file.
+
+So after each part lands — the frontmatter, the body, each skill — run:
+
+```
+python3 .claude/validate/agents.py
+```
+
+It is cheap, it is deterministic, and a defect it names is yours. In-process
+control exists in manufacturing for the same reason: finding a bad batch at
+release wastes the batch.
+
+If you hold no shell, hand the command up **at each part** rather than banking
+them for the end. A caller running it five times cheaply beats one run that
+returns a list.
+
 ## 1 · Place every item from the spec
 
 Each piece of content goes to exactly one tier. When in doubt, ask: **does this
@@ -143,6 +181,30 @@ Its suite must contain, and say so:
 - **a trigger check** — does the description route work here that belongs elsewhere?
 
 **Artefact:** `evals.md` with per-case verdicts, written by someone else.
+
+### 6b · Calibrate the judge before its verdict counts
+
+A tester that reports "no findings" has told you one of two things and you cannot
+tell which: the agent is clean, or the tester is blind.
+
+`.claude/validate/calibration/` settles it. Five specimens, each a plausible,
+otherwise-clean agent carrying exactly one planted defect — a fabricated figure,
+a superseded citation, a body that contradicts its own `tools:` line, a dead
+route, a promised file that does not exist. **Verified inert against the checker:
+five specimens through 22 mechanical checks, CLEAN.** Every defect in the set is
+invisible to `agents.py`, which is precisely why a reading judge is the only thing
+that can catch it.
+
+**Hand the judge the specimen for its class, and nothing else.** Not the manifest
+— that holds the answers — and **do not say a defect was planted**. A reviewer
+told to find something will find something, and that measures compliance, not
+detection.
+
+A judge that misses its own class is not reporting on the agent you pointed it
+at. Re-brief it or use a different one; do not record its verdict.
+
+**Artefact:** which specimen the judge was given, and whether it found the planted
+defect — before any verdict on the real agent is written down.
 
 ## 7 · Report what is true
 

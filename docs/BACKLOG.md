@@ -648,7 +648,13 @@ lowercase, so nothing had exercised it.
 **Still open:** no judge has yet been run against the set, so the reviewer's own
 sensitivity is unmeasured. That is the next step, not a gap in the set.
 
-**B149 — validation runs after assembly, never during.** In-process control exists in
+**B149 CLOSED 2026-08-29.** `agent-assembly` gained **step 0b**: run
+`python3 .claude/validate/agents.py` after each part lands — frontmatter, body, each
+skill — not once at the end, and hand the command up at each part when you hold no
+shell. The argument is this repo's own record: every strengthening of every gate here
+was found by running something, never by reading it.
+
+~~**B149 — validation runs after assembly, never during.**~~ In-process control exists in
 manufacturing because finding a bad batch at release wastes the batch. `agent-assembly`
 should call the checker per part as it is written.
 
@@ -656,7 +662,21 @@ should call the checker per part as it is written.
 that a human decided to put an agent into use, when, against which template version, and
 on what evidence. A verdict is an input to that decision, not the decision.
 
-**B151 — the shaper emits no bill of materials.** It decides the roster and the diet, but
+**B151 CLOSED 2026-08-29.** `agent-shape` gained **step 7b**, the bill of materials:
+one row per input the agent will need, each marked `exists` (with a path you opened),
+`commission` (with a destination) or `not needed` (with a reason), and each missing row
+routed — a note to the research pipeline, a procedure to the skill-maker, a wall to a
+proposal, an eval to a tester brief. `agent-assembly` **step 0 refuses to start with an
+open `commission` row**: a gap found in planning is a task, and the same gap found
+mid-assembly is an improvisation.
+
+It also gained **step 5b**, which is the downstream-repair resolution from the
+architecture: *what must this agent be able to execute to demonstrate its own
+competence?* — answered in writing **before** the tool surface is fixed. That question
+exists because `agent-fitness-review` was given no `Bash` for good reasons and cannot
+run the checker its own procedure depends on.
+
+~~**B151 — the shaper emits no bill of materials.**~~ It decides the roster and the diet, but
 does not enumerate every input the agent will need — notes, skills, references, wall, spec
 — each marked exists / must be commissioned / not needed, with each gap routed to the part
 that can close it. Consequence: gaps are discovered at build time instead of planned for.

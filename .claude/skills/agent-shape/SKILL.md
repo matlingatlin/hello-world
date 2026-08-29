@@ -118,6 +118,33 @@ If the agent should not execute, it delegates execution. That is not a limitatio
 — it is how the wall stays real. Read `agent-harness-construction` in the library
 for granularity and the recovery contract each tool should carry.
 
+### 5b · Before you fix the surface, ask what it must run to prove itself
+
+**One question, answered in writing, and it is not optional:** *what must this
+agent be able to execute in order to demonstrate its own competence?*
+
+This step exists because the failure it prevents has already happened here. The
+tool surface is fixed at this stage; the proving stage then needs the agent to run
+something and finds it cannot. `agent-fitness-review` was given no `Bash` for good
+reasons and consequently **cannot run the checker its own procedure depends on** —
+a decision taken where the information to take it did not yet exist.
+
+So answer it now, and take one of three routes:
+
+| Answer | Route |
+|---|---|
+| nothing — its output is judged by reading | grant nothing extra; say so |
+| a checker, a suite, a build | either grant the tool, **or** record that this agent hands the command up to its caller — and write that into its body as a step, not as an apology |
+| the agent under test must be dispatched | it needs `Agent` — and with nesting off it will not get one. Say who dispatches instead |
+
+**Artefact:** the question answered in one line, and which route you took. A tool
+surface fixed without this line is fixed blind.
+
+**And note what the answer costs.** If you withhold a shell and the proving stage
+needs one, you have not removed the execution — you have moved it to the caller,
+and the caller is now part of the agent's procedure whether or not anyone wrote
+that down.
+
 **Shape the arguments so the mistake is unavailable.** Anthropic on their own
 SWE-bench work: *"we actually spent more time optimizing our tools than the
 overall prompt"*, and the technique is poka-yoke — *"change the arguments so that
@@ -173,6 +200,36 @@ Ceilings: depth 3, and the `Agent` tool is withheld at the limit from everything
 but a fork. Design for two levels — coordinator → workers.
 
 **Artefact:** what is delegated, to how many, and what never converses.
+
+## 7b · The bill of materials
+
+Everything decided above names things the agent will need. **Enumerate them, and
+mark each one.** This is the step that turns a shape into a build plan, and its
+absence is why gaps have been found at build time instead of planned for.
+
+One row per input. Nothing is implicit.
+
+| Input | Kind | State | Route if missing |
+|---|---|---|---|
+| ... | note · skill · reference · template · wall · spec · eval | `exists` · `commission` · `not needed` | where it comes from |
+
+**The three states are not interchangeable.** `exists` carries a path you opened.
+`not needed` carries a reason. `commission` carries a destination:
+
+| Missing | Goes to |
+|---|---|
+| domain knowledge with no note | a commission at `docs/research/commissions/<id>.md`, then `domain-researcher`, then `primary-source-verifier` |
+| a procedure the agent needs and no skill provides | the skill-maker |
+| a wall | a hook proposal under `docs/`, installed by a human |
+| an eval suite | a tester brief, and a tester who did not author the agent |
+| a reference the body will point at | write it, or delete the pointer — a promised artefact that does not exist is a defect the review lens hunts by name |
+
+**Nothing proceeds to assembly with an open `commission` row.** That is the whole
+point of enumerating them here: a gap found now is a task, and the same gap found
+during assembly is an improvisation.
+
+**Artefact:** the table, complete, with no row left blank. A row you cannot
+classify is a decision you have not made.
 
 ## 8 · Emit the spec
 
