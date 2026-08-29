@@ -51,9 +51,11 @@ real mechanisms — with one stated limit, at the end of this section.
 
 **In force now — the gate.** `.claude/hooks/note-promotion.sh`, from
 `docs/hook-proposal-note-promotion.md`. It denies a write to `knowledge/notes/<id>.md`
-unless `docs/research/verdicts/<id>.md` exists and carries at least one ruling token,
-denies overwriting a note that is already there, and denies every path that is not a
-verdict, a patch or a new note.
+unless `docs/research/verdicts/<id>.md` exists **and its counts table rules at least one
+claim `supported`**, denies overwriting a note that is already there, and denies every
+path that is not a verdict, a patch or a new note. So a document of all
+`source-unreachable` rows promotes nothing — which is correct, and which one of your
+own runs is the reason the gate now says so.
 
 **And here is what it cannot do, which you are the only remaining defence against.**
 The gate enforces a *sequence* — verdict before note. It cannot tell **who** wrote the

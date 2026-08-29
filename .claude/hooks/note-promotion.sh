@@ -85,9 +85,24 @@ if id=$(id_of "$abs" "$absnotes"); then
   # was [ -f ] alone. Requiring a ruling token stops an empty stub and a stray fixture.
   # It stops nothing that is trying: a fabricated verdict satisfies it. The gate enforces
   # the SEQUENCE, never the honesty of the ruling — see the spec's weakest-joint section.
-  grep -qE '\b(supported|not-supported|not-in-source|source-unreachable|not-checkable)\b' \
-    "$absroot/docs/research/verdicts/$id.md" 2>/dev/null \
-    || deny "note-promotion: docs/research/verdicts/$id.md carries no ruling. A verdict document rules every claim supported, not-supported, not-in-source, source-unreachable or not-checkable; a file that only names the id is a placeholder, not a verdict."
+  # A verdict must ESTABLISH something. Two earlier versions of this check were too
+  # weak and each was found by running a case, not by reading the script:
+  #   [ -f ] alone     — a 28-byte heading opened the gate;
+  #   grep for a token — a verdict naming the five-word vocabulary in its own legend
+  #                      passed while ruling every claim source-unreachable.
+  # The bar is the counts table the verdict template already mandates: at least one
+  # row ruled `supported`. A note whose every claim failed verification is a finding,
+  # and a finding belongs in the verdict document, not in the knowledge base.
+  vsup=$(python3 -c '
+import re, sys
+try: t = open(sys.argv[1], encoding="utf-8").read()
+except Exception: print(-1); sys.exit(0)
+m = re.search(r"^\|\s*supported\s*\|\s*(\d+)\s*\|", t, re.M)
+print(m.group(1) if m else -1)' "$absroot/docs/research/verdicts/$id.md" 2>/dev/null)
+  case "$vsup" in
+    ''|-1) deny "note-promotion: docs/research/verdicts/$id.md has no counts table with a \`supported\` row. A verdict document carries one row per claim and a counts table; a file that only names the id, or names the verdict vocabulary without ruling with it, is a placeholder." ;;
+    0)     deny "note-promotion: docs/research/verdicts/$id.md establishes nothing — 0 claims ruled supported. A note whose every claim was unsupported, absent or unreachable is a finding about the draft, and it belongs in the verdict document. Nothing crosses into the knowledge base on it." ;;
+  esac
   [ -e "$abs" ] && deny "note-promotion: $id.md already exists in the knowledge base. This pipeline creates notes; it does not rewrite them. An extension is a patch under docs/research/patches/$id.md that a human applies."
   allow
 fi

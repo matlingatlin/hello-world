@@ -30,9 +30,16 @@ Three conditions, all of them, before a single write:
   is you, stop; a promotion is a judgement and this one is not yours to make.
 
 A hook enforces the first two mechanically — `.claude/hooks/note-promotion.sh`,
-installed, its table run on 2026-08-29 and passing. It denies a note write with no
-verdict document for that id, denies one whose verdict carries no ruling token, and
-denies overwriting a note that already exists.
+installed, its table run on 2026-08-29 and passing 46 of 46. It denies a note write
+with no verdict document for that id, denies one whose verdict has no counts table or
+whose counts table rules **zero claims `supported`**, and denies overwriting a note
+that already exists.
+
+That last bar was bought three times over, each time by running a case rather than
+reading the script: a 28-byte heading opened the gate; then a verdict that merely
+*named* the five-word vocabulary in its own legend opened it while ruling every claim
+`source-unreachable`. **A note whose every claim failed verification is a finding about
+the draft, and a finding belongs in the verdict document.** Nothing crosses on it.
 
 **It cannot enforce the third**, which is the one about who wrote the verdict. A
 path gate sees paths. If the verifier is you, stop — there is nothing downstream

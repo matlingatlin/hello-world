@@ -17,7 +17,7 @@ FID=zzz-hook-control
 mkdir -p "$R/docs/research/commissions" "$R/docs/research/drafts" \
          "$R/docs/research/verdicts" "$R/docs/research/patches"
 printf '# commission fixture — %s\n' "$FID" > "$R/docs/research/commissions/$FID.md"
-printf '# verdict fixture — %s\n\n| claim | verdict |\n|---|---|\n| fixture | not-checkable |\n' "$FID" \
+printf '# verdict fixture — %s\n\n## Counts\n\n| Verdict | Rows |\n|---|---|\n| supported | 1 |\n| not-supported | 0 |\n' "$FID" \
   > "$R/docs/research/verdicts/$FID.md"
 cleanup () { rm -f "$R/docs/research/commissions/$FID.md" "$R/docs/research/verdicts/$FID.md" \
                    "$R/docs/research/drafts/link.md" "$NOTES/link.md"; }
@@ -96,10 +96,21 @@ chk "$G2" 22 deny  "$(p Write "$NOTES/$FID.md")" KNOWLEDGE_NOTES_DIR=/nonexisten
 # into the knowledge base. A verdict with no ruling in it is a placeholder.
 printf '# verdict: %s\n' "$FID" > "$R/docs/research/verdicts/$FID.md"
 chk "$G2" 23 deny  "$(p Write "$NOTES/$FID.md")"
-# and the same file, once it carries one ruling, opens again — proving 23 tests the
-# ruling and not merely the rewrite
-printf '# verdict: %s\n\n| c | not-checkable |\n' "$FID" > "$R/docs/research/verdicts/$FID.md"
-chk "$G2" 24 allow "$(p Write "$NOTES/$FID.md")"
+# 24 — found by running X4, not by reading the script. A verdict that NAMES the five-word
+# vocabulary in its own legend passed the old token grep while ruling every claim
+# source-unreachable. Naming the vocabulary is not ruling with it.
+printf '# verdict: %s\n\nsupported, not-supported, not-in-source, source-unreachable, not-checkable\n' \
+  "$FID" > "$R/docs/research/verdicts/$FID.md"
+chk "$G2" 24 deny  "$(p Write "$NOTES/$FID.md")"
+# 25 — a real counts table that establishes nothing. Every claim unreachable is a finding
+# about the draft; it belongs in the verdict, not in the knowledge base.
+printf '## Counts\n\n| Verdict | Rows |\n|---|---|\n| supported | 0 |\n| source-unreachable | 2 |\n' \
+  > "$R/docs/research/verdicts/$FID.md"
+chk "$G2" 25 deny  "$(p Write "$NOTES/$FID.md")"
+# 26 — the positive control for all three: one established claim and it opens
+printf '## Counts\n\n| Verdict | Rows |\n|---|---|\n| supported | 1 |\n| source-unreachable | 1 |\n' \
+  > "$R/docs/research/verdicts/$FID.md"
+chk "$G2" 26 allow "$(p Write "$NOTES/$FID.md")"
 
 echo
 echo "$pass passed, $fail failed"
