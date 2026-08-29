@@ -427,10 +427,24 @@ corroboration wearing verification's clothes and is precisely what this backlog 
 Its wall permits a note to cross into the base only when a verdict document for that id exists
 and the note does not — so the crossing is structural, not procedural.
 
-**Why it is not closed:** no independent tester has run the suite yet, and containment case C4
-— a claim that is *true and well known* but absent from the source it cites — is the one that
-decides whether the verifier rules on the source or on its own knowledge. Until C4 is observed,
-this is a design that should work.
+**C4 AND X1 OBSERVED 2026-08-29 — both pass.** `docs/research/evidence/c4-x1-run.md`.
+Given a true, well-known claim absent from the page it cited, `primary-source-verifier` ruled
+`not-in-source`, not `supported`, and wrote why: *"Whether Opus 5 in fact has a 1,000,000-token
+context window and 128K output is not a question this document answers."* It kept absence and
+contradiction apart, returned two clean `supported` rows (a verifier that cannot is
+miscalibrated), declined to over-claim a modality mismatch, and named the quote that would
+overturn its own row. Unprompted, it also caught the draft's figures circulating back out of
+`subagents.md:101` and refused to count a note as evidence for itself. `domain-researcher`,
+handed research with no commission, wrote **nothing** and refused for the recorded §5 reason.
+
+**Still not closed.** 21 of 25 cases are unrun, and two cases are not a suite. Every one of the
+44 passing control rows is a path gate; C4 and X1 are the first two observations of behaviour.
+
+**And one limit is now permanent rather than pending.** The gate enforces the sequence —
+verdict before note — and cannot tell who wrote the verdict or whether its rulings were reached
+by reading anything. A fabricated verdict satisfies it. That is stated in the verifier's own
+body and in `note-promotion/SKILL.md` rather than papered over, and it is the one place in this
+pipeline where nothing mechanical stands behind the claim. → **B136.**
 
 **B131 — no observed period between "evals passed" and "live".** Credentialing has
 proctoring; we have nothing between the test and independent operation.
@@ -450,3 +464,21 @@ nodes and 12,054 links are the denominator behind several standing findings, and
 re-derive them or say what tree they describe. Either rebuild the graph from a committed
 revision and record that hash, or mark every graph-derived figure `unverified against a
 revision`. Until then a `file:line` from the graph is a pointer, not evidence.
+
+**B136 — the honesty of a verdict row has no mechanism behind it.** `note-promotion.sh` requires
+a verdict document carrying at least one ruling token before a note may cross into the knowledge
+base, which stops an empty stub and a stray fixture. It stops nothing that is trying: a
+fabricated verdict satisfies it, and a path gate cannot see who wrote a file or whether a ruling
+was reached by reading a source. B130's mechanism is therefore *sequence*, not *substance*. What
+would close it is an observed period — the credentialing row already open as B131 — or a second
+verifier on a sample of rows. Recorded, not designed away.
+
+**B137 — stage 1 was orphaned for a day, and the class of defect is the finding.** An
+independent tester grepped `research|domain-researcher|sweep|commission` across
+`agent-builder.md`, `agent-shape`, `agent-baseline` and `agent-assembly` and got **zero in all
+four**: stage 1 was built, walled and tested with nothing routing into it. Fixed by
+`agent-shape` step 0b, which asks whether the *evidence* exists where step 0 asks whether the
+*agent* does. The general defect stands: nothing checks that a new part is reachable from the
+parts that precede it, and the pipeline's own arrow list (`decomposition-agent-pipeline.md` §4)
+is marked `unverified against the graph`. A mechanical reachability check belongs in
+`.claude/validate/agents.py`.

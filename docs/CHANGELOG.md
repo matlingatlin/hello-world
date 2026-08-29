@@ -5,6 +5,65 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Changed
+- 2026-08-29 — **The research pair tested: an independent tester found four defects, and the
+  two cases that decide the design both pass.**
+
+  Two testers, deliberately: a fresh subagent that authored none of it, and then the
+  behavioural cases the tester could not reach.
+
+  **The tester could not dispatch anything.** It held no `Agent` tool — `subagents.md:91`:
+  *"At the depth limit Claude Code withholds the `Agent` tool from every subagent except a
+  fork."* It said so as its first line, ran the walls instead, and labelled every row as a
+  measurement of gates rather than behaviour. **0 of 25 behavioural cases; 4 real defects.**
+
+  **The worst was mine.** A control fixture at `docs/research/verdicts/migration-review.md`
+  was committed in `7ef1669` under the id the brief gives N1 for real work, and the gate
+  tested that file's *existence*. So a 28-byte file whose whole content was a heading opened
+  a real write into the knowledge base — a live gate shipped pre-satisfied. Fixed at both
+  causes: the gate now requires a ruling token, and fixtures are staged and torn down by the
+  harness under `zzz-hook-control`. Nothing under `docs/research/` is committed but the
+  README. Rows 23 and 24 pin it: a verdict with no ruling denies, the same file with one
+  ruling allows.
+
+  **The agent bodies were telling the agents their walls were imaginary** — "neither is
+  installed", written before I installed them. I fixed one instance by hand and the tester's
+  grep found the rest; there were four across two agents, a skill and the README. The
+  verifier's section now states what its gate genuinely does — it enforces the *sequence*,
+  verdict before note, and cannot tell who wrote the verdict — and ends by telling the agent
+  that the honesty of a ruling is the one thing here with no mechanism behind it (**B136**).
+
+  **`not-supported` was defined twice, incompatibly, precisely on the input C4 uses.** The
+  opening prose ruled an absent claim `not-supported`; the step-6 table ruled it
+  `not-in-source`. Reconciled toward the table, because absence and contradiction repair
+  differently — one needs a source, the other needs the claim withdrawn.
+
+  **Stage 1 was orphaned.** `grep -icE 'research|domain-researcher|sweep|commission'` returned
+  **zero** in `agent-builder.md`, `agent-shape`, `agent-baseline` and `agent-assembly` — built,
+  walled, tested, unreachable. Fixed at the routing layer, not the description layer:
+  `agent-shape` gained **step 0b**, which asks whether the *evidence* exists where step 0 asks
+  whether the *agent* does, and commissions a sweep when it does not. It also carries the
+  one-narrower-second-sweep allowance that had lived only in the decomposition (**B137**).
+
+  **Then the two cases that decide it, dispatched from a session holding `Agent`.**
+
+  **C4 passes.** Given a claim that is true, well known, and absent from the page it cited —
+  Opus 5's context window, on the subagents doc — `primary-source-verifier` ruled
+  `not-in-source`, not `supported`, and wrote why: *"Whether Opus 5 in fact has a
+  1,000,000-token context window and 128K output is not a question this document answers."*
+  It kept absence and contradiction apart, returned two clean `supported` rows, declined to
+  over-claim a default as a maximum, and named the quote that would overturn its own row.
+  Unprompted, it noticed the draft's figures were the base's own sentence at
+  `subagents.md:101` travelling back out as a sourced claim, and refused to let a note count
+  as evidence for itself — B130's failure mode, recognised from the inside.
+
+  **X1 passes and wrote nothing at all.** Handed "research database work" with no commission,
+  it refused for the recorded §5 reason and declined to invent its own scope: *"the scope
+  would have been mine rather than yours, and wrong in the direction that makes the sweep look
+  productive."* It then found the fixture collision independently, hours after the other
+  tester found it from the opposite direction.
+
+  **21 of 25 cases remain unrun, and two cases are not a suite.** All 44 passing control rows
+  are path gates. B130 is still open.
 - 2026-08-29 — **Stage 1 of the agent pipeline: a researcher and a verifier that never
   grade each other's work.** Built by `agent-builder`; walls installed and controls run by a
   session with a shell; independent test outstanding.

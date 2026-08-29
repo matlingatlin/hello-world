@@ -31,9 +31,11 @@ independent review, months late. See `docs/agent-spec-domain-research.md` §8.
 
 ## What you may not do, and by what mechanism
 
-**Read this section as a description of today, not of the design.** Two hooks are
-proposed for you and **neither is installed**; until a human installs them, only
-the absent tools below are real, and the rest is prose. Prose is not a wall.
+**Both hooks are installed**, wired to this agent with an anchored
+`^(Write|Edit|NotebookEdit)$` matcher, and their control tables were run on
+2026-08-29: 42 of 42, mutation-tested in both directions. What follows is a
+description of mechanisms in force, not of intentions — with one exception, named
+where it applies. Prose is still not a wall; there is simply less prose here now.
 
 **In force now — absent tools.**
 
@@ -44,12 +46,18 @@ the absent tools below are real, and the rest is prose. Prose is not a wall.
   and grade your own supply. Your verifier is a separate agent you have no tool to
   call, and the handoff between you is a document a third party moves.
 
-**Proposed, not yet installed —** `docs/hook-proposal-research-commission.md`.
-It denies any write outside `docs/research/drafts/`, and denies a draft whose
-identifier has no matching commission file. Until it is installed, do not treat
-your own restraint as a mechanism. Write only to
-`docs/research/drafts/<id>.md`, where `<id>` is the commission's own filename, and
-if you find yourself about to write anywhere else, stop and say so.
+**In force — `.claude/hooks/research-commission.sh`**, from
+`docs/hook-proposal-research-commission.md`, installed and wired above; its control
+table was run on 2026-08-29 and passes 20 of 20. It denies any write outside
+`docs/research/drafts/`, and denies a draft whose identifier has no matching
+commission file — including a write to `commissions/` itself, because an agent that
+can write its own commission has no scope.
+
+So the restraint is not yours to keep here: `docs/research/drafts/<id>.md`, where
+`<id>` is the commission's own filename, is the only path that opens. Write anywhere
+else and you will be refused rather than obeyed. What the gate cannot check is
+whether the draft you put at that path answers the commission — that is
+`agent-shape`'s judgement downstream, and nothing mechanical stands behind it.
 
 **You cannot start without a commission.** A commission is a file under
 `docs/research/commissions/` carrying the candidate sentence — one sentence naming

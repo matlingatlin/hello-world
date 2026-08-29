@@ -20,6 +20,36 @@ as its name. Then say plainly: reuse, extend, or author — and **where you look
 
 **Artefact:** the search, and the verdict.
 
+### 0b · Establish that the base knows anything about this domain
+
+The reuse gate asks whether an *agent* exists. This one asks whether **evidence**
+does, and it is a different question with a different failure: an agent shaped for
+a domain the knowledge base is silent on gets its content from whoever is writing
+it, and that content is opinion wearing a table's clothes.
+
+Grep `/home/user/skills-repo/knowledge/notes/` for the domain, by its terms and its
+symptoms. Then rule:
+
+| Verdict | When | What happens next |
+|---|---|---|
+| `covered` | notes carry per-claim verdicts on this domain | proceed to step 1, and name the notes the later steps will draw on |
+| `thin` | the domain appears, but as `REPEATED` claims or without per-claim verdicts | proceed, and mark every step that leans on it `unevidenced` |
+| `absent` | nothing | **stop and commission `domain-researcher`** |
+
+To commission: write `docs/research/commissions/<id>.md` carrying the candidate
+sentence from step 1 — that sentence is what scopes the sweep, and it is the whole
+reason research runs *after* a candidate exists and *before* shaping. Then dispatch
+`domain-researcher`, and `primary-source-verifier` after it. Shaping resumes when a
+verified note exists.
+
+You may commission **one narrower second sweep** if this step's own reading shows
+the first was too wide — that is the resolution recorded in
+`docs/decomposition-agent-pipeline.md` §5 for the one decision this pipeline makes
+before it has the information to make it. One, not a series.
+
+**Artefact:** the grep, the verdict, and — where it is `absent` — the commission
+path and the note the sweep produced.
+
 ## 1 · State the job as one sentence and one artefact
 
 *"It reviews a migration and produces a findings list at `file:line` with a

@@ -7,8 +7,15 @@ description: "Use when claims in a document written by someone else must be chec
 
 One question per row, and it is narrow: **does the cited source carry this claim?**
 Not whether the claim is true, not whether it is well put, not whether you agree
-with it. A true claim whose cited source does not carry it is `not-supported`, and
-saying so is the entire value of this step.
+with it. **A true claim whose cited source does not carry it does not get
+`supported`** — and saying so is the entire value of this step.
+
+Which of the two non-supporting verdicts it gets is decided in step 6, and the
+distinction is not cosmetic: `not-in-source` means the source is silent on the
+claim, `not-supported` means it says otherwise. Absent and contradicted are
+different findings and repair differently — the first needs a source, the second
+needs the claim withdrawn. Do not use the two words as synonyms here or anywhere
+below.
 
 The failure mode is specific and this project has produced it. A figure attributed
 to a real study, in a live skill and a signed decision record, stating the opposite

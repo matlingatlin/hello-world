@@ -16,5 +16,12 @@ and a case difference would silently break the join.
 A note crosses into `/home/user/skills-repo/knowledge/notes/` only when
 `verdicts/<id>.md` exists and the note does not. That is the gate, not a convention.
 
-`migration-review` and the files under `commissions/` and `verdicts/` carrying that id are
-control fixtures for `.claude/validate/research-hooks-controls.sh`, not real work.
+**Nothing in `commissions/`, `drafts/`, `verdicts/` or `patches/` is committed.**
+`.claude/validate/research-hooks-controls.sh` stages its own fixtures under the id
+`zzz-hook-control` and tears them down on exit.
+
+That rule was bought. Fixtures for the id `migration-review` were committed once, and
+`migration-review` is the id the tester brief gives to real work — so a live gate arrived
+in the repository **pre-satisfied**, and an independent tester unlocked a real write into
+the knowledge base with a 28-byte file. A control fixture that satisfies a live gate is
+not a fixture. Stage them, tear them down, and never name one after real work.

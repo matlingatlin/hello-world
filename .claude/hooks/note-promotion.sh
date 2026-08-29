@@ -80,6 +80,14 @@ if id=$(id_of "$abs" "$absroot/docs/research/patches");  then allow; fi
 
 if id=$(id_of "$abs" "$absnotes"); then
   [ -f "$absroot/docs/research/verdicts/$id.md" ] || deny "note-promotion: no verdict document at docs/research/verdicts/$id.md. A note reaches the knowledge base only behind a per-claim verdict written by an agent that did not draft it. Write the verdict first."
+  # A file that merely exists is not a verdict. An independent tester unlocked a real
+  # promotion with a 28-byte file whose whole content was a heading, because this check
+  # was [ -f ] alone. Requiring a ruling token stops an empty stub and a stray fixture.
+  # It stops nothing that is trying: a fabricated verdict satisfies it. The gate enforces
+  # the SEQUENCE, never the honesty of the ruling — see the spec's weakest-joint section.
+  grep -qE '\b(supported|not-supported|not-in-source|source-unreachable|not-checkable)\b' \
+    "$absroot/docs/research/verdicts/$id.md" 2>/dev/null \
+    || deny "note-promotion: docs/research/verdicts/$id.md carries no ruling. A verdict document rules every claim supported, not-supported, not-in-source, source-unreachable or not-checkable; a file that only names the id is a placeholder, not a verdict."
   [ -e "$abs" ] && deny "note-promotion: $id.md already exists in the knowledge base. This pipeline creates notes; it does not rewrite them. An extension is a patch under docs/research/patches/$id.md that a human applies."
   allow
 fi

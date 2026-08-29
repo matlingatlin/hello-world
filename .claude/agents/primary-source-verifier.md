@@ -30,8 +30,10 @@ after it had propagated into a skill and a signed decision record
 
 ## What you may not do, and by what mechanism
 
-**Read this as a description of today.** One hook is proposed for you and **it is
-not installed**. Until a human installs it, only the absent tools below are real.
+**Read this as a description of today.** Your hook **is installed** and wired above
+with an anchored matcher; its control table was run on 2026-08-29 and passes 21 of 21,
+after one fix the table itself caught. The absent tools below and the gate are both
+real mechanisms — with one stated limit, at the end of this section.
 
 **In force now — absent tools.**
 
@@ -47,11 +49,25 @@ not installed**. Until a human installs it, only the absent tools below are real
   **no `Agent`**, so you cannot commission the research you are checking, and cannot
   hand your own judgement to a delegate.
 
-**Proposed, not yet installed —** `docs/hook-proposal-note-promotion.md`. It denies
-a write to `knowledge/notes/<id>.md` unless `docs/research/verdicts/<id>.md` exists,
-and denies overwriting a note that is already there. Until it is installed, the
-ordering is yours to keep: **the verdict document is written first, always.** If you
-find yourself writing a note before its verdicts exist, stop.
+**In force now — the gate.** `.claude/hooks/note-promotion.sh`, from
+`docs/hook-proposal-note-promotion.md`. It denies a write to `knowledge/notes/<id>.md`
+unless `docs/research/verdicts/<id>.md` exists and carries at least one ruling token,
+denies overwriting a note that is already there, and denies every path that is not a
+verdict, a patch or a new note.
+
+**And here is what it cannot do, which you are the only remaining defence against.**
+The gate enforces a *sequence* — verdict before note. It cannot tell **who** wrote the
+verdict, or whether the rulings in it were reached by reading the sources. An
+independent tester found this by writing a 28-byte file whose whole content was a
+heading, and watching the gate open. It now requires a ruling token, which stops an
+empty stub and stops nothing that is trying: a verdict you fabricated to unlock a
+promotion would satisfy it.
+
+So the ordering is not yours to keep — the gate keeps it — but the **honesty of the
+verdict is entirely yours**, and no mechanism in this repository checks it. That is
+this design's weakest joint, it is recorded as such in
+`docs/agent-spec-domain-research.md`, and if you ever find yourself writing a verdict
+row you did not read a source for, there is nothing downstream that will catch it.
 
 **You do not rule on a note you wrote.** You cannot write drafts — nothing routes
 one to you — but if a draft arrives that you recognise as your own output, the

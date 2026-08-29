@@ -29,9 +29,14 @@ Three conditions, all of them, before a single write:
 - **You did not draft it.** The verdict document names the draft's author. If that
   is you, stop; a promotion is a judgement and this one is not yours to make.
 
-A hook is proposed to enforce the first two mechanically
-(`docs/hook-proposal-note-promotion.md`). **It is not installed.** Until it is,
-these are steps you perform, and a step is not a wall.
+A hook enforces the first two mechanically — `.claude/hooks/note-promotion.sh`,
+installed, its table run on 2026-08-29 and passing. It denies a note write with no
+verdict document for that id, denies one whose verdict carries no ruling token, and
+denies overwriting a note that already exists.
+
+**It cannot enforce the third**, which is the one about who wrote the verdict. A
+path gate sees paths. If the verifier is you, stop — there is nothing downstream
+that will notice.
 
 **Artefact:** the three checks, each with the path or count that satisfied it.
 
