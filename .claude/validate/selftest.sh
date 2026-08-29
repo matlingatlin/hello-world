@@ -98,5 +98,20 @@ d=$(mk t19); rm -f "$d/docs/research/evidence/good-agent-test-results.md"
              mkdir -p "$d/docs"; printf -- '# spec for another agent\n\nNOT for good-agent (that is elsewhere).\n' > "$d/docs/agent-spec-other.md"
                                                                        expect "one passing mention does not count as coverage" catch "no eval artefact anywhere names" "$d"
 
+# the L1 seam: the template points at a limit, the checker owns it
+d=$(mk t20); mkdir -p "$d/.claude/skills/good-skill/assets/template"
+printf -- '# desc\n\nThe cap is 1024 characters.\n' > "$d/.claude/skills/good-skill/assets/template/02-description.md"
+                                                                       expect "template hand-copies a validator limit" catch "restates the description cap" "$d"
+d=$(mk t21); mkdir -p "$d/.claude/skills/good-skill/assets/template"
+# a GENERATED LIMITS.md is exempt from the hand-copy rule and must match the constants
+python3 "$V" --limits > "$d/.claude/skills/good-skill/assets/template/LIMITS.md"
+                                                                       expect "a generated LIMITS.md carries the numbers legally" clean "" "$d"
+d=$(mk t23); mkdir -p "$d/.claude/skills/good-skill/assets/template"
+printf -- '# Limits\n\n| description, max characters | **999** |\n' > "$d/.claude/skills/good-skill/assets/template/LIMITS.md"
+                                                                       expect "a stale LIMITS.md is caught" catch "out of date with this checker" "$d"
+d=$(mk t22); mkdir -p "$d/.claude/skills/good-skill/assets/template"
+printf -- '# desc\n\nThe cap is in LIMITS.md. Aim for 600-900 characters.\n' > "$d/.claude/skills/good-skill/assets/template/02-description.md"
+                                                                       expect "pointing at LIMITS.md is legal, and guidance numbers are not caps" clean "" "$d"
+
 echo; echo "positive controls: pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

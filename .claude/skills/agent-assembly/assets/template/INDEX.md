@@ -12,6 +12,7 @@ it, and what a bad one looks like.
 | `02-description.md` | the description | last, after the agent is defined |
 | `03-body.md` | the five body sections | you write the prose |
 | `04-wall.md` | tools and hooks | you decide what must be impossible |
+| `LIMITS.md` | every enforced number | **generated** — never edit it |
 
 ---
 
@@ -66,6 +67,14 @@ home.
 This template describes *how to write* each part. The checker decides *whether it
 conforms*. A number repeated in both is a number that will disagree with itself
 eventually — and the checker is the copy that gets run.
+
+So `LIMITS.md` is **generated from the checker**, not written:
+
+```
+python3 .claude/validate/agents.py --limits > .claude/skills/agent-assembly/assets/template/LIMITS.md
+```
+
+and the checker refuses a template file that hand-copies one of its numbers.
 
 Run it and paste the raw output:
 

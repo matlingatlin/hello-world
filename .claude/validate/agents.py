@@ -163,6 +163,49 @@ def main(root):
                           f"agent here — fine if it is a bundled command or a plugin "
                           f"skill this checker cannot see, dead otherwise")
 
+    # ---- and the generated copy must actually match ------------------------
+    # The check below stops a hand-typed limit. This one stops the other direction:
+    # a constant changed here and LIMITS.md never regenerated, so the template quietly
+    # tells the writer an old number while the checker enforces a new one.
+    for lp in glob.glob(os.path.join(root, ".claude", "skills", "*", "assets",
+                                     "template", "LIMITS.md")):
+        rel = os.path.relpath(lp, root)
+        try:
+            on_disk = open(lp, encoding="utf-8").read().strip()
+        except OSError as e:
+            fail(rel, f"unreadable: {e}"); continue
+        if on_disk != emit_limits().strip():
+            fail(rel, "is out of date with this checker's constants. Regenerate: "
+                      "`python3 .claude/validate/agents.py --limits > " + rel + "` [M]")
+
+    # ---- the template may point at a limit, never restate it ----------------
+    # L1 of docs/architecture-agent-factory.md: the numbers live here, the prose lives
+    # in the template, and neither imports the other. LIMITS.md is generated from the
+    # constants above; a hand-typed copy anywhere else is a second place for a number
+    # to rot, and the checker is the copy that actually gets run.
+    #
+    # Only the two unambiguous constants are scanned. 5000 collides with the
+    # compaction budget the template legitimately discusses, and 3 and 500 are too
+    # common in prose to test this way — a check with false positives gets disabled,
+    # which is worse than a narrower one that holds.
+    watched = {str(DESC_MAX): "the description cap",
+               str(ROSTER_MAX_T): "the roster budget",
+               f"{ROSTER_MAX_T:,}": "the roster budget"}
+    for tp in glob.glob(os.path.join(root, ".claude", "skills", "*", "assets",
+                                     "template", "*.md")):
+        if os.path.basename(tp) == "LIMITS.md": continue
+        rel = os.path.relpath(tp, root)
+        try:
+            body = open(tp, encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        for lit, what in watched.items():
+            if lit in body:
+                fail(rel, f"restates {what} as `{lit}`. The template says HOW to write "
+                          f"a part; this checker owns the number, and LIMITS.md is "
+                          f"generated from it (`--limits`). Point at LIMITS.md instead "
+                          f"— a hand-copied limit is a second place for it to rot [M]")
+
     # ---- every agent ships with evals ---------------------------------------
     # CLAUDE.md: "Every agent ships with evals carrying a negative control and a
     # containment case." A P5 absence audit found that sentence enforced nowhere — and
@@ -262,5 +305,43 @@ def main(root):
           f"{', ' + str(len(warns)) + ' warnings' if warns else ''}")
     return 1 if fails else 0
 
+def emit_limits():
+    """The single source for every limit this checker enforces.
+
+    The template describes HOW to write each part; this function says WHAT the
+    limits are. A number hand-copied into the template is a second place for it to
+    rot, so `template/LIMITS.md` is GENERATED from here and never edited by hand.
+    """
+    rows = [
+        ("description, max characters", DESC_MAX, "A",
+         "frontmatter enters a system prompt; the cap is Anthropic's"),
+        ("compatibility, max characters", COMPAT_MAX, "A", ""),
+        ("SKILL.md body, max words", BODY_MAX_W, "A",
+         "guidance for SKILL.md — NOT a limit on an agent body"),
+        ("combined agent descriptions, max tokens", ROSTER_MAX_T, "B",
+         "shared by every non-built-in agent; Claude Code warns at startup"),
+        ("preloaded skills per agent, max", PRELOAD_MAX, "M",
+         "1-3 modules ~+19.0pp, 4+ ~+10.1pp — a quality finding, not a documented cap"),
+    ]
+    out = ["# Limits — GENERATED, do not edit",
+           "",
+           "Regenerate with `python3 .claude/validate/agents.py --limits`.",
+           "",
+           "Hand-editing this file reintroduces exactly the drift it exists to prevent:",
+           "the checker would keep enforcing its own constants while the template told",
+           "the writer something else.",
+           "",
+           "| Limit | Value | Source | Note |",
+           "|---|---|---|---|"]
+    src = {"A": "Anthropic, skills guide", "B": "subagents docs",
+           "C": "skills docs", "M": "measured here"}
+    for name, val, tag, note in rows:
+        out.append(f"| {name} | **{val}** | [{tag}] {src[tag]} | {note} |")
+    out += ["", f"Reserved words in a skill name: {', '.join(RESERVED)} [A]", ""]
+    return "\n".join(out)
+
+
 if __name__ == "__main__":
+    if "--limits" in sys.argv:
+        print(emit_limits()); sys.exit(0)
     sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "."))

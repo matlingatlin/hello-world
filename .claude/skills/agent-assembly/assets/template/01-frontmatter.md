@@ -88,8 +88,9 @@ pinned id can be deprecated under you. Say which you accepted.
 **[DOC]** Preloads the full content of each named skill into the agent's context
 at startup. Cannot preload a skill marked `disable-model-invocation: true`.
 
-**[MEASURED]** 1–3 preloaded modules ≈ **+19.0pp**; 4 or more ≈ **+10.1pp**. The
-cap is not a context budget — it is a quality finding. More is measurably worse.
+**[MEASURED]** Fewer preloaded modules measured better than more — the effect
+sizes and the cap are in `LIMITS.md`. The cap is not a context budget; it is a
+quality finding. More is measurably worse.
 
 **[MEASURED]** On compaction, skills are re-attached at 5,000 tokens each against
 a 25,000 shared budget, most recent first, **truncated silently**.

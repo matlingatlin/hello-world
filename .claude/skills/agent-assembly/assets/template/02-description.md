@@ -16,9 +16,9 @@ some text gets loaded into the current context. Do not carry skill-writing habit
 here. A skill competes for attention inside one run; **an agent competes against
 the entire roster**, and the caller sees only these few lines when deciding.
 
-**[DOC]** Every non-built-in agent description shares a **15,000-token budget**,
-and Claude Code warns at startup when the roster exceeds it. Your description is
-not free and it is not alone.
+**[DOC]** Every non-built-in agent description shares one token budget across the
+whole roster, and Claude Code warns at startup when it is exceeded. The figure is
+in `LIMITS.md`. Your description is not free and it is not alone.
 
 ---
 
@@ -26,11 +26,12 @@ not free and it is not alone.
 
 | Rule | Source |
 |---|---|
-| ≤ **1024 characters** | **[DOC]** |
+| A maximum character count — **see `LIMITS.md`** | **[DOC]** |
 | **No `<` or `>`** anywhere | **[DOC]** — the frontmatter enters a system prompt, so angle brackets are a prompt-injection surface |
 | Must carry **what** the agent does **and when** to use it | **[DOC]** |
 
-The validator enforces all three. A defect it names is yours.
+The validator enforces all three, and it is the only place the number lives.
+`LIMITS.md` is generated from it. A defect it names is yours.
 
 ---
 
@@ -127,8 +128,8 @@ Contains angle brackets. **[DOC]** forbidden — and the validator will reject i
 
 ## Length
 
-The cap is 1024 characters. There is **no measured optimum**, and anyone who
-tells you otherwise is repeating a habit.
+The cap is in `LIMITS.md`. There is **no measured optimum** below it, and anyone
+who tells you otherwise is repeating a habit.
 
 What the four parts imply in practice: a trigger with real phrasing, an artefact,
 and two or three NOT-clauses will land somewhere around 600–900 characters. If

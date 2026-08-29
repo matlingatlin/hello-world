@@ -645,6 +645,16 @@ does not enumerate every input the agent will need — notes, skills, references
 that can close it. Consequence: gaps are discovered at build time instead of planned for.
 Its name also covers one of its four jobs.
 
+**B139 update, 2026-08-29 — the standard/checker seam is now mechanical, not aspirational.**
+The rule "numbers in the validator, prose in the template, neither imports the other" was
+a sentence until today. It is now three things: `agents.py --limits` emits the constants,
+`template/LIMITS.md` is **generated** from that, and the checker fails both directions —
+a template file that hand-copies a limit, and a `LIMITS.md` that has drifted from the
+constants. Four controls behind it (28 total). Scanned literals are deliberately narrow:
+`5000` collides with the compaction budget the template legitimately discusses, and `3`
+and `500` are too common in prose — a check with false positives gets disabled, which is
+worse than a narrow one that holds.
+
 **B152 — the template is unversioned.** A change to the standard drifts silently through
 every agent already built. Each agent's spec must record the template version it was built
 against, so a change produces a migration list rather than invisible divergence.
