@@ -211,6 +211,21 @@ AE deny  .git/hooks/pre-commit         | (untested?)  | got=DENY  | writes only 
 expected-outcome mismatches: 0
 ```
 
+**That table is now a harness, not a claim.** It sat here as prose for four days — a
+recorded pass nobody could re-run, which goes stale the first time the script changes and
+cannot tell you that it has. Re-run it:
+
+```
+.claude/validate/agent-builder-scope-controls.sh
+```
+
+**29 cases, 29 pass**, mutation-tested in three directions (deny-everything 25/29,
+silent 4/29, create-only-removed 26/29). Two cases the prose table did not have: `PY`
+measures the missing-`python3` claim below instead of asserting it, and `O` is kept as a
+**regression test** for the HIGH defect recorded further down — it fails the moment
+create-only is removed. The hook's reasoning, absent from this repo entirely until
+2026-08-29, is now at `docs/hook-proposal-agent-builder-scope.md`.
+
 **Verdict: PASS, and unusually well built.** Positive controls exist, so this is a
 gate and not a brick wall. Type confusion, NUL bytes, malformed JSON and a missing
 `python3` all fail *closed* (`rel=$(…) || deny`). Directory symlinks are defeated

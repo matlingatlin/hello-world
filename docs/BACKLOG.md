@@ -500,11 +500,25 @@ the decomposition's change matrix; `19.0pp` appears in **7** places, and three o
 loop artefacts still do not name the validator. `agent-assembly` §5 now runs it. The other
 three are open.
 
-**B140 — `agent-builder` has no spec, and `agent-builder-scope.sh` has no proposal.**
+**B140 — `agent-builder` has no spec, and `agent-builder-scope.sh` had no proposal.**
 Three specs for seven agents; the agent that enforces "no assembly without a spec" was
 assembled without one, and A-03 means nothing could have caught it. Seven hooks, four
 proposals, and `git log --all` shows the builder's own wall never had one. Four of seven
-hooks also have no re-runnable harness.
+hooks also had no re-runnable harness.
+
+**The wall half is closed, 2026-08-29.** `docs/hook-proposal-agent-builder-scope.md`
+exists, written after the fact and saying so in its first line, and
+`.claude/validate/agent-builder-scope-controls.sh` turns 32 lines of prose results into
+**29 executable cases, 29 passing**, mutation-tested three ways (deny-everything 25/29,
+silent 4/29, create-only-removed 26/29). Two cases the prose never had: `PY` *measures*
+the missing-`python3` fail-closed claim rather than asserting it — that claim is now
+verified and it is exactly what `architect-rebuild-write-gate.sh` got wrong — and `O` is a
+standing regression test for the HIGH defect where `agent-builder` could rewrite any other
+agent's wall.
+
+**Still open:** `agent-builder` has no spec, and three hooks (`docs-only-write`,
+`rebuild-prospector-diet`, `lint-fix`) still have no harness. `rebuild-prospector-diet` is
+the one that matters — that agent's entire value is what it is prevented from seeing.
 
 **B141 — 12 of 26 knowledge notes are cited zero times by the loop**, including
 `testing-skills-methodology.md` and `skill-authoring-eval-methodology.md`. Two measured
