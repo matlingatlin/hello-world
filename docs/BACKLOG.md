@@ -376,3 +376,20 @@ dispatched. The suite the repair needs — including the containment and trigger
 eighteen existing cases lack entirely — is specified in `docs/architect-repair-tester-brief.md`
 and must be written and run by someone who did not author the repair. Until then ADR-0021
 stays **Proposed** and the repair is a hypothesis.
+
+**B130 — nothing verifies a knowledge note against its own sources.** The borrowed
+hospital division in `docs/decomposition-agent-pipeline.md` names it: credentialing
+never trusts the applicant's account, it checks with the issuing body. Our
+researcher writes a note and nothing re-reads the cited paper. We have measured
+this exact failure in other people's writing twice.
+
+**B131 — no observed period between "evals passed" and "live".** Credentialing has
+proctoring; we have nothing between the test and independent operation.
+
+**B132 — nothing re-reviews a live agent.** And harness assumptions are measured to
+go stale: Sonnet 4.5's "context anxiety" mitigation was unnecessary by Opus 4.5.
+
+**B133 — no registry.** No owner, no version, no withdrawal mechanism. The one
+thing `agent-skill-creator` has that we do not.
+
+**B134 — `agent-assembly` does five jobs and its name covers one.**
