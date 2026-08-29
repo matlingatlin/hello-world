@@ -87,8 +87,28 @@ If the agent should not execute, it delegates execution. That is not a limitatio
 — it is how the wall stays real. Read `agent-harness-construction` in the library
 for granularity and the recovery contract each tool should carry.
 
-**Artefact:** the tool list, each with its justification, plus one line naming
-what the surface makes impossible.
+**Shape the arguments so the mistake is unavailable.** Anthropic on their own
+SWE-bench work: *"we actually spent more time optimizing our tools than the
+overall prompt"*, and the technique is poka-yoke — *"change the arguments so that
+it is harder to make mistakes."* Their worked case: requiring **absolute**
+filepaths instead of relative ones eliminated a class of model error outright.
+Granting the right tools is half of it; the other half is the shape of what they
+accept. A tool that cannot be called wrongly needs no instruction saying so.
+
+**If the agent must act on a system it must not be able to drain, separate the
+capability from the secret.** Anthropic's managed-agent architecture does this:
+*"the tokens are never reachable from the sandbox where Claude's generated code
+runs"* — a proxy holds the credential and makes the call, and git push works
+without the token being present for code to read. Available capability, absent
+secret. Ask this whenever an agent touches an authenticated system.
+
+**Name the stopping condition.** An autonomous loop needs one — *"such as a
+maximum number of iterations"* — or it has no defined end. Say what it is, or say
+the agent is not autonomous.
+
+**Artefact:** the tool list, each with its justification; one line per tool on the
+argument shape that makes its likeliest misuse unexpressible; the stopping
+condition; and one line naming what the surface makes impossible.
 
 ## 6 · Put the wall where prose cannot reach
 

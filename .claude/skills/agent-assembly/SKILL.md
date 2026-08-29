@@ -98,6 +98,12 @@ raw output rather than a summary of it:
 - no dead cross-references, no invented commands
 - the tool surface is what the spec said, and `tools:` is not omitted
 - every referenced file exists at the path the skill names
+- **every artefact the build CLAIMS to have produced actually exists.** Run it as
+  a listing, not a reading of the report. This is not hypothetical: in this repo's
+  own ablation, the arm that had these procedures asserted *"the bar is in
+  EVALS-migration-reviewer.md, written by a subagent that did not author any of
+  this"* — and `git ls-tree` showed no such file. A claimed artefact is the
+  cheapest lie to tell and the cheapest to catch
 
 **Artefact:** the check output, not the checker's summary of it.
 
