@@ -253,3 +253,77 @@ in this environment is why: nesting is off, so **every agent here is a leaf**.
 Run: **C2, C3, C4, X1, X2, X3, X4** — 7 of 25, all pass, four defects found by them.
 Running: N2 on X2's real draft.
 Unrun: C5–C10, T1–T6, N1, N3–N5.
+
+---
+
+# N2, run 2026-08-29 — the pipeline end to end, on real content
+
+**PASS**, and it is the first time this pipeline has produced a change to the knowledge
+base. `docs/research/verdicts/x2-subagent-limits.md` (48 KB) and
+`docs/research/patches/x2-subagent-limits.md`. **Nothing was written to
+`/home/user/skills-repo/` by any agent** — confirmed by `git status` there before the
+patch was applied by hand.
+
+## What it ruled
+
+**38 rows, not the 35 the draft claimed.** It recounted and found the draft's own count
+line at `drafts/x2-subagent-limits.md:333` summing 31+4 and missing three rows. Counts:
+**supported 35 · not-supported 0 · not-in-source 0 · source-unreachable 3 · not-checkable
+0.** The three failures are one failure — the errors page returned only its index table
+on all three attempts, including an anchored fetch and a literal-string search.
+
+It compared **every quote word for word against a fresh fetch**, including a 19-tool list,
+exact throughout, tool order included.
+
+## The correction that mattered, and it held
+
+The base note said background *"silently drops non-listed built-ins"* — which reads as
+though **listing** a tool protects it. The source says removal applies *"whether inherited
+or listed in the `tools` field, so the same definition can resolve to different tools in
+the foreground and the background."* The draft's diagnosis was right and the verifier
+confirmed it verbatim.
+
+It also found the patch **incomplete** — the same section says the first filter removes
+nine named tools from every subagent *even when listed*, so it bites in the foreground
+too, and forks skip both filters entirely. And it refused to fix that itself:
+
+> *"That is an improvement I may not make for them — recorded, not applied."*
+
+The applied patch carries the whole correction, because a human applied it.
+
+## Six of the draft's own negative findings were wrong
+
+Every one was the draft claiming its source was silent when it was not, and every one was
+caught by a disconfirming read **in a second vocabulary** — asking for a whole section
+rather than the sentence the draft quoted. The clearest: the draft said the always-removed
+tool list was *"membership unknown"*; the enumeration sits immediately after the sentence
+the draft did quote. Nine entries, three conditional.
+
+Three of those six *confirm* base-note lines the draft had reported as unconfirmed. **The
+sweep understated how much of the note the documentation actually backs** — a direction of
+error nobody would have predicted, and the opposite of the one this pipeline was built to
+catch.
+
+## What it held back
+
+**P0 and P6**, both resting on the page it could not read. *"Do not add a source, or a
+claim that two pages agree in behaviour, when one page was never read."* Its corroboration
+list is **empty**: it fetched only the three URLs in the draft's `sources:`, and
+deliberately did not open the env-vars or settings pages, which is why one row stayed
+`not-checkable` rather than being resolved with a source the draft never cited.
+
+## The result in the base
+
+`/home/user/skills-repo/knowledge/notes/subagents.md` now reads **`status:
+partly-verified`**, carries `verified_by` pointing at the verdict document, and
+`verified_scope` saying exactly which 38 claims were ruled and that everything outside
+them is unchecked.
+
+It is **the only note of 26 that names who checked it**, and the only one not claiming
+`verified`. That gap — 26 of 26 self-attesting, none naming a verifier — was the baseline
+row this whole stage was built from. It is now 25.
+
+## Case tally
+
+Run: **C2, C3, C4, N2, X1, X2, X3, X4** — 8 of 25, all pass, five defects found by them.
+Unrun: C5–C10, T1–T6, N1, N3–N5.

@@ -89,15 +89,37 @@ runs under its own permissions, so delegation is execution one hop away.** What
 the absent shell actually buys is that nothing *this* context writes reaches the
 filesystem except through the gate. It is not a claim that no command runs.
 
-Dispatch a subagent to check, and require it to report the command it ran and the
-raw output rather than a summary of it:
+**The first five checks below are already implemented.** `.claude/validate/agents.py`
+does them, it is the single home of the construction rules per the change matrix in
+`docs/decomposition-agent-pipeline.md` §1, and until a P5 absence audit found it, no
+step in this loop named it — the checks were restated here in prose while the program
+that runs them sat unreferenced. Restating a rule is a second place for it to rot.
+
+So the delegation is one command, and its raw output is the artefact:
+
+```
+python3 .claude/validate/agents.py
+```
+
+Exit 0 is clean; exit 1 lists failures with a provenance tag ([A] Anthropic's spec,
+[B]/[C] the docs, [M] a measured house rule — the key prints under any run with
+findings). **A defect it names is yours, not its.** Its own positive controls are
+`.claude/validate/selftest.sh`; if you doubt a result, run those first — a checker
+that cannot fail proves nothing.
+
+What it covers, so you do not re-check it by hand:
 
 - frontmatter parses **line-anchored** — line 1 exactly `---`, a later line exactly
   `---`. Splitting on `---` reports green on an unterminated file; three talents
   once shipped unloadable.
 - no dead cross-references, no invented commands
-- the tool surface is what the spec said, and `tools:` is not omitted
+- the tool surface is `tools:`-explicit, descriptions are within limits and carry no
+  angle brackets, names are kebab-case and unreserved, preloads exist and are within
+  the house cap, hook commands exist and are executable, matchers are anchored — in
+  `.claude/settings.json` as well as in agent frontmatter
 - every referenced file exists at the path the skill names
+
+Two things it does **not** cover, and they are still a delegation:
 - **every artefact the build CLAIMS to have produced actually exists.** Run it as
   a listing, not a reading of the report. This is not hypothetical: in this repo's
   own ablation, the arm that had these procedures asserted *"the bar is in

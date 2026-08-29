@@ -163,6 +163,75 @@ def main(root):
                           f"agent here — fine if it is a bundled command or a plugin "
                           f"skill this checker cannot see, dead otherwise")
 
+    # ---- every agent ships with evals ---------------------------------------
+    # CLAUDE.md: "Every agent ships with evals carrying a negative control and a
+    # containment case." A P5 absence audit found that sentence enforced nowhere — and
+    # two of seven agents carrying no eval artefact of any kind, not even a brief saying
+    # the test is unmet. A rule that lives only in prose is the thing this repo's own
+    # standing rule says a "must never" may not be.
+    for p in agents:
+        rel = os.path.relpath(p, root)
+        name = os.path.basename(p)[:-3]
+        found = []
+        for cand in (glob.glob(os.path.join(root, "docs", "*.md")) +
+                     glob.glob(os.path.join(root, ".claude", "skills", "*", "evals.md")) +
+                     glob.glob(os.path.join(root, "docs", "research", "evidence", "*.md"))):
+            b = os.path.basename(cand).lower()
+            if not any(k in b for k in ("eval", "tester-brief", "test-results", "spec")):
+                continue
+            # A count of mentions is not a count of things. The first version of this
+            # check credited two agents with a spec because a DIFFERENT agent's spec
+            # named them once, in a NOT-clause — the exact failure the audit procedure
+            # warns about, committed inside the checker meant to catch it. An artefact
+            # covers an agent when its FILENAME says so, or when it returns to the agent
+            # repeatedly; a single passing reference is a cross-reference.
+            try:
+                body = open(cand, encoding="utf-8", errors="replace").read()
+            except OSError:
+                continue
+            if name in b or body.count(name) >= 3:
+                found.append(os.path.relpath(cand, root))
+        if not found:
+            fail(rel, f"no eval artefact anywhere names `{name}` — not an evals.md, not a "
+                      f"tester brief, not a spec, not a test result. CLAUDE.md: every agent "
+                      f"ships with evals carrying a negative control and a containment "
+                      f"case. An agent nobody can fail is not tested, it is unexamined [M]")
+        elif not any("test-results" in f or "evidence" in f for f in found):
+            warn(rel, f"has eval material ({', '.join(found[:2])}) but no recorded RESULT. "
+                      f"A suite nobody ran is a plan [M]")
+
+    # ---- settings.json -----------------------------------------------------
+    # A P5 absence audit found `"matcher": "Edit|Write"` sitting in .claude/settings.json —
+    # the exact string selftest.sh plants as a defect — while this checker scanned only
+    # agent frontmatter. A rule enforced on agents and not on the file that configures the
+    # whole session is a blind spot exactly where the blast radius is widest: settings
+    # hooks run for every tool call in the session, not for one agent.
+    for sp in (os.path.join(root, ".claude", "settings.json"),
+               os.path.join(root, ".claude", "settings.local.json")):
+        if not os.path.exists(sp): continue
+        rel = os.path.relpath(sp, root)
+        try:
+            cfg = json.load(open(sp, encoding="utf-8"))
+        except Exception as e:
+            fail(rel, f"does not parse as JSON: {e}")
+            continue
+        for event, entries in (cfg.get("hooks") or {}).items():
+            for entry in entries or []:
+                pat = (entry or {}).get("matcher")
+                if pat is None or str(pat).strip() in ("*", ""): continue
+                if not (str(pat).startswith("^") and str(pat).endswith("$")):
+                    fail(rel, f'{event} matcher "{pat}" is unanchored — a matcher is a '
+                              f'substring search, so "Write" also matches TodoWrite and '
+                              f'"Edit" also matches NotebookEdit. Anchor it: ^(...)$ [M]')
+                for h in (entry.get("hooks") or []):
+                    cmd = (h or {}).get("command", "")
+                    hp = cmd.replace("${CLAUDE_PROJECT_DIR}", root).strip()
+                    if h.get("type") == "command" and hp and " " not in hp:
+                        if not os.path.exists(hp):
+                            fail(rel, f"{event} hook command not found: {cmd}")
+                        elif not os.access(hp, os.X_OK):
+                            fail(rel, f"{event} hook is not executable: {cmd}")
+
     # ---- report ------------------------------------------------------------
     print(f"agents {len(agents)} · skills {len(skills)} · "
           f"roster ~{tok}/{ROSTER_MAX_T} tokens ({tok*100//ROSTER_MAX_T}%)\n")

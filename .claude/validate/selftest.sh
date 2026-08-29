@@ -13,6 +13,10 @@ mk() { # mk <name> ; builds a minimal clean repo in $T/<name>
   local d="$T/$1"; mkdir -p "$d/.claude/agents" "$d/.claude/skills/good-skill"
   printf -- '---\nname: good-agent\ndescription: A clean agent.\ntools: Read\n---\nBody.\n' > "$d/.claude/agents/good-agent.md"
   printf -- '---\nname: good-skill\ndescription: A clean skill.\n---\n\n# S\n\n## When this skill does not apply\n\n- never\n' > "$d/.claude/skills/good-skill/SKILL.md"
+  # the eval rule is part of clean: an agent with no eval artefact is a FAIL, so the
+  # baseline repo carries one. Without this every clean case would report as noise.
+  mkdir -p "$d/docs/research/evidence"
+  printf -- '# results for good-agent\n\nnegative control: ok\ncontainment: ok\n' > "$d/docs/research/evidence/good-agent-test-results.md"
   echo "$d"
 }
 expect() { # expect <label> <catch|clean> <substring> <dir>
@@ -66,6 +70,30 @@ d=$(mk t12); python3 -c "
 import sys;p=sys.argv[1];t=open(p).read()
 open(p,'w').write(t.replace('# S','# S\n\nNot for that (use ghost-thing).'))" "$d/.claude/skills/good-skill/SKILL.md"
                                                                        expect "NOT-clause routes nowhere" catch "exists neither as a skill nor an agent" "$d"
+
+# settings.json — found by a P5 absence audit: the rule was enforced on agent
+# frontmatter and not on the file that configures every tool call in the session.
+d=$(mk t13); mkdir -p "$d/.claude"
+printf '{"hooks":{"PostToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"/bin/true"}]}]}}' > "$d/.claude/settings.json"
+                                                                       expect "unanchored matcher in settings.json" catch "unanchored" "$d"
+d=$(mk t14); mkdir -p "$d/.claude"
+printf '{"hooks":{"PostToolUse":[{"matcher":"^(Edit|Write)$","hooks":[{"type":"command","command":"/nonexistent-hook.sh"}]}]}}' > "$d/.claude/settings.json"
+                                                                       expect "missing hook script in settings.json" catch "hook command not found" "$d"
+d=$(mk t15); mkdir -p "$d/.claude"
+printf '{"hooks":{"PostToolUse":[{"matcher":"^(Edit|Write)$","hooks":[{"type":"command","command":"/bin/true"}]}]}}' > "$d/.claude/settings.json"
+                                                                       expect "anchored settings matcher is legal" clean "" "$d"
+d=$(mk t16); mkdir -p "$d/.claude"; printf '{not json' > "$d/.claude/settings.json"
+                                                                       expect "settings.json that does not parse" catch "does not parse as JSON" "$d"
+
+# the eval rule itself — found by a P5 absence audit as a rule enforced nowhere
+d=$(mk t17); rm -f "$d/docs/research/evidence/good-agent-test-results.md"
+                                                                       expect "agent with no eval artefact at all" catch "no eval artefact anywhere names" "$d"
+d=$(mk t18); rm -f "$d/docs/research/evidence/good-agent-test-results.md"
+             mkdir -p "$d/docs"; printf -- '# spec\n\ngood-agent does things.\n' > "$d/docs/agent-spec-good-agent.md"
+                                                                       expect "spec but no recorded result (warns)" catch "no recorded RESULT" "$d"
+d=$(mk t19); rm -f "$d/docs/research/evidence/good-agent-test-results.md"
+             mkdir -p "$d/docs"; printf -- '# spec for another agent\n\nNOT for good-agent (that is elsewhere).\n' > "$d/docs/agent-spec-other.md"
+                                                                       expect "one passing mention does not count as coverage" catch "no eval artefact anywhere names" "$d"
 
 echo; echo "positive controls: pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
