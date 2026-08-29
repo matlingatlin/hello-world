@@ -572,3 +572,23 @@ runs of the same agent on the same empty state also disagreed on whether to prod
 anything at all — one observation of variance, and the loop has no step that measures it
 (B141).
 
+**B147 — negative controls give different answers on repeated runs, observed twice now,
+in two unrelated agent pairs.** The rebuild-pair evaluation recorded *"two runs of the
+same agent on the same empty state disagreed on whether to produce anything"*; the
+`agent-fitness-review` step-6 run, before it was stopped, recorded the same shape from
+the other side — **the first X2 run wrote its artefact and the second did not**, an
+unplanned repeat that nobody designed as a variance measurement.
+
+Two observations is not a rate, and neither run was designed to measure this. But the
+direction is the same both times and it lands on the one thing every eval suite here
+scores as binary: *did the agent produce nothing.* If that answer is not stable across
+runs, then **every negative control in this repository is one draw**, and a `PASS`
+recorded from a single run is a claim about a distribution nobody sampled.
+
+This is B141 arriving from the evidence rather than from the literature: variance is
+required at `agent-baseline` step 2 (two runs, never one, because a single run cannot
+separate a systematic failure from a bad draw) and is **required nowhere at the eval**.
+The fix is a rule, not a document: a negative control is run at least twice and both
+outcomes are recorded, or it is marked one-draw. Until then, read every `X`-row PASS in
+`docs/research/evidence/c4-x1-run.md` and `docs/evals-rebuild-pair-results.md` as
+one observation.
