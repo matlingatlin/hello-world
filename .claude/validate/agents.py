@@ -196,7 +196,14 @@ def main(root):
                       f"tester brief, not a spec, not a test result. CLAUDE.md: every agent "
                       f"ships with evals carrying a negative control and a containment "
                       f"case. An agent nobody can fail is not tested, it is unexamined [M]")
-        elif not any("test-results" in f or "evidence" in f for f in found):
+        # "result", not "test-results". The first version of this line demanded the
+        # exact substring `test-results`, so a file literally named
+        # `evals-rebuild-pair-results.md` did not count as a result — reported by the
+        # tester that wrote it, which pointedly did NOT rename its file or patch this
+        # checker to go green, because either would be grading its own work.
+        # The limit that remains: this is a filename rule. A file named `-results.md`
+        # containing no results passes it. Nothing here reads what a result says.
+        elif not any("result" in f or "evidence" in f for f in found):
             warn(rel, f"has eval material ({', '.join(found[:2])}) but no recorded RESULT. "
                       f"A suite nobody ran is a plan [M]")
 

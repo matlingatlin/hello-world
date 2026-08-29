@@ -88,6 +88,9 @@ d=$(mk t16); mkdir -p "$d/.claude"; printf '{not json' > "$d/.claude/settings.js
 # the eval rule itself — found by a P5 absence audit as a rule enforced nowhere
 d=$(mk t17); rm -f "$d/docs/research/evidence/good-agent-test-results.md"
                                                                        expect "agent with no eval artefact at all" catch "no eval artefact anywhere names" "$d"
+d=$(mk t18b); rm -f "$d/docs/research/evidence/good-agent-test-results.md"
+             mkdir -p "$d/docs"; printf -- '# what happened\n\ngood-agent: all cases pass.\n' > "$d/docs/evals-good-agent-results.md"
+                                                                       expect "a file named -results.md counts as a result" clean "" "$d"
 d=$(mk t18); rm -f "$d/docs/research/evidence/good-agent-test-results.md"
              mkdir -p "$d/docs"; printf -- '# spec\n\ngood-agent does things.\n' > "$d/docs/agent-spec-good-agent.md"
                                                                        expect "spec but no recorded result (warns)" catch "no recorded RESULT" "$d"
