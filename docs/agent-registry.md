@@ -46,11 +46,12 @@ before there was one, so nothing checked it against a form.
 | `architect` | `provisional` | `pre-template` | repaired against a known defect list; **evals never run** (B125) | not recorded |
 | `architect-rebuild` | `provisional` | `pre-template` | `docs/evals-rebuild-pair.md`; tester brief unmet (B129) | not recorded |
 | `domain-researcher` | `provisional` | `pre-template` | `docs/research/evidence/c4-x1-run.md` — **C2, C3, X1, X2 pass**, 4 of 25 cases | not recorded |
+| `llm-component-architect` | `withheld` | **`1.0.0`** | **none.** Step 6 unmet — `Agent` withheld at runtime, so no fresh tester could be dispatched. Spec at `docs/agent-spec-llm-component-architect.md`, brief at `docs/llm-component-architect-tester-brief.md` | no |
 | `primary-source-verifier` | `provisional` | `pre-template` | `docs/research/evidence/c4-x1-run.md` — **C4, N2, X3, X4 pass**, and C4 is the case the whole design turns on | not recorded |
 | `rebuild-adjudicator` | `provisional` | `pre-template` | `docs/evals-rebuild-pair-results.md` — 34 behavioural cases, **three fails** | not recorded |
 | `rebuild-prospector` | `provisional` | `pre-template` | `docs/evals-rebuild-pair-results.md` — same run; its diet gate passes 34 control rows | not recorded |
 
-**Eight agents, and not one has a recorded release.** That is the honest state
+**Nine agents, and not one has a recorded release.** That is the honest state
 and it is the point of writing the register: every one of them is in the tree
 because it was built, not because anyone decided it should be used.
 
@@ -58,14 +59,21 @@ because it was built, not because anyone decided it should be used.
 
 ## What this register makes visible
 
-**`pre-template` on all eight is the refactor worklist.** The standard now exists
-and nothing has been built to it. Each row is a candidate for rewriting against
-`assets/template/`, and the version column will say when one has been.
+**`pre-template` on eight of nine is the refactor worklist.** The standard exists
+and exactly one agent has been built to it. Each `pre-template` row is a candidate
+for rewriting against `assets/template/`, and the version column will say when one
+has been.
 
-**`agent-fitness-review` is the only `withheld` row**, and it is withheld for the
-reason its own author gave: `agent-assembly` step 6 is unmet, so nothing has
-established that it can do its job. It is the newest agent and the only one whose
-build said so out loud.
+**`llm-component-architect` is the first `1.0.0` row**, which makes it the only
+place where the template variable actually varies. What that comparison is worth
+today is nothing, because its evidence cell is empty — a template version is a
+statement about how an agent was built, not about whether it works.
+
+**Two `withheld` rows, both for the same reason.** `agent-fitness-review` and
+`llm-component-architect` are withheld because `agent-assembly` step 6 is unmet:
+no subagent that did not author them has tested them, so nothing has established
+that either can do its job. In both cases the build said so out loud rather than
+reporting a green number.
 
 **Nobody has run a competence test.** Every evidence cell above is conformance or
 containment — *is it built correctly*, *can it exceed its remit*. Not one says the

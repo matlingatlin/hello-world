@@ -5,6 +5,49 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Changed
+- 2026-08-29 — **An architect whose unit is one model call — and the first agent in
+  this repo built to the template.** `llm-component-architect`, built by
+  `agent-builder`. **Step 6 is UNMET — `Agent` was withheld at runtime, so no fresh
+  tester could be dispatched. Registry status `withheld`. Nothing here is a verdict.**
+
+  The reuse gate was the whole decision. Two architects already exist and they
+  collide at Jaccard **0.195**, the roster's worst pair. Reading both in full plus
+  84 library talents and one library agent showed the honest split: `architect` and
+  `architect-rebuild` work in units of *parts and the seams between them*; seventeen
+  library talents own *implementations* — routing on price, recording a call,
+  escalating from a parser — each assuming the call is already identified. Nobody
+  owns the unit **one model call**, and a seam table cannot express a call ruling.
+
+  Ruled **author**, with `extend` recorded as the runner-up and its blocker named:
+  `architect` already preloads three skills and a fourth is refused by
+  `.claude/validate/agents.py`, so "add it to `architect`" is mechanically rejected
+  rather than merely unattractive.
+
+  Baseline via `agent-baseline` §2b **route 2, recorded real runs** — this
+  repository's own architecture record plus two independent reviews of it dated
+  2026-08-21, eight days before the agent was proposed. **Fourteen failure rows,
+  every one at a `file:line`, none of them a stack or tenancy failure**: a model
+  call on a read path costing 12.7 s per page load (B071, fixed to 0.008 s); a spend
+  ceiling plumbed and never set while a build estimated at $1.05–$2.51 spent $2.69;
+  the cost the engine computed returned and dropped before anything read it; a
+  46-minute model job inside one HTTP request; the prompt's output side gated and
+  its input side a skeleton heading for eight months; a quality claim resting on a
+  judge with no external signal and n=2; a test suite quietly making real model
+  calls. Three procedures, each carrying only rows that were observed.
+
+  Also written down: the **leave-alone list**. The deterministic-gate instinct here
+  is already good and `unjudged` is already the right word, so the procedures teach
+  the *enumeration* and reuse the repo's own vocabulary rather than competing with
+  it — that is the measured regression zone, where roughly 15% of tasks get worse.
+
+  Two template findings, because this is the first build to `1.0.0` and they are
+  worth more than a clean report: `00-SKELETON.md` tells you to name a hook that
+  `agent-assembly` §4 forbids you to install, and `agents.py` **fails** an agent
+  whose hook does not exist — the three cannot all be satisfied. And the template
+  never says a preloaded skill must be repo-local, which quietly rules out every
+  bundled and library skill. Both are recorded in
+  `docs/agent-spec-llm-component-architect.md`.
+
 - 2026-08-29 — **An agent reviewer, which refused the review it was asked for.**
   `agent-fitness-review`, built by `agent-builder`. **Step 6 is UNMET; a tester is
   running. Nothing here is a verdict on it.**

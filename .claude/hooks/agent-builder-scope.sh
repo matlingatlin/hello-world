@@ -49,6 +49,8 @@ esac
 case "$rel" in
   .claude/hooks/*)
     deny "hooks are walls. Write the hook as a proposal under docs/ and let a human install it." ;;
+  docs/agent-registry.md)
+    deny "the registry is the release record, and release is a human decision. An agent that can write its own row can write itself \`in use\`. Report what you built; a human writes the row." ;;
   .claude/settings.json|.claude/settings.local.json|.claude/settings*.json)
     deny "settings carry permissions and enabled plugins. Propose the change under docs/." ;;
   .claude/agents/agent-builder.md|.claude/skills/agent-shape/*|.claude/skills/agent-baseline/*|.claude/skills/agent-assembly/*)

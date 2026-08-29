@@ -62,6 +62,10 @@ echo "walls, settings, and its own toolchain"
 chk F  deny "$(w 'docs/../.claude/hooks/x.sh')"
 chk J  deny "$(w '.claude/hooks/agent-builder-scope.sh')"
 chk M  deny "$(w '.claude/settings.local.json')"
+# the release record: an agent that can write its own registry row can write itself
+# `in use`. Found when the first agent built to the template wrote its own row —
+# honestly, as it happens, but the mechanism allowed the other outcome.
+chk RG deny "$(w 'docs/agent-registry.md')"
 chk I  deny "$(w '.claude/agents/agent-builder.md')"
 chk N  deny "$(w '.claude/skills/agent-shape/SKILL.md')"
 chk N2 deny "$(w '.claude/skills/agent-assembly/references/tiers.md')"

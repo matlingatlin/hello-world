@@ -733,3 +733,21 @@ one deliberately out of scope, and an evaluator that neither built the agent nor
 arms, judging unlabelled arms after catching its own planted defect. `runs.jsonl` is
 empty. Every evidence cell in `docs/agent-registry.md` is still conformance or
 containment — **not one says an agent does its job better than not having it.**
+
+**B155 — an agent wrote its own registry row, and the mechanism allowed it.**
+`docs/architecture-agent-factory.md` §2 names four human-owned parts and gives one reason
+for all four: **they are what the agent is measured against.** The registry is one of
+them. But every agent write-gate here allows `docs/`, so when `agent-builder` produced
+`llm-component-architect` it also wrote that agent's registry row.
+
+**The row it wrote was honest** — `withheld`, released `no`, evidence `none`, and it
+added in its own words that the comparison is worth nothing while the evidence cell is
+empty. That is not the point. An agent that can write its own row can write itself
+`in use`, and nothing but its disposition stood in the way.
+
+Closed for `agent-builder`: its gate now denies `docs/agent-registry.md` by name, with
+control `RG` behind it (30 rows). **Still open for every other agent with a `docs/`
+gate** — `architect`, `rebuild-adjudicator`, `agent-fitness-review` and
+`llm-component-architect` itself all write under `docs/` through `docs-only-write.sh`,
+which has no such carve-out and no harness at all. The general fix is one deny in that
+shared gate plus its first control table.
