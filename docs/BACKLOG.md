@@ -621,3 +621,30 @@ this is the first observed corruption caused by it. Three consequences:
    measurably unequal in this environment.
 
 The recovered document is `docs/agent-review-rebuild-prospector-L3.md`.
+
+**B148 — no calibration set; every judge is uncalibrated.** Borrowed from the
+pharmacopoeia division in `docs/architecture-agent-factory.md`: an assay is run against a
+reference material of known composition, because otherwise it produces numbers nobody can
+check. `.claude/validate/selftest.sh` does exactly this for the validator — 24 controls,
+one planted defect each. **Nothing does it for the fitness reviewer or for any future
+evaluator.** When a reviewer returns "no findings", we cannot distinguish a clean agent
+from a blind reviewer. The fix is a set of deliberately defective agents, one specified
+defect each, that every judge must catch before its verdict on a real agent counts.
+
+**B149 — validation runs after assembly, never during.** In-process control exists in
+manufacturing because finding a bad batch at release wastes the batch. `agent-assembly`
+should call the checker per part as it is written.
+
+**B150 — no release step, and no record of one.** We produce verdicts; nothing records
+that a human decided to put an agent into use, when, against which template version, and
+on what evidence. A verdict is an input to that decision, not the decision.
+
+**B151 — the shaper emits no bill of materials.** It decides the roster and the diet, but
+does not enumerate every input the agent will need — notes, skills, references, wall, spec
+— each marked exists / must be commissioned / not needed, with each gap routed to the part
+that can close it. Consequence: gaps are discovered at build time instead of planned for.
+Its name also covers one of its four jobs.
+
+**B152 — the template is unversioned.** A change to the standard drifts silently through
+every agent already built. Each agent's spec must record the template version it was built
+against, so a change produces a migration list rather than invisible divergence.
