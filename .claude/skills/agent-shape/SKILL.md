@@ -1,6 +1,6 @@
 ---
 name: agent-shape
-description: "Use BEFORE writing any agent file, whenever someone wants a new subagent, a specialist, a reviewer, a builder, or says an existing agent should be split or is doing too much. Decides what agents should exist at all — how many, what each may see, what each may do, and where the wall goes — and emits a spec another skill builds from. Reach for this even when the request sounds like a single obvious agent, because the most expensive agent mistakes are made before a line is written. NOT for authoring the files (use agent-assembly), NOT for observing what goes wrong without support (use agent-baseline), NOT for writing a standalone skill with no agent around it (use writing-skills)."
+description: "Use BEFORE writing any agent file, whenever someone wants a new subagent, a specialist, a reviewer, a builder, or says an existing agent should be split or is doing too much. Decides what agents should exist at all — how many, what each may see, what each may do, and where the wall goes — and emits a spec another skill builds from. Reach for this even when the request sounds like a single obvious agent, because the most expensive agent mistakes are made before a line is written. NOT for authoring the files (use agent-assembly), NOT for observing what goes wrong without support (use agent-baseline), NOT for writing a standalone skill with no agent around it (use the library talent writing-skills at /home/user/skills-repo/.claude/skills/writing-skills/)."
 ---
 
 # Deciding what agents should exist

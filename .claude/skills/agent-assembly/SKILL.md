@@ -1,6 +1,6 @@
 ---
 name: agent-assembly
-description: "Use when a spec and an observed failure list both exist and the agent must now be written — places every piece in the tier that loads it at the right moment, authors the files, and then hands the finished agent to a FRESH subagent for testing because the author never grades its own work. Reach for this whenever someone says to build, assemble, wire up or finish an agent. It creates new agents only — a change to one that already exists is written as a proposal under docs/ and applied by a human. NOT for deciding what agents should exist (use agent-shape), NOT for observing unaided failure (use agent-baseline), NOT for authoring a standalone skill unattached to an agent (use writing-skills)."
+description: "Use when a spec and an observed failure list both exist and the agent must now be written — places every piece in the tier that loads it at the right moment, authors the files, and then hands the finished agent to a FRESH subagent for testing because the author never grades its own work. Reach for this whenever someone says to build, assemble, wire up or finish an agent. It creates new agents only — a change to one that already exists is written as a proposal under docs/ and applied by a human. NOT for deciding what agents should exist (use agent-shape), NOT for observing unaided failure (use agent-baseline), NOT for authoring a standalone skill unattached to an agent (use the library talent writing-skills at /home/user/skills-repo/.claude/skills/writing-skills/)."
 ---
 
 # Building it, in the right tier
@@ -83,8 +83,14 @@ prefix-lookalike, an empty path, malformed input. A human installs it.
 
 ## 5 · Verify mechanically — by delegation
 
-Dispatch a subagent with a shell to check, and require it to report the command it
-ran and the output:
+You hold no shell, so verification is delegated. Be precise about what that does
+and does not buy, because an earlier version of this file was not: **a delegate
+runs under its own permissions, so delegation is execution one hop away.** What
+the absent shell actually buys is that nothing *this* context writes reaches the
+filesystem except through the gate. It is not a claim that no command runs.
+
+Dispatch a subagent to check, and require it to report the command it ran and the
+raw output rather than a summary of it:
 
 - frontmatter parses **line-anchored** — line 1 exactly `---`, a later line exactly
   `---`. Splitting on `---` reports green on an unterminated file; three talents
@@ -118,3 +124,19 @@ and what you did not check.
 
 An agent below its bar is **cut, not defended**. Three of four comparable skills
 measured elsewhere here did not discriminate; one made the answer worse.
+
+## When this does not apply
+
+- **No baseline was run.** Assembly builds from observed failures. Without them
+  you are writing your opinion into a procedure, where it will read as evidence.
+- **The change is to an agent that already exists.** You create. Write the change
+  as a proposal under `docs/` and let a human apply it.
+- **What is wanted is a standalone skill with no agent around it.** That is the
+  library talent `writing-skills` at
+  `/home/user/skills-repo/.claude/skills/writing-skills/`.
+- **The spec calls for a fourth preloaded procedure.** That is the signal you have
+  two agents, not a bigger one. Go back to `agent-shape`.
+- **You cannot delegate the test.** Then the work is not finished. Stage the agent
+  and a tester brief, say plainly that step 6 is unmet, and stop — an untested
+  agent shipped as done is the failure this whole procedure exists to prevent.
+

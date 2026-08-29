@@ -81,3 +81,21 @@ regression zone. Write it down and leave it alone.
 `agent-assembly` builds only from the `teach` and `wall` rows. If a rule you want
 to write has no row behind it, it is your opinion, and it goes in the spec's open
 questions rather than in the agent.
+
+## When this does not apply
+
+- **The agent already exists and you are testing it, not building it.** A baseline
+  answers "what goes wrong without this"; a finished agent needs an eval suite from
+  a fresh tester instead.
+- **The job has no artefact to judge.** If two runs cannot be scored against
+  anything, you will collect opinions rather than failures, and opinions become
+  procedure content that nothing can later refute.
+- **The spec is not settled.** Baselining a job whose shape is still moving
+  measures the wrong thing twice; go back to `agent-shape`.
+- **The failures are already recorded from a real run.** A live run that went wrong
+  is a better baseline than a synthetic one, because nobody constructed it. Use it
+  and say where it came from.
+
+Declining here is not a shortcut. A baseline you could not run is a spec whose
+procedure content has to stay in the open-questions list until someone can.
+

@@ -28,7 +28,7 @@ rebuilding it. The ones that bear on building agents:
 
 | Talent | Owns |
 |---|---|
-| `writing-skills` | authoring a SKILL.md: structure, trigger-shaped description, RED-GREEN |
+| `writing-skills` (library, `/home/user/skills-repo/.claude/skills/writing-skills/`) | authoring a SKILL.md: structure, trigger-shaped description, RED-GREEN |
 | `agent-harness-construction` | the tool/action surface itself — granularity, observation shape, recovery contract |
 | `agent-surface-security-audit` | reviewing a configuration surface before adopting it |
 | `agent-blast-radius-guard` | bounding what an autonomous run may destroy |

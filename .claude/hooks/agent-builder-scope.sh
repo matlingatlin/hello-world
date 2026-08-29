@@ -51,7 +51,7 @@ case "$rel" in
     deny "hooks are walls. Write the hook as a proposal under docs/ and let a human install it." ;;
   .claude/settings.json|.claude/settings.local.json|.claude/settings*.json)
     deny "settings carry permissions and enabled plugins. Propose the change under docs/." ;;
-  .claude/agents/agent-builder.md|.claude/skills/agent-shape/*|.claude/skills/agent-baseline/*|.claude/skills/agent-assembly/*|.claude/skills/_shared/*)
+  .claude/agents/agent-builder.md|.claude/skills/agent-shape/*|.claude/skills/agent-baseline/*|.claude/skills/agent-assembly/*)
     deny "this is agent-builder's own toolchain. It does not modify itself; propose the change under docs/." ;;
 esac
 
