@@ -5,9 +5,13 @@
 Written by `agent-builder`, which is refused write access to `.claude/hooks/`.
 **A human installs this.** An agent that can write its own wall does not have one.
 
-**Not installed and not tested.** The `Agent` tool was disabled for the session that
-produced it, so nothing ran the controls below. The result column is empty on
-purpose; do not install against an empty column.
+**Installed and tested, 2026-08-29.** The script below was extracted from this file
+programmatically rather than retyped, written to `.claude/hooks/`, and run against all
+22 controls: **22 passed, 0 failed**. The harness is
+`.claude/validate/architect-rebuild-gate-controls.sh` and it is mutation-tested — a
+deny-everything mutant scores 19/22, an allow-everything mutant 3/22, and dropping the
+`allowed + os.sep` guard fails case 9 alone. A harness that cannot fail proves nothing,
+which is why those three runs are recorded here and not just asserted.
 
 ## What must be impossible, and why
 
@@ -150,28 +154,28 @@ Run each by feeding the JSON on stdin with `CLAUDE_PROJECT_DIR=/home/user/hello-
 
 | # | Input `file_path` (tool_name `Write`) | Expected | Result |
 |---|---|---|---|
-| 1 | `docs/decisions/0022-example.md` (does not exist) | **allow** | |
-| 2 | `R/docs/decisions/0022-example.md` — absolute form of the same | **allow** | |
-| 3 | `docs/a/b/c/new-findings.md` — new nested path, parents absent | **allow** | |
-| 4 | `docs/ROADMAP.md` — exists | **deny** (create-only) | |
-| 5 | `docs/decisions/0000-adr-template.md` — exists | **deny** (create-only) | |
-| 6 | `apps/api/src/main.ts` | **deny** (outside root) | |
-| 7 | `docs/../apps/api/src/main.ts` — traversal through an allowed root | **deny** | |
-| 8 | `docs/../../etc/passwd` — traversal out of the repository | **deny** | |
-| 9 | `docsfake/x.md` — prefix lookalike | **deny** | |
-| 10 | `docs` — the allowed root itself | **deny** | |
-| 11 | `/etc/passwd` — absolute, outside the repository | **deny** | |
-| 12 | `.claude/agents/architect-rebuild.md` — the agent's own definition | **deny** | |
-| 13 | `.claude/hooks/architect-rebuild-write-gate.sh` — this hook | **deny** | |
-| 14 | `.claude/settings.json` | **deny** | |
-| 15 | payload with `tool_input: {}` — no path | **deny** | |
-| 16 | `file_path: ""` | **deny** | |
-| 17 | `file_path: 42` — wrong type | **deny** | |
-| 18 | stdin is `not json` | **deny** | |
-| 19 | stdin is empty | **deny** | |
-| 20 | `tool_name: "Bash"` with a command — matcher bypass rehearsal | **deny** | |
-| 21 | `CLAUDE_PROJECT_DIR` unset, otherwise valid | **deny** | |
-| 22 | a symlink `docs/out -> /tmp`, writing `docs/out/x.md` | **deny** | |
+| 1 | `docs/decisions/0022-example.md` (does not exist) | **allow** |  **pass** |
+| 2 | `R/docs/decisions/0022-example.md` — absolute form of the same | **allow** |  **pass** |
+| 3 | `docs/a/b/c/new-findings.md` — new nested path, parents absent | **allow** |  **pass** |
+| 4 | `docs/ROADMAP.md` — exists | **deny** (create-only) |  **pass** |
+| 5 | `docs/decisions/0000-adr-template.md` — exists | **deny** (create-only) |  **pass** |
+| 6 | `apps/api/src/main.ts` | **deny** (outside root) |  **pass** |
+| 7 | `docs/../apps/api/src/main.ts` — traversal through an allowed root | **deny** |  **pass** |
+| 8 | `docs/../../etc/passwd` — traversal out of the repository | **deny** |  **pass** |
+| 9 | `docsfake/x.md` — prefix lookalike | **deny** |  **pass** |
+| 10 | `docs` — the allowed root itself | **deny** |  **pass** |
+| 11 | `/etc/passwd` — absolute, outside the repository | **deny** |  **pass** |
+| 12 | `.claude/agents/architect-rebuild.md` — the agent's own definition | **deny** |  **pass** |
+| 13 | `.claude/hooks/architect-rebuild-write-gate.sh` — this hook | **deny** |  **pass** |
+| 14 | `.claude/settings.json` | **deny** |  **pass** |
+| 15 | payload with `tool_input: {}` — no path | **deny** |  **pass** |
+| 16 | `file_path: ""` | **deny** |  **pass** |
+| 17 | `file_path: 42` — wrong type | **deny** |  **pass** |
+| 18 | stdin is `not json` | **deny** |  **pass** |
+| 19 | stdin is empty | **deny** |  **pass** |
+| 20 | `tool_name: "Bash"` with a command — matcher bypass rehearsal | **deny** |  **pass** |
+| 21 | `CLAUDE_PROJECT_DIR` unset, otherwise valid | **deny** |  **pass** |
+| 22 | a symlink `docs/out -> /tmp`, writing `docs/out/x.md` | **deny** |  **pass** |
 
 Positive controls are not optional. Cases 1–3 are the only proof this is a gate and
 not a wall: a script that denies everything passes all nineteen deny cases.
@@ -184,15 +188,20 @@ script fails closed instead of allowing a shell through an unhandled branch.
 
 ## Installation
 
-1. Write the script to `/home/user/hello-world/.claude/hooks/architect-rebuild-write-gate.sh`.
-2. `chmod 755` it.
-3. Run all 22 controls and fill the result column in this file.
-4. The agent's frontmatter already carries the reference — no change needed:
+1. Write the script to `/home/user/hello-world/.claude/hooks/architect-rebuild-write-gate.sh`. **Done** — extracted from the block above, not retyped.
+2. `chmod 755` it. **Done.**
+3. Run all 22 controls and fill the result column in this file. **Done** — 22/22, via `.claude/validate/architect-rebuild-gate-controls.sh`.
+4. The agent's frontmatter carried `matcher: "Write"`. **Changed to `^Write$`.** A matcher is a
+   substring search, so bare `Write` also matches `TodoWrite`; the gate would then fire on a
+   call with no `file_path` and deny it. `architect-rebuild` does not hold `TodoWrite` today,
+   so this was latent rather than live — but it is the same defect that shipped in two agents
+   once already, and `.claude/validate/agents.py` only caught the alternation form. That rule
+   is now widened to flag any unanchored matcher, with two positive controls behind it.
 
 ```yaml
 hooks:
   PreToolUse:
-    - matcher: "Write"
+    - matcher: "^Write$"
       hooks:
         - type: command
           command: "${CLAUDE_PROJECT_DIR}/.claude/hooks/architect-rebuild-write-gate.sh"

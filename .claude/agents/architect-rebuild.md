@@ -9,7 +9,7 @@ skills:
   - design-claim-audit
 hooks:
   PreToolUse:
-    - matcher: "Write"
+    - matcher: "^Write$"
       hooks:
         - type: command
           command: "${CLAUDE_PROJECT_DIR}/.claude/hooks/architect-rebuild-write-gate.sh"

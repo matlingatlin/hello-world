@@ -113,10 +113,11 @@ def main(root):
             elif not os.access(hp, os.X_OK): fail(rel, f"hook is not executable: {m.group(1)}")
         for m in re.finditer(r'matcher: *"([^"]+)"', fm):
             pat = m.group(1)
-            if not (pat.startswith("^") and pat.endswith("$")) and "|" in pat:
-                fail(rel, f'matcher "{pat}" is unanchored — it matches any tool whose '
-                          f'name CONTAINS a branch (Write|Edit also matches TodoWrite). '
-                          f'Use ^(...)$ [M]')
+            if pat.strip() in ("*", ""): continue
+            if not (pat.startswith("^") and pat.endswith("$")):
+                fail(rel, f'matcher "{pat}" is unanchored — a matcher is a substring '
+                          f'search, so "Write" also matches TodoWrite and "Edit" also '
+                          f'matches NotebookEdit. Anchor it: ^(...)$ [M]')
 
     # ---- skills ------------------------------------------------------------
     for p in skills:

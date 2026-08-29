@@ -363,10 +363,34 @@ ADR-0021, ROADMAP, BACKLOG and CHANGELOG all cite them — the agent body instru
 architect to *"read the relevant layer before deciding anything that touches it."* As written
 that instruction is unsatisfiable, and the graph-backed arrow check in `system-decomposition`
 step 4 has no graph. The skills and the agent body now carry an explicit absent-file fallback
-(mark `unverified`, grep instead of the graph), which is a mitigation, not a fix. **Somebody
-with a shell must settle whether the directory was committed and deleted or never committed**
-— `git log --oneline -- docs/as-built`. If it never existed, the ground truth behind eval
-cases S1, S2, S4, R2 and R5 has never existed either and B125's bars cannot be met as written.
+(mark `unverified`, grep instead of the graph), which is a mitigation, not a fix. ~~**Somebody
+with a shell must settle whether the directory was committed and deleted or never committed**~~
+
+**SETTLED 2026-08-29, with a shell. It was never committed here, and it exists in full next
+door.** `git log --all -- docs/as-built` is empty and so is
+`git log --all --diff-filter=A --name-only | grep as-built`: the directory was never added to
+this repository, so nothing was deleted and there is no history to recover. The corpus itself
+is intact at `/home/user/scio/docs/as-built/` — fifteen documents including
+`ARCHITECTURE-AS-BUILT.md`, the seven layer files, and `graph/graph.json` at 5.2 MB with
+**5,173 nodes and 12,054 links**, which is exactly the denominator
+`.claude/skills/system-decomposition` quotes for its "six links out of 12,054" finding.
+
+So the feared branch did not happen: the ground truth behind eval cases S1, S2, S4, R2 and R5
+**does exist**, B125's bars can be met, and the graph-backed arrow check in
+`system-decomposition` step 4 is available. Twenty-eight files here cite `docs/as-built/` as a
+relative path; every one of them is off by a repository, not pointing at nothing. The fix is a
+path, and the paths now have a single home:
+`.claude/skills/proposal-adjudication/references/corpus.md`. Prose that repeats an absolute
+path is a second place for it to rot, so the remaining citations are re-pointed at that file
+rather than each carrying their own copy.
+
+**One new finding came out of settling it.** The graph records
+`built_at_commit: 00408d341272a541bf5428ff8657c3542cb1fe2c`, and
+`git cat-file -t` in `/home/user/scio` cannot resolve that object — the commit is not in that
+repository's history. The graph was therefore built from a tree state that was never committed,
+or from a different clone, and **it cannot be tied to a checkout**. It is usable for locating
+call sites; it is not usable as evidence of what the code says at a revision. Any `file:line`
+taken from it must be confirmed in the working tree before it is quoted. → **B135.**
 
 **B129 — the repaired architect is untested, and the repair was not delegated.** The
 2026-08-28 repair (analogy step, the derive-before-look boundary, the Fischhoff correction,
@@ -393,3 +417,11 @@ go stale: Sonnet 4.5's "context anxiety" mitigation was unnecessary by Opus 4.5.
 thing `agent-skill-creator` has that we do not.
 
 **B134 — `agent-assembly` does five jobs and its name covers one.**
+
+**B135 — the call graph cannot be tied to a commit.**
+`/home/user/scio/docs/as-built/graph/graph.json` names
+`built_at_commit 00408d34…`, which is not an object in that repository. The graph's 5,173
+nodes and 12,054 links are the denominator behind several standing findings, and nothing can
+re-derive them or say what tree they describe. Either rebuild the graph from a committed
+revision and record that hash, or mark every graph-derived figure `unverified against a
+revision`. Until then a `file:line` from the graph is a pointer, not evidence.

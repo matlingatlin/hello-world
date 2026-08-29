@@ -52,6 +52,14 @@ import sys;p=sys.argv[1];t=open(p).read()
 open(p,'w').write(t.replace('tools: Read','tools: Read\nhooks:\n  PreToolUse:\n    - matcher: \"Write|Edit\"\n      hooks:\n        - type: command\n          command: \"/nonexistent.sh\"'))" "$d/.claude/agents/good-agent.md"
                                                                        expect "unanchored matcher" catch "unanchored" "$d"
              expect "missing hook script" catch "hook command not found" "$d"
+d=$(mk t10b); python3 -c "
+import sys;p=sys.argv[1];t=open(p).read()
+open(p,'w').write(t.replace('tools: Read','tools: Read\nhooks:\n  PreToolUse:\n    - matcher: \"Write\"\n      hooks:\n        - type: command\n          command: \"/nonexistent.sh\"'))" "$d/.claude/agents/good-agent.md"
+                                                                       expect "single unanchored matcher (Write matches TodoWrite)" catch "unanchored" "$d"
+d=$(mk t10c); python3 -c "
+import sys;p=sys.argv[1];t=open(p).read()
+open(p,'w').write(t.replace('tools: Read','tools: Read\nhooks:\n  PreToolUse:\n    - matcher: \"*\"\n      hooks:\n        - type: command\n          command: \"/bin/true\"'))" "$d/.claude/agents/good-agent.md"
+                                                                       expect "wildcard matcher is legal, not a defect" clean "" "$d"
 d=$(mk t11); sed -i 's/^## When this skill does not apply/## Notes/' "$d/.claude/skills/good-skill/SKILL.md"
                                                                        expect "no decline section (warns)" catch "no decline section" "$d"
 d=$(mk t12); python3 -c "

@@ -5,6 +5,58 @@ See CLAUDE.md, "Documentation & checkpoint protocol", for how this is maintained
 ## [unreleased]
 
 ### Changed
+- 2026-08-29 — **The validator's six findings closed, and B128 settled with a shell.**
+
+  `.claude/validate/agents.py` is now CLEAN against this repo. Each of the six was a real
+  hole, not a formatting complaint.
+
+  **The two dead references were written, not deleted.** `proposal-adjudication` and
+  `capability-retirement-audit` both open `references/corpus.md` at step 1 and
+  `references/evidence.md` before any number goes into a document, and neither file existed —
+  the build was interrupted before they were authored. `corpus.md` now carries the absolute
+  paths to the sibling corpus at `/home/user/scio`, because relative paths there resolve
+  silently to nothing. `evidence.md` deliberately **holds no numbers**: it maps each cited
+  figure to the note in `/home/user/skills-repo/knowledge/notes/` that owns it, and to the
+  grep anchor that finds the row. A reference file restating the effect sizes would be a
+  second place for them to rot, which is the failure the whole pipeline is shaped around.
+  `capability-retirement-audit` now points at the same shared `corpus.md` rather than a copy.
+
+  **`architect-rebuild` cited a wall that was not installed**, so it had none. The script was
+  extracted from `docs/hook-proposal-architect-rebuild-write-gate.md` programmatically rather
+  than retyped, installed at mode 755, and run against all 22 controls: **22 pass**. The
+  harness is `.claude/validate/architect-rebuild-gate-controls.sh`, and it is mutation-tested
+  because the last control harness written here was silently broken — a deny-everything mutant
+  scores 19/22, an allow-everything mutant 3/22, and removing the `allowed + os.sep` guard
+  fails case 9 and nothing else. A harness that cannot fail proves nothing.
+
+  **The matcher rule had a hole the size of the defect it exists for.** The agent carried
+  `matcher: "Write"`. A matcher is a substring search, so that also matches `TodoWrite` — the
+  same defect that shipped in two agents once already — and the validator only flagged the
+  alternation form (`"|" in pat`). The rule now flags any unanchored matcher, `*` excepted, and
+  two positive controls sit behind it: one planting a bare `Write`, one asserting the wildcard
+  stays legal. Sixteen controls, all passing.
+
+  **`selection-dossier` was preloaded by `rebuild-adjudicator` and did not exist**, so that
+  agent silently loaded two skills of three. It is written, and its shape is dictated by the
+  finding that names it: selection is where the chain breaks — measured not significantly
+  better than chance, with "picking the best" and "picking the original" correlated **−0.40**.
+  So it never ranks and never recommends: two axes never summed (originality and feasibility
+  are correlated **−0.71**, so one number destroys the information), no forced pairwise
+  (breaking ties moved a win rate 27.2% → 49.1%), a drift column that is visible but does not
+  reorder anything, and three mandatory what-is-not-here sections, because a shortlist is a
+  pruned fault tree and Fischhoff's subjects recovered 30% of a pruned branch — 1 of 55.
+
+  **B128 is settled and the news is good.** `git log --all -- docs/as-built` is empty here:
+  never committed, nothing deleted, no history to recover. But the corpus is intact at
+  `/home/user/scio/docs/as-built/`, `graph.json` included — 5,173 nodes and **12,054 links**,
+  exactly the denominator `system-decomposition` quotes. The twenty-eight citing files are off
+  by a repository, not pointing at nothing; the ground truth behind eval cases S1, S2, S4, R2
+  and R5 exists, and B125's bars can be met.
+
+  **B135 opened while settling it.** The graph names `built_at_commit 00408d34…` and
+  `git cat-file -t` cannot resolve that object in `/home/user/scio`. The graph was built from a
+  tree state that was never committed, so it cannot be tied to a checkout: usable for locating
+  call sites, not as evidence of what the code said at a revision.
 - 2026-08-28 — **The architect repaired against a known defect list** (ADR-0021 amended;
   B128, B129 opened).
 

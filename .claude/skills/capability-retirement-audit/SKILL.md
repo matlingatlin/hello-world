@@ -34,7 +34,8 @@ document.
 
 ## 1 · Build the capability inventory from the artefact, not from the plan
 
-Open `references/corpus.md` for the absolute paths — **`docs/as-built/` is not in
+Open `.claude/skills/proposal-adjudication/references/corpus.md` for the
+absolute paths — **`docs/as-built/` is not in
 this repository**, and twelve files here cite it as though it were.
 
 List capabilities: things the system does that someone could ask for by name. A
